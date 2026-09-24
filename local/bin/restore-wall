@@ -1,0 +1,5 @@
+#!/bin/sh
+# restore-wall — called at login to put the last wallpaper and theme back
+pgrep -x awww-daemon >/dev/null 2>&1 || { awww-daemon & sleep 0.5; }
+img=$(cat "$HOME/.cache/wallpaper" 2>/dev/null)
+[ -f "$img" ] && awww img "$img" --transition-type none

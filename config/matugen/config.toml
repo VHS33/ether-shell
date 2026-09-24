@@ -1,0 +1,55 @@
+# ~/.config/matugen/config.toml  (Æther)
+#
+#   setwall <image>  ->  palette derived from the image, written into
+#                        every app below, each reloaded by its post_hook
+#
+# setwall also passes --type, --contrast, --prefer and --mode from
+# ~/.config/matugen/shell-theme, which Settings > Theme writes.
+
+[config.wallpaper]
+command = "awww img {{ image }} --transition-type grow --transition-fps 60 --transition-duration 0.4"
+set     = true
+
+# re-reads the palette in place; restarting the shell would close panels
+[templates.quickshell]
+input_path  = "~/.config/matugen/templates/quickshell-colors.json"
+output_path = "~/.config/quickshell/colors.json"
+post_hook   = "qs ipc call theme reload"
+
+[templates.kitty]
+input_path  = "~/.config/matugen/templates/kitty-colors.conf"
+output_path = "~/.config/kitty/colors.conf"
+post_hook   = "pkill -USR1 -x kitty"
+
+[templates.rofi]
+input_path  = "~/.config/matugen/templates/rofi-colors.rasi"
+output_path = "~/.config/rofi/colors.rasi"
+
+# Hyprland only watches hyprland.lua, not files it dofile()s, so the
+# reload has to be explicit or borders keep their old colours.
+[templates.hyprland]
+input_path  = "~/.config/matugen/templates/hyprland-colors.lua"
+output_path = "~/.config/hypr/colors.lua"
+post_hook   = "hyprctl reload"
+
+[templates.hyprlock]
+input_path  = "~/.config/matugen/templates/hyprlock-colors.conf"
+output_path = "~/.config/hypr/hyprlock-colors.conf"
+
+[templates.gtk3]
+input_path  = "~/.config/matugen/templates/gtk-colors.css"
+output_path = "~/.config/gtk-3.0/colors.css"
+
+[templates.gtk4]
+input_path  = "~/.config/matugen/templates/gtk4.css"
+output_path = "~/.config/gtk-4.0/gtk.css"
+
+# KDE apps need both the [Colors:*] blocks in kdeglobals and a named
+# scheme file.  setwall tells open KDE apps to reload once all are written.
+[templates.kde]
+input_path  = "~/.config/matugen/templates/kdeglobals"
+output_path = "~/.config/kdeglobals"
+
+[templates.kdescheme]
+input_path  = "~/.config/matugen/templates/Matugen.colors"
+output_path = "~/.local/share/color-schemes/Matugen.colors"

@@ -1,0 +1,143 @@
+/*  launcher.rasi — matches the quickshell bar
+ *  Colours come from colors.rasi, which matugen regenerates on every
+ *  wallpaper change.  Nothing below hardcodes a colour.
+ */
+
+@import "colors.rasi"
+
+configuration {
+    modi:                "drun,run,window";
+    show-icons:          true;
+    icon-theme:          "Papirus-Dark";
+    drun-display-format: "{name}";
+    display-drun:        "󰀻";
+    display-run:         "󰆍";
+    display-window:      "󰖲";
+    kb-cancel:           "Escape";
+    hover-select:        true;
+    me-select-entry:     "";
+    me-accept-entry:     "MousePrimary";
+}
+
+* {
+    font:             "JetBrainsMono Nerd Font 12";
+    background-color: transparent;
+    text-color:       @fg;
+    margin:           0;
+    padding:          0;
+    spacing:          0;
+}
+
+window {
+    location:         center;
+    anchor:           center;
+    width:            680px;
+    transparency:     "real";
+    background-color: @bg;
+    border:           1px;
+    border-color:     @border-col;
+    border-radius:    20px;
+}
+
+mainbox {
+    padding:  18px;
+    spacing:  14px;
+    children: [ inputbar, listview, mode-switcher ];
+}
+
+/* ---- search pill ---- */
+inputbar {
+    background-color: @bg-alt;
+    border-radius:    14px;
+    padding:          12px 16px;
+    spacing:          12px;
+    children:         [ textbox-search, entry ];
+}
+
+/* a fixed magnifier; the mode is shown by the tabs along the bottom */
+textbox-search {
+    expand:         false;
+    str:            "󰍉";
+    text-color:     @accent;
+    vertical-align: 0.5;
+    font:           "JetBrainsMono Nerd Font 14";
+}
+
+entry {
+    placeholder:       "Search apps";
+    placeholder-color: @fg-alt;
+    cursor:            text;
+    vertical-align:    0.5;
+}
+
+/* ---- results ---- */
+listview {
+    columns:      1;
+    lines:        8;
+    fixed-height: true;
+    scrollbar:    false;
+    cycle:        true;
+    spacing:      4px;
+}
+
+element {
+    padding:       10px 12px;
+    spacing:       14px;
+    border-radius: 12px;
+    cursor:        pointer;
+}
+
+element normal.normal,
+element alternate.normal {
+    background-color: transparent;
+}
+
+element selected.normal {
+    background-color: @selected-bg;
+    text-color:       @selected-fg;
+}
+
+element urgent,
+element selected.urgent {
+    text-color: @urgent;
+}
+
+element-icon {
+    size:           28px;
+    vertical-align: 0.5;
+}
+
+element-text {
+    text-color:     inherit;
+    vertical-align: 0.5;
+}
+
+/* ---- apps / run / windows tabs ---- */
+mode-switcher {
+    spacing: 8px;
+}
+
+button {
+    padding:          8px;
+    border-radius:    11px;
+    background-color: @bg-alt;
+    text-color:       @fg-alt;
+    font:             "JetBrainsMono Nerd Font 14";
+    cursor:           pointer;
+}
+
+button selected {
+    background-color: @accent;
+    text-color:       @selected-fg;
+}
+
+/* shown when rofi has something to say, e.g. "no matches" */
+message {
+    background-color: @bg-alt;
+    border-radius:    12px;
+    padding:          10px 14px;
+}
+
+textbox {
+    text-color: @fg-alt;
+}

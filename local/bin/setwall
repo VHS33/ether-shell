@@ -1,0 +1,57 @@
+#!/bin/sh
+# setwall [image]   — set the wallpaper and retheme everything from it.
+# With no argument, picks one from ~/Pictures/wallpapers via rofi.
+
+WALLDIR="$HOME/Pictures/wallpapers"
+
+if [ -n "$1" ]; then
+    img="$1"
+else
+    img=$(find "$WALLDIR" -type f \
+            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
+          | sort \
+          | rofi -dmenu -i -p "wallpaper" -theme ~/.config/rofi/launcher.rasi)
+fi
+
+[ -z "$img" ] && exit 0
+[ -f "$img" ] || { notify-send "setwall" "no such file: $img"; exit 1; }
+
+# remember it so the session can restore on login
+mkdir -p "$HOME/.cache"
+printf '%s' "$img" > "$HOME/.cache/wallpaper"
+
+# the daemon has to be up before the first image
+pgrep -x awww-daemon >/dev/null 2>&1 || { awww-daemon & sleep 0.5; }
+
+# colour style, contrast and colour source chosen in the quickshell
+# Settings panel (Appearance > Theme).  A missing file means these.
+# PREFER is required: matugen 4 otherwise stops to ask which colour to
+# use, and fails outright when there's no terminal (rofi, the panel).
+TYPE=scheme-tonal-spot
+CONTRAST=0
+PREFER=saturation
+MODE=dark
+[ -f "$HOME/.config/matugen/shell-theme" ] && . "$HOME/.config/matugen/shell-theme"
+[ "$MODE" = light ] || MODE=dark
+
+matugen image "$img" --type "$TYPE" --contrast "$CONTRAST" --prefer "$PREFER" --mode "$MODE"
+
+# GTK apps pick light or dark from these, not from the colours alone
+if [ "$MODE" = light ]; then
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
+    gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3'
+    gsettings set org.gnome.desktop.interface icon-theme   'Papirus-Light'
+else
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+    gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3-dark'
+    gsettings set org.gnome.desktop.interface icon-theme   'Papirus-Dark'
+fi
+
+# Tell open KDE apps (Dolphin, Kate, ...) to reload their palette.
+# Plasma normally sends this; under Hyprland nothing does.  It has to
+# come after matugen has written every file: from a template post_hook
+# it could fire before kdeglobals was rewritten, and apps reloaded the
+# old colours.
+dbus-send --session --type=signal /KGlobalSettings \
+    org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null
+true

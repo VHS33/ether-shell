@@ -1,0 +1,22 @@
+{
+  "bg":      "{{colors.surface.default.hex}}",
+  "card":    "{{colors.surface_container.default.hex}}",
+  "surf":    "{{colors.surface_container_high.default.hex}}",
+  "tile":    "{{colors.surface_container_low.default.hex}}",
+  "border":  "{{colors.outline_variant.default.hex}}",
+  "fg":      "{{colors.on_surface.default.hex}}",
+  "dim":     "{{colors.on_surface_variant.default.hex}}",
+  "faint":   "{{colors.outline.default.hex}}",
+  "blue":    "{{colors.primary.default.hex}}",
+  "green":   "{{colors.tertiary.default.hex}}",
+  "peach":   "{{colors.secondary.default.hex}}",
+  "mauve":   "{{colors.primary_fixed_dim.default.hex}}",
+  "teal":    "{{colors.tertiary_fixed_dim.default.hex}}",
+  "red":     "{{colors.error.default.hex}}",
+  "yellow":  "{{colors.secondary_fixed_dim.default.hex}}",
+
+  "onAccent": "{{colors.on_primary.default.hex}}",
+  "mauveL":   "{{colors.on_primary_fixed_variant.default.hex}}",
+  "tealL":    "{{colors.on_tertiary_fixed_variant.default.hex}}",
+  "yellowL":  "{{colors.on_secondary_fixed_variant.default.hex}}"
+}

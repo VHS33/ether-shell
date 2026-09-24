@@ -1,0 +1,20 @@
+#!/bin/sh
+# shot [full]  — region screenshot to clipboard and file, with a preview
+#                notification.  "full" grabs the whole screen instead.
+
+DIR="$HOME/Pictures/screenshots"
+mkdir -p "$DIR"
+f="$DIR/$(date +%Y-%m-%d_%H-%M-%S).png"
+
+if [ "$1" = "full" ]; then
+    grim "$f" || exit 1
+else
+    geom=$(slurp) || exit 0        # cancelled
+    grim -g "$geom" "$f" || exit 1
+fi
+
+wl-copy < "$f"
+
+# -i gives the notification an image, which the popup renders as a preview
+notify-send -i "$f" -a "screenshot" \
+    "Screenshot saved" "$(basename "$f")  ·  copied to clipboard"
