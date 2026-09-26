@@ -30,14 +30,14 @@ Variants {
         implicitHeight: 24
         radius: 12
         color: clickable && stHov.hovered
-               ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8) : "transparent"
+               ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11) : "transparent"
         Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: stHov }
 
         TextMetrics {
             id: stMetrics
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: st.app.fs(12)
             text: st.widest
         }
@@ -50,7 +50,7 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 text: st.glyph
                 color: st.tint
-                font.family: st.app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: st.app.fs(13)
             }
             Text {
@@ -59,7 +59,7 @@ Variants {
                 horizontalAlignment: Text.AlignRight
                 text: st.value
                 color: st.app.cFg
-                font.family: "Noto Sans"
+                font.family: "Inter"
                 font.pixelSize: st.app.fs(12)
             }
         }
@@ -72,9 +72,19 @@ Variants {
         }
     }
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // part of the older pill style: only built when that's in use
+        active: modelData.name === app.mainScreen && !app.leftMorph
+
     PanelWindow {
         id: winL
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && !app.leftMorph
 
@@ -189,7 +199,7 @@ Variants {
                 Stat {
                     app: rootV.app
                     visible: app.barStats
-                    glyph: "\u{f4bc}"
+                    glyph: "memory"
                     value: app.cpuPct + "%"
                     tint: app.cGreen
                     clickable: true
@@ -198,7 +208,7 @@ Variants {
                 Stat {
                     app: rootV.app
                     visible: app.barStats
-                    glyph: "\u{f035b}"
+                    glyph: "memory_alt"
                     value: app.memPct + "%"
                     tint: app.cPeach
                     clickable: true
@@ -207,7 +217,7 @@ Variants {
                 Stat {
                     app: rootV.app
                     visible: app.gpuOk && app.barGpu
-                    glyph: "\u{f061b}"
+                    glyph: "developer_board"
                     value: app.gpuPct + "%"
                     tint: app.cMauve
                     clickable: true
@@ -217,12 +227,13 @@ Variants {
                     app: rootV.app
                     visible: app.gpuOk && app.barGpu
                     Layout.rightMargin: 2
-                    glyph: "\u{f0e01}"
+                    glyph: "thermostat"
                     value: app.gpuTemp + "\u00b0"
                     widest: "100\u00b0"
                     tint: app.gpuTemp >= 80 ? app.cRed : app.gpuTemp >= 70 ? app.cPeach : app.cTeal
                 }
             }
         }
+    }
     }
 }

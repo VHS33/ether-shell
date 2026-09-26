@@ -1,0 +1,59 @@
+#!/bin/sh
+# Starts (or restarts) Ether Shell.
+#
+#   ether-shell            start it, replacing one that's running
+#
+# When every connected screen is driven by an NVIDIA card, the shell is told
+# to use only NVIDIA's driver.  Otherwise it also loads Mesa, the driver for
+# a second (built-in) graphics chip, which costs about 100 MB for nothing.
+#
+# It's left alone everywhere else: AMD or Intel graphics alone, and laptops
+# (or desktops) where a screen runs from another chip while an NVIDIA card
+# sits alongside.  Forcing NVIDIA there could keep that card awake, draining
+# a laptop's battery, or stop the shell drawing at all.  Only the shell is
+# affected, never anything else Hyprland starts.
+
+sys="${ETHER_SYSFS:-/sys}"              # (for testing)
+nv=/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+
+# yes when there's at least one connected screen and all of them are on
+# cards whose driver is nvidia
+screens_all_on_nvidia() {
+    found=0
+    for st in "$sys"/class/drm/card*-*/status; do
+        [ -r "$st" ] || continue
+        [ "$(cat "$st")" = connected ] || continue
+        conn=${st%/status}                # .../card1-DP-1
+        card=${conn##*/}; card=${card%%-*} # card1
+        drv=$(basename "$(readlink -f "$sys/class/drm/$card/device/driver")" 2>/dev/null)
+        [ "$drv" = nvidia ] || return 1
+        found=1
+    done
+    [ "$found" = 1 ]
+}
+
+if [ -f "$nv" ] && screens_all_on_nvidia; then
+    __EGL_VENDOR_LIBRARY_FILENAMES="$nv"
+    export __EGL_VENDOR_LIBRARY_FILENAMES
+fi
+
+# the native plugin (Ether.Native), when the installer has built it; without
+# it the shell uses its own readers instead
+qmldir="$HOME/.local/lib/ether-shell/qml"
+if [ -d "$qmldir" ]; then
+    QML_IMPORT_PATH="$qmldir${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+    export QML_IMPORT_PATH
+fi
+
+# replace a running shell
+if pgrep -x quickshell >/dev/null 2>&1; then
+    pkill -x quickshell
+    i=0
+    while pgrep -x quickshell >/dev/null 2>&1 && [ $i -lt 50 ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+fi
+
+log="${XDG_RUNTIME_DIR:-/tmp}/ether-shell.log"
+setsid quickshell >"$log" 2>&1 &

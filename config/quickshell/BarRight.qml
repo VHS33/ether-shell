@@ -29,7 +29,7 @@ Variants {
         implicitHeight: 24
         radius: 12
         color: lit ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
-             : sgHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8)
+             : sgHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
              : "transparent"
         Behavior on color { ColorAnimation { duration: app.animQuick } }
 
@@ -50,9 +50,19 @@ Variants {
         }
     }
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // part of the older pill style: only built when that's in use
+        active: modelData.name === app.mainScreen && !app.rightMorph
+
     PanelWindow {
         id: winR
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && !app.rightMorph
 
@@ -70,13 +80,13 @@ Variants {
 
         TextMetrics {
             id: rateMetrics
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: app.fs(12)
             text: "999 KB/s"
         }
         TextMetrics {
             id: volMetrics
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: app.fs(12)
             text: "100%"
         }
@@ -112,11 +122,11 @@ Variants {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: parent.parent.muted ? "\u{f075f}"
-                            : parent.parent.vol < 34 ? "\u{f057f}"
-                            : parent.parent.vol < 67 ? "\u{f0580}" : "\u{f057e}"
+                        text: parent.parent.muted ? "volume_off"
+                            : parent.parent.vol < 34 ? "volume_down"
+                            : parent.parent.vol < 67 ? "volume_down" : "volume_up"
                         color: parent.parent.muted ? app.cFaint : app.cMauve
-                        font.family: app.font
+                        font.family: "Material Symbols Rounded"
                         font.pixelSize: app.fs(14)
                     }
                     Text {
@@ -124,7 +134,7 @@ Variants {
                         width: volMetrics.advanceWidth
                         text: parent.parent.muted ? "Mute" : parent.parent.vol + "%"
                         color: parent.parent.muted ? app.cFaint : app.cFg
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(12)
                     }
                 }
@@ -139,9 +149,9 @@ Variants {
                         spacing: 4
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "\u{f01da}"
+                            text: "arrow_downward"
                             color: app.cGreen
-                            font.family: app.font
+                            font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(13)
                         }
                         Text {
@@ -149,7 +159,7 @@ Variants {
                             width: rateMetrics.advanceWidth
                             text: app.netDown
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                         }
                     }
@@ -157,9 +167,9 @@ Variants {
                         spacing: 4
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "\u{f01db}"
+                            text: "arrow_upward"
                             color: app.cBlue
-                            font.family: app.font
+                            font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(13)
                         }
                         Text {
@@ -167,7 +177,7 @@ Variants {
                             width: rateMetrics.advanceWidth
                             text: app.netUp
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                         }
                     }
@@ -187,7 +197,7 @@ Variants {
                             width: 26
                             height: 24
                             radius: 12
-                            color: trHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8) : "transparent"
+                            color: trHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11) : "transparent"
                             Behavior on color { ColorAnimation { duration: app.animQuick } }
                             HoverHandler { id: trHov }
                             IconImage {
@@ -229,7 +239,7 @@ Variants {
                         visible: app.cfg.clockDate !== false
                         text: Qt.formatDateTime(app.now, "ddd d MMM")
                         color: app.cDim
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(12)
                     }
                     Item {
@@ -244,7 +254,7 @@ Variants {
                                   + (app.cfg.clockSeconds === true ? ":ss" : "")
                                   + (app.cfg.clock24h === true ? "" : " AP"))
                         color: app.cFg
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(12)
                         font.weight: Font.DemiBold
                     }
@@ -258,5 +268,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

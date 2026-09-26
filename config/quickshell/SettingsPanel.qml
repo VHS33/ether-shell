@@ -613,15 +613,30 @@ Variants {
     // ---------------------------------------------------------
     //   the panel
     // ---------------------------------------------------------
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // Built the first time it's opened, then kept for instant opening:
+        // nothing sits in memory for a panel that's never used.
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || app.settingsShown)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: win
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         // Stays mapped and animates itself: mapping a new surface on each
         // open lagged, and Hyprland's own layer fade fought the shell's.
         // Closed, nothing shows and the mask lets every click through.
         visible: modelData.name === app.mainScreen
         readonly property bool open: app.settingsShown
+        // (built because it was just opened, it still runs its opening
+        // setup: the change to open counts as it's created)
 
         // A transparent full-screen layer with the card moving inside
         // it.  Moving the surface itself made every drag event arrive
@@ -1470,13 +1485,18 @@ Variants {
                                         Card {
                                             app: rootV.app
                                             title: "Appearance"
-                                            desc: "Light or dark palette from the same wallpaper, for the shell, terminal, launcher, lock screen and GTK and KDE apps."
+                                            desc: app.cfg.themeMode === "auto"
+                                                  ? (app.nativeOk
+                                                     ? "Chosen by the wallpaper: light for bright ones, dark for the rest (this one is "
+                                                       + (app.wallLightness < 0 ? "being measured" : app.isLight ? "bright, so light" : "dark enough for dark") + ")."
+                                                     : "Auto needs the native plugin, which isn't built: re-run the installer. Until then it stays dark.")
+                                                  : "Light or dark palette from the same wallpaper, for the shell, terminal, launcher, lock screen and GTK and KDE apps. Auto picks by how bright the wallpaper is."
                                             trailing: [
                                                 Seg {
                                                     app: rootV.app
-                                                    options: ["Dark", "Light"]
-                                                    current: app.isLight ? 1 : 0
-                                                    onPicked: i => app.setting("themeMode", i === 1 ? "light" : "dark")
+                                                    options: ["Dark", "Light", "Auto"]
+                                                    current: app.cfg.themeMode === "auto" ? 2 : app.isLight ? 1 : 0
+                                                    onPicked: i => app.setting("themeMode", ["dark", "light", "auto"][i])
                                                 }
                                             ]
                                         }
@@ -1538,6 +1558,26 @@ Variants {
                                                     onChosen: app.setting("themePrefer", modelData.k)
                                                 }
                                             }
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: "Now playing" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Colours from album art"
+                                            desc: app.cfg.artColors === false
+                                                  ? "The media views keep your wallpaper's colours."
+                                                  : !app.nativeOk
+                                                  ? "Needs the native plugin, which isn't built: re-run the installer to build it. Until then the media views keep your wallpaper's colours."
+                                                  : "While something plays, the media drawer, the bar's media pill, the mini player and the island's song card take their colours from the album art, and fade back to your wallpaper's when it stops. Everything else keeps your wallpaper's colours."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "On"]
+                                                    current: app.cfg.artColors !== false ? 1 : 0
+                                                    onPicked: i => app.setting("artColors", i === 1)
+                                                }
+                                            ]
                                         }
 
                                         SectionLabel { app: rootV.app; text: "Contrast" }
@@ -1660,6 +1700,34 @@ Variants {
                                                             asynchronous: true
                                                             cache: true
                                                             sourceSize.width: 360
+                                                        }
+
+                                                        // the colours this wallpaper would give
+                                                        Rectangle {
+                                                            readonly property var colours: app.wallPalettes[thumb.modelData] || []
+                                                            visible: colours.length > 0
+                                                            anchors.left: parent.left
+                                                            anchors.top: parent.top
+                                                            anchors.margins: 8
+                                                            width: swRow.implicitWidth + 10
+                                                            height: 20
+                                                            radius: 10
+                                                            color: Qt.rgba(0, 0, 0, 0.45)
+                                                            Row {
+                                                                id: swRow
+                                                                anchors.centerIn: parent
+                                                                spacing: 3
+                                                                Repeater {
+                                                                    model: parent.parent.colours
+                                                                    delegate: Rectangle {
+                                                                        required property var modelData
+                                                                        width: 12; height: 12; radius: 6
+                                                                        color: modelData
+                                                                        border.width: 1
+                                                                        border.color: Qt.rgba(1, 1, 1, 0.35)
+                                                                    }
+                                                                }
+                                                            }
                                                         }
 
                                                         // check on the one in use
@@ -2057,6 +2125,78 @@ Variants {
                                                 options: ["Slide", "Slide vertically", "Glide", "Fade", "Off"]
                                                 current: wsAnimCard.cur
                                                 onPicked: i => app.setting("wsAnim", wsAnimCard.styles[i])
+                                            }
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: "Gaming" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Automatic game mode"
+                                            desc: app.cfg.autoGameMode !== false
+                                                  ? "When a game starts, animations and blur switch off and the shell does less in the background; everything comes back when it closes. Your own Game mode setting isn't touched. Steam games are recognised by themselves; mark others from the playtime card in the system drawer."
+                                                  : "Games are still recognised and their playtime kept, but the desktop doesn't change for them."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "On"]
+                                                    current: app.cfg.autoGameMode !== false ? 1 : 0
+                                                    onPicked: i => app.setting("autoGameMode", i === 1)
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Notifications while gaming"
+                                            desc: app.cfg.gameQuiet !== false
+                                                  ? "Held while a game runs: nothing pops up, and they're all waiting in quick settings afterwards. Do not disturb isn't changed."
+                                                  : "Shown as usual while a game runs."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Show", "Hold"]
+                                                    current: app.cfg.gameQuiet !== false ? 1 : 0
+                                                    onPicked: i => app.setting("gameQuiet", i === 1)
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            id: vrrCard
+                                            app: rootV.app
+                                            // the choices, in order, as Hyprland's values
+                                            readonly property var modes: [0, 2, 3, 1]
+                                            readonly property int cur: Math.max(0, modes.indexOf(
+                                                Number.isInteger(app.cfg.vrr) ? app.cfg.vrr : 2))
+                                            title: "Variable refresh rate"
+                                            desc: ["Off: the monitor always runs at its full refresh rate.",
+                                                   "G-SYNC / FreeSync for fullscreen windows: the monitor matches a game's frame rate, so dips don't stutter or tear. Off on the desktop, where some monitors flicker with it.",
+                                                   "Only for fullscreen windows that say they're games or video.",
+                                                   "Always on, including the desktop. Some monitors flicker with this."][cur]
+                                            Seg {
+                                                app: rootV.app
+                                                options: ["Off", "Fullscreen", "Games only", "Always"]
+                                                current: vrrCard.cur
+                                                onPicked: i => app.setting("vrr", vrrCard.modes[i])
+                                            }
+                                        }
+
+                                        Card {
+                                            id: scanCard
+                                            app: rootV.app
+                                            readonly property var modes: [0, 2, 1]
+                                            readonly property int cur: Math.max(0, modes.indexOf(
+                                                Number.isInteger(app.cfg.directScanout) ? app.cfg.directScanout : 2))
+                                            title: "Direct scanout"
+                                            desc: ["Off: Hyprland composites every frame, even for fullscreen games.",
+                                                   "A fullscreen game's frames go straight to the monitor, skipping Hyprland: less input lag and GPU work. Only for windows that say they're games.",
+                                                   "Any fullscreen window's frames go straight to the monitor. If something flickers or looks wrong fullscreen, go back to Games."][cur]
+                                            Seg {
+                                                app: rootV.app
+                                                options: ["Off", "Games", "Any fullscreen"]
+                                                current: scanCard.cur
+                                                onPicked: i => app.setting("directScanout", scanCard.modes[i])
                                             }
                                         }
                                     }
@@ -3670,5 +3810,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

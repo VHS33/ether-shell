@@ -21,9 +21,19 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // part of the older pill style: only built when that's in use
+        active: modelData.name === app.mainScreen && !app.barMorph
+
     PanelWindow {
         id: winM
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.player !== null && !app.barMorph
         readonly property bool open: app.cardShown
@@ -66,5 +76,6 @@ Variants {
                 radius: card.radius
             }
         }
+    }
     }
 }

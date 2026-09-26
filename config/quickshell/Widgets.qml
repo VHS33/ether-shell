@@ -79,7 +79,7 @@ Variants {
                           ? "Drag widgets to move them. The \u00d7 removes one."
                           : "No widgets on this screen. Add some in Settings, Widgets."
                     color: app.cFg
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(13)
                 }
                 Rectangle {
@@ -93,7 +93,7 @@ Variants {
                         anchors.centerIn: parent
                         text: "Done"
                         color: app.cOnAccent
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(13)
                         font.bold: true
                     }
@@ -176,15 +176,15 @@ Variants {
                     anchors.top: parent.top
                     anchors.margins: -12
                     width: 28; height: 28; radius: 14
-                    color: rmHov.hovered ? app.cRed : app.cSurf
+                    color: rmHov.hovered ? app.cRed : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                     border.width: 1
                     border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.8)
                     HoverHandler { id: rmHov }
                     Text {
                         anchors.centerIn: parent
-                        text: "\u{f0156}"
+                        text: "close"
                         color: rmHov.hovered ? app.cOnAccent : app.cFg
-                        font.family: app.font
+                        font.family: "Material Symbols Rounded"
                         font.pixelSize: app.fs(14)
                     }
                     MouseArea {
@@ -223,7 +223,7 @@ Variants {
                                   ? Qt.formatDateTime(app.now, "HH:mm")
                                   : Qt.formatDateTime(app.now, "h:mm AP").split(" ")[0]
                             color: app.cFg
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(72)
                             font.weight: Font.Light
                         }
@@ -232,7 +232,7 @@ Variants {
                             anchors.baseline: clT.baseline
                             text: Qt.formatDateTime(app.now, "AP")
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(20)
                         }
                     }
@@ -240,7 +240,7 @@ Variants {
                         Layout.alignment: Qt.AlignHCenter
                         text: Qt.formatDateTime(app.now, "dddd, d MMMM")
                         color: app.cDim
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(15)
                     }
                 }
@@ -262,9 +262,9 @@ Variants {
                     anchors.margins: 20
                     spacing: 16
                     Text {
-                        text: app.wxOk ? app.wxGlyph(app.wxCond) : "\u{f05f7}"
+                        text: app.wxOk ? app.wxSymbol(app.wxCond, app.wxDay) : "cloud_off"
                         color: app.cYellow
-                        font.family: app.font
+                        font.family: "Material Symbols Rounded"
                         font.pixelSize: app.fs(54)
                     }
                     ColumnLayout {
@@ -273,7 +273,7 @@ Variants {
                         Text {
                             text: app.wxOk ? app.wxTemp : "\u2014"
                             color: app.cFg
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(34)
                             font.weight: Font.Light
                         }
@@ -281,7 +281,7 @@ Variants {
                             Layout.fillWidth: true
                             text: app.wxOk ? app.wxCond : (app.wxHasPlace ? "No weather yet" : "Set a location in Settings, Weather")
                             color: app.cFg
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(13)
                             elide: Text.ElideRight
                         }
@@ -289,7 +289,7 @@ Variants {
                             Layout.fillWidth: true
                             text: app.wxPlace + (app.wxOk ? ", feels " + app.wxFeel : "")
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(11)
                             elide: Text.ElideRight
                         }
@@ -333,7 +333,7 @@ Variants {
                     Text {
                         text: Qt.formatDateTime(app.now, "MMMM yyyy")
                         color: app.cFg
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(15)
                         font.bold: true
                     }
@@ -351,7 +351,7 @@ Variants {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: ["S", "M", "T", "W", "T", "F", "S"][dow]
                                 color: (dow === 0 || dow === 6) ? app.cPeach : app.cDim
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(11)
                                 font.bold: true
                             }
@@ -371,7 +371,7 @@ Variants {
                                     text: parent.modelData.d
                                     color: parent.modelData.today ? app.cOnAccent
                                          : parent.modelData.hol ? app.cPeach : app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(12)
                                     font.bold: parent.modelData.today === true
                                 }
@@ -400,34 +400,38 @@ Variants {
                     anchors.margins: 18
                     spacing: 10
                     Repeater {
-                        model: [
-                            { k: "CPU",    v: app.cpuPct,  t: app.cpuPct + "%",  c: "green",  show: true },
-                            { k: "Memory", v: app.memPct,  t: app.memPct + "%",  c: "peach",  show: true },
-                            { k: "GPU",    v: app.gpuPct,  t: app.gpuPct + "%",  c: "mauve",  show: app.gpuOk },
-                            { k: "GPU temp", v: Math.min(100, app.gpuTemp), t: app.gpuTemp + "\u00b0C", c: "teal", show: app.gpuOk }
-                        ]
+                        // four fixed rows that read their own live values; handing
+                        // the values in the list remade all four every 2 seconds
+                        model: ["cpu", "mem", "gpu", "gtemp"]
                         delegate: ColumnLayout {
                             id: sysRow
-                            required property var modelData
+                            required property string modelData
+                            readonly property var row: modelData === "cpu"
+                                ? { k: "CPU", v: app.cpuPct, t: app.cpuPct + "%", c: "green", show: true }
+                                : modelData === "mem"
+                                ? { k: "Memory", v: app.memPct, t: app.memPct + "%", c: "peach", show: true }
+                                : modelData === "gpu"
+                                ? { k: "GPU", v: app.gpuPct, t: app.gpuPct + "%", c: "mauve", show: app.gpuOk }
+                                : { k: "GPU temp", v: Math.min(100, app.gpuTemp), t: app.gpuTemp + "\u00b0C", c: "teal", show: app.gpuOk }
                             readonly property color tint: ({
                                 green: app.cGreen, peach: app.cPeach, mauve: app.cMauve, teal: app.cTeal
-                            })[modelData.c]
-                            visible: modelData.show
+                            })[sysRow.row.c]
+                            visible: sysRow.row.show
                             Layout.fillWidth: true
                             spacing: 4
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {
                                     Layout.fillWidth: true
-                                    text: sysRow.modelData.k
+                                    text: sysRow.row.k
                                     color: app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(12)
                                 }
                                 Text {
-                                    text: sysRow.modelData.t
+                                    text: sysRow.row.t
                                     color: app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(12)
                                     font.bold: true
                                 }
@@ -436,9 +440,9 @@ Variants {
                                 Layout.fillWidth: true
                                 implicitHeight: 8
                                 radius: 4
-                                color: app.cSurf
+                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 Rectangle {
-                                    width: parent.width * Math.max(0, Math.min(1, sysRow.modelData.v / 100))
+                                    width: parent.width * Math.max(0, Math.min(1, sysRow.row.v / 100))
                                     height: parent.height
                                     radius: 4
                                     color: sysRow.tint
@@ -475,19 +479,22 @@ Variants {
                         Rectangle {
                             anchors.fill: parent
                             radius: 16
-                            color: app.cSurf
+                            color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                             Text {
                                 anchors.centerIn: parent
                                 visible: !artImg.source.toString()
-                                text: "\u{f075a}"
+                                text: "music_note"
                                 color: app.cFaint
-                                font.family: app.font
+                                font.family: "Material Symbols Rounded"
                                 font.pixelSize: app.fs(30)
                             }
                         }
                         Image {
                             id: artImg
                             anchors.fill: parent
+                            // the media widget shows it small
+                            sourceSize.width: 320
+                            sourceSize.height: 320
                             source: app.player?.trackArtUrl ?? ""
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -518,7 +525,7 @@ Variants {
                             Layout.fillWidth: true
                             text: app.player?.trackTitle || "Nothing playing"
                             color: app.cFg
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(15)
                             font.bold: true
                             elide: Text.ElideRight
@@ -528,7 +535,7 @@ Variants {
                             visible: text !== ""
                             text: app.player?.trackArtist ?? ""
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                             elide: Text.ElideRight
                         }
@@ -538,9 +545,9 @@ Variants {
                             visible: app.player !== null
                             Repeater {
                                 model: [
-                                    { g: "\u{f04ae}", a: "prev" },
+                                    { g: "skip_previous", a: "prev" },
                                     { g: "",          a: "play" },
-                                    { g: "\u{f04ad}", a: "next" }
+                                    { g: "skip_next", a: "next" }
                                 ]
                                 delegate: Rectangle {
                                     id: mb
@@ -549,13 +556,13 @@ Variants {
                                     implicitWidth: isPlay ? 38 : 32
                                     implicitHeight: implicitWidth
                                     radius: implicitWidth / 2
-                                    color: isPlay ? app.cBlue : mbHov.hovered ? app.cSurf : "transparent"
+                                    color: isPlay ? app.cBlue : mbHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                                     HoverHandler { id: mbHov }
                                     Text {
                                         anchors.centerIn: parent
-                                        text: mb.isPlay ? (medW.playing ? "\u{f03e4}" : "\u{f040a}") : mb.modelData.g
+                                        text: mb.isPlay ? (medW.playing ? "pause" : "play_arrow") : mb.modelData.g
                                         color: mb.isPlay ? app.cOnAccent : app.cFg
-                                        font.family: app.font
+                                        font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(mb.isPlay ? 17 : 15)
                                     }
                                     MouseArea {
@@ -596,7 +603,7 @@ Variants {
                     anchors.margins: 20
                     text: parent.parent.entry?.text || ""
                     color: app.cFg
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(14)
                     wrapMode: Text.WordWrap
                     lineHeight: 1.2

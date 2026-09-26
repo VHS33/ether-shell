@@ -21,12 +21,27 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // Built the first time it's opened, then kept for instant opening:
+        // nothing sits in memory for a panel that's never used.
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || app.aiShown)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: aw
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen
         readonly property bool open: app.aiShown
+        // (built because it was just opened, it still runs its opening
+        // setup: the change to open counts as it's created)
         readonly property var prov: app.aiProviders[app.aiProvider]
         // the setup screen: shown when there's no key for the chosen
         // provider, or when opened with the gear
@@ -834,5 +849,6 @@ Variants {
         }
 
         Process { id: copier }
+    }
     }
 }

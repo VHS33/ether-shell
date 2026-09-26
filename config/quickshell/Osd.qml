@@ -16,9 +16,23 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // Only needed when the island isn't showing volume and brightness
+        // (or a drawer is open, when the island steps aside); built on first
+        // use, then kept.
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || !app.islandOsd || app.osdShown)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: winOsd
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         // stays mapped on the main screen; the pill fades and slides
         visible: modelData.name === app.mainScreen
@@ -137,5 +151,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

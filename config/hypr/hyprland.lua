@@ -83,7 +83,8 @@ local function cmd(v, default)
 end
 local terminal    = cmd(S.terminal, "kitty")
 local fileManager = cmd(S.file_manager, "dolphin")
-local menu        = "rofi -show drun -theme " .. os.getenv("HOME") .. "/.config/rofi/launcher.rasi"
+-- SUPER + R: rofi, kept as a fallback launcher
+local menu        = "sh -c 'pkill rofi || rofi -show drun -theme ~/.config/rofi/launcher.rasi'"
 
 
 -------------------
@@ -97,7 +98,9 @@ local menu        = "rofi -show drun -theme " .. os.getenv("HOME") .. "/.config/
 --
 hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
-    hl.exec_cmd("quickshell")
+    -- through its start-up script, which keeps it on NVIDIA's driver alone
+    -- when that's installed (about 100 MB less)
+    hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/ether-shell")
     hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/restore-wall")
     hl.exec_cmd("hypridle")
     -- clipboard history: text, and images (the clipboard panel shows them
@@ -152,6 +155,14 @@ local animOn      = S.animations ~= false
 -- game mode (quick settings): blur, shadows and animations off, for the
 -- highest frame rate; everything returns when it's switched off
 local gameMode    = S.game_mode == true
+-- For games (Settings > Windows > Gaming):
+--   vrr: variable refresh rate (G-SYNC / FreeSync).  0 off, 1 always,
+--        2 fullscreen only (the default), 3 fullscreen games and video only
+--   direct_scanout: a fullscreen window's frames go straight to the monitor,
+--        skipping compositing: less latency and GPU work.  0 off, 1 any
+--        fullscreen window, 2 only windows that say they're games (default)
+local vrrMode     = int(S.vrr,            2, 0, 3)
+local scanout     = int(S.direct_scanout, 2, 0, 2)
 local animSpeed   = num(S.anim_speed,       1.0, 0.25, 4)   -- 2 = twice as fast
 local repeatRate  = int(S.repeat_rate,      25,  5,  100)   -- keys per second
 local repeatDelay = int(S.repeat_delay,     600, 150, 1500) -- ms before repeating
@@ -332,6 +343,10 @@ hl.config({
     misc = {
         force_default_wallpaper = -1,    -- Set to 0 or 1 to disable the anime mascot wallpapers
         disable_hyprland_logo   = false, -- If true disables the random hyprland logo / anime girl background. :(
+        vrr                     = vrrMode,
+    },
+    render = {
+        direct_scanout = scanout,
     },
 })
 

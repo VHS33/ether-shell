@@ -29,12 +29,27 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // Built the first time it's opened, then kept for instant opening:
+        // nothing sits in memory for a panel that's never used.
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || app.launcherShown)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: lw
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen
         readonly property bool open: app.launcherShown
+        // (built because it was just opened, it still runs its opening
+        // setup: the change to open counts as it's created)
         // Its own floating card, centred a little above the middle of the
         // screen, whatever the bar style.  (It used to grow out of the long
         // bar as a drawer; `att` is kept false so that path stays unused.)
@@ -98,7 +113,7 @@ Variants {
         readonly property string q: search.text
         readonly property string mode:
             q.startsWith("=") ? "calc" : q.startsWith(":") ? "emoji"
-            : q.startsWith(";") ? "clip" : q.startsWith(">") ? "cmd" : "apps"
+            : q.startsWith(";") ? "clip" : q.startsWith(">") ? "cmd" : q.startsWith("@") ? "scene" : "apps"
         readonly property string term: (mode === "apps" ? q : q.slice(1)).trim().toLowerCase()
         property int sel: 0
         onQChanged: sel = 0
@@ -163,6 +178,20 @@ Variants {
                                    glyph: "content_paste", id: c.id })
                     if (out.length >= 60) break
                 }
+                return out
+            }
+            if (mode === "scene") {
+                const name = q.slice(1).trim()
+                const exact = app.sceneList.some(sc => sc.name.toLowerCase() === t)
+                // a new name: save the desktop as it
+                if (name !== "" && !exact)
+                    out.push({ kind: "scenesave", title: "Save this desktop as \u201c" + name + "\u201d",
+                               sub: "Every window and the workspace it's on", name: name })
+                for (const sc of app.sceneList)
+                    if (t === "" || sc.name.toLowerCase().indexOf(t) !== -1)
+                        out.push({ kind: "scene", title: sc.name, name: sc.name,
+                                   sub: (sc.count === 1 ? "1 window" : sc.count + " windows")
+                                        + "  \u2022  Enter restores, Ctrl+Enter saves over it, Delete removes it" })
                 return out
             }
             if (mode === "cmd") {
@@ -231,7 +260,7 @@ Variants {
             app.launcherShown = false
             if (r.kind === "app") {
                 const d = DesktopEntries.byId(r.id)
-                if (d) { d.execute(); app.noteLaunch(r.id) }
+                if (d) { app.launchEntry(d); app.noteLaunch(r.id) }
             } else if (r.kind === "calc") {
                 if (r.value !== null && r.value !== undefined)
                     sh("printf %s '" + String(r.value).replace(/'/g, "") + "' | wl-copy")
@@ -243,6 +272,10 @@ Variants {
                 app.startTimer(r.value)
             } else if (r.kind === "web") {
                 sh("xdg-open 'https://duckduckgo.com/?q=" + encodeURIComponent(q.trim()) + "'")
+            } else if (r.kind === "scene") {
+                app.sceneRestore(r.name)
+            } else if (r.kind === "scenesave") {
+                app.sceneSave(r.name)
             } else if (r.kind === "cmd") {
                 const a = r.act
                 if (a === "lock") sh("sleep 0.3; loginctl lock-session")
@@ -333,7 +366,8 @@ Variants {
                         spacing: 12
                         Text {
                             text: lw.mode === "calc" ? "calculate" : lw.mode === "emoji" ? "mood"
-                                : lw.mode === "clip" ? "content_paste" : lw.mode === "cmd" ? "terminal" : "search"
+                                : lw.mode === "clip" ? "content_paste" : lw.mode === "cmd" ? "terminal"
+                                : lw.mode === "scene" ? "view_quilt" : "search"
                             color: app.cBlue
                             font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(22)
@@ -367,6 +401,12 @@ Variants {
                                     lw.sel = Math.min(n - 1, lw.sel + 6)
                                 } else if (e.key === Qt.Key_PageUp) {
                                     lw.sel = Math.max(0, lw.sel - 6)
+                                } else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
+                                           && (e.modifiers & Qt.ControlModifier) && lw.results[lw.sel]?.kind === "scene") {
+                                    app.launcherShown = false
+                                    app.sceneSave(lw.results[lw.sel].name)
+                                } else if (e.key === Qt.Key_Delete && lw.results[lw.sel]?.kind === "scene") {
+                                    app.sceneRemove(lw.results[lw.sel].name)
                                 } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
                                     lw.activate(lw.sel)
                                 } else return
@@ -386,7 +426,8 @@ Variants {
                             { m: "calc",  label: "Calculator", p: "=" },
                             { m: "emoji", label: "Emoji",      p: ":" },
                             { m: "clip",  label: "Clipboard",  p: ";" },
-                            { m: "cmd",   label: "Commands",   p: ">" }
+                            { m: "cmd",   label: "Commands",   p: ">" },
+                            { m: "scene", label: "Scenes",     p: "@" }
                         ]
                         delegate: Rectangle {
                             id: chip
@@ -540,7 +581,8 @@ Variants {
                     Text {
                         anchors.centerIn: parent
                         visible: lw.results.length === 0
-                        text: lw.mode === "clip" ? "Nothing copied yet"
+                        text: lw.mode === "scene" ? "No scenes yet: type a name after @ to save this desktop"
+                            : lw.mode === "clip" ? "Nothing copied yet"
                             : lw.mode === "emoji" && !lw.emoji.length ? "Loading emoji\u2026"
                             : "Nothing matches"
                         color: app.cFaint
@@ -559,5 +601,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

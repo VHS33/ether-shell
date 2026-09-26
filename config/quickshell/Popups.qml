@@ -19,9 +19,18 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        active: modelData.name === app.mainScreen
+
     PanelWindow {
         id: winN
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.popups.length > 0
 
@@ -322,6 +331,9 @@ Variants {
                                 clip: true
                                 Image {
                                     anchors.fill: parent
+                                    // a screenshot here would otherwise be held at full size
+                                    sourceSize.width: 480
+                                    sourceSize.height: 480
                                     source: pop.modelData.image ?? ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
@@ -353,5 +365,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

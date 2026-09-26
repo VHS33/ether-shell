@@ -35,32 +35,62 @@ ShellRoot {
     }
     readonly property real bgA:
         Math.max(0.3, Math.min(1, Number(cfg.bgOpacity) || 0.75))
-    readonly property color cBg:     withAlpha(pal.bg ?? "#1e1e2e", hexA(bgA))
-    readonly property color cCard:   withAlpha(pal.card ?? "#1e1e2e", hexA(bgA))
-    readonly property color cSurf:   pal.surf   ?? "#313244"
-    readonly property color cTile:   withAlpha(pal.tile, "33") ?? "#33313244"
-    readonly property color cBorder: pal.border ?? "#414356"
-    readonly property color cFg:     pal.fg     ?? "#cdd6f4"
-    readonly property color cDim:    pal.dim    ?? "#a6adc8"
-    readonly property color cFaint:  pal.faint  ?? "#6c7086"
-    readonly property color cBlue:   pal.blue   ?? "#89b4fa"
-    readonly property color cGreen:  pal.green  ?? "#a6e3a1"
-    readonly property color cPeach:  pal.peach  ?? "#fab387"
+    property color cBg:     withAlpha(pal.bg ?? "#1e1e2e", hexA(bgA))
+    property color cCard:   withAlpha(pal.card ?? "#1e1e2e", hexA(bgA))
+    property color cSurf:   pal.surf   ?? "#313244"
+    property color cTile:   withAlpha(pal.tile, "33") ?? "#33313244"
+    property color cBorder: pal.border ?? "#414356"
+    property color cFg:     pal.fg     ?? "#cdd6f4"
+    property color cDim:    pal.dim    ?? "#a6adc8"
+    property color cFaint:  pal.faint  ?? "#6c7086"
+    property color cBlue:   pal.blue   ?? "#89b4fa"
+    property color cGreen:  pal.green  ?? "#a6e3a1"
+    property color cPeach:  pal.peach  ?? "#fab387"
     // light mode swaps the three pastel "fixed" accents for darker
     // companions, which would otherwise wash out on a light background
+    // Light, dark, or "auto": light for wallpapers that look bright (their
+    // lightness, 0-100, measured by the native plugin; above 60 is light).
+    // Without the plugin, auto stays dark.
     readonly property bool isLight: cfg.themeMode === "light"
-    readonly property color cMauve:  (isLight ? pal.mauveL : pal.mauve) ?? "#cba6f7"
-    readonly property color cTeal:   (isLight ? pal.tealL : pal.teal)   ?? "#94e2d5"
-    readonly property color cRed:    pal.red    ?? "#f38ba8"
-    readonly property color cYellow: (isLight ? pal.yellowL : pal.yellow) ?? "#f9e2af"
+                                    || (cfg.themeMode === "auto" && wallLightness > 60)
+    property real wallLightness: -1
+    property color cMauve:  (isLight ? pal.mauveL : pal.mauve) ?? "#cba6f7"
+    property color cTeal:   (isLight ? pal.tealL : pal.teal)   ?? "#94e2d5"
+    property color cRed:    pal.red    ?? "#f38ba8"
+    property color cYellow: (isLight ? pal.yellowL : pal.yellow) ?? "#f9e2af"
     // text and icons drawn on top of an accent colour
-    readonly property color cOnAccent: pal.onAccent ?? "#1e1e2e"
+    property color cOnAccent: pal.onAccent ?? "#1e1e2e"
     // Material's filled-but-deeper accent (the clock's group, tiles that
     // are on) and the text that sits on it.  Until matugen has written
     // them, a mix of the accent and the background stands in.
-    readonly property color cPrimC: pal.primaryC ?? Qt.tint(pal.bg ?? "#1e1e2e",
+    property color cPrimC: pal.primaryC ?? Qt.tint(pal.bg ?? "#1e1e2e",
                                                     Qt.rgba(cBlue.r, cBlue.g, cBlue.b, 0.35))
-    readonly property color cOnPrimC: pal.onPrimaryC ?? cFg
+    property color cOnPrimC: pal.onPrimaryC ?? cFg
+
+    // ---- theme changes fade instead of snapping ----
+    // Each colour eases to its new value over about half a second.  Off
+    // until the first palette has loaded, so the shell doesn't sweep in
+    // from its fallback colours at every login.
+    property bool colourFade: false
+    Timer { id: fadeOn; interval: 800; onTriggered: root.colourFade = true }
+    Behavior on cBg { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cCard { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cSurf { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cTile { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cBorder { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cFg { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cDim { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cFaint { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cBlue { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cGreen { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cPeach { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cMauve { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cTeal { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cRed { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cYellow { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cOnAccent { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cPrimC { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
+    Behavior on cOnPrimC { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
     // dimming layers: the background colour at a given strength
     function scrim(a) { return withAlpha(pal.bg ?? "#1e1e2e", hexA(a)) }
     readonly property string font:   "JetBrainsMono Nerd Font"
@@ -158,7 +188,8 @@ ShellRoot {
     readonly property real mainScreenW: Quickshell.screens.find(s => s.name === mainScreen)?.width ?? 1920
     function showIsland(d, ms) {
         if (!islandOn || cardShown || quickShown || sysShown || launcherShown) return
-        const w = d.kind === "notif" ? 460 : d.kind === "track" ? 420 : d.kind === "timer" ? 380 : 330
+        const w = d.kind === "notif" ? 460 : d.kind === "track" ? 420 : d.kind === "timer" ? 380
+                : d.kind === "game" ? 440 : d.kind === "scene" ? 400 : 330
         // a different kind of event folds the island away and grows it again
         if (islandShown && islandData.kind !== d.kind) drawerRestart++
         islandData = d
@@ -183,7 +214,7 @@ ShellRoot {
         interval: 700
         onTriggered: {
             const p = root.player
-            if (!p || !root.osdLive || root.cardShown || p.playbackState !== MprisPlaybackState.Playing) return
+            if (!p || !root.osdLive || root.cardShown || root.gameRunning || p.playbackState !== MprisPlaybackState.Playing) return
             if (!(p.trackTitle || "")) return
             root.showIsland({ kind: "track", title: p.trackTitle || "", artist: p.trackArtist || "",
                               art: p.trackArtUrl || "", app: p.identity || "" }, 3500)
@@ -195,7 +226,12 @@ ShellRoot {
     // the usual way), and `qs ipc call drawer state` prints what the shell
     // believes right now; `reset` forces every drawer shut.
     property real drawerStripP: 0          // BarStrip's own progress, for the log
+    // Drawer logging, only with ETHER_DEBUG=1 (the log lives in RAM, under
+    // /run, so it shouldn't grow all day).  `qs ipc call drawer state` works
+    // either way.
+    readonly property bool debugLog: Quickshell.env("ETHER_DEBUG") === "1"
     function drawerLog(what) {
+        if (!debugLog) return
         console.log("drawer: " + what + " | now=" + (drawerNow || "-") + " who=" + (drawerWho || "-")
                     + " to=" + drawerTo + " p=" + drawerP.toFixed(3) + " strip=" + drawerStripP.toFixed(3)
                     + " card=" + cardShown + " quick=" + quickShown + " sys=" + sysShown
@@ -330,22 +366,17 @@ ShellRoot {
     }
     readonly property bool secondFocused: (Hyprland.focusedMonitor?.name ?? "") === secondScreen && secondScreen !== ""
 
-    // the app to show for each workspace: the active window if it's there,
-    // otherwise the first window on it.  Plain strings, keyed by id.
+    // the app to show for each workspace: its first window's, which stays the
+    // same as focus moves (following the focused window swapped the icon
+    // back and forth on every click).  Plain strings, keyed by id.
     readonly property var wsApps: {
         const out = {}
-        const act = ToplevelManager.activeToplevel
         for (const w of Hyprland.workspaces.values) {
             if (w.id <= 0) continue
-            const list = w.toplevels?.values ?? []
-            let pick = null
-            for (const t of list) {
+            for (const t of (w.toplevels?.values ?? [])) {
                 const id = t.wayland?.appId ?? ""
-                if (!id) continue
-                if (!pick) pick = id
-                if (act && t.wayland === act) { pick = id; break }
+                if (id) { out[w.id] = id; break }
             }
-            if (pick) out[w.id] = pick
         }
         return out
     }
@@ -480,9 +511,28 @@ ShellRoot {
         setting("dockPinned", list)
         return true
     }
-    function launchApp(id) {
-        const e = DesktopEntries.byId(id)
-        if (e) e.execute()
+    function launchApp(id) { launchEntry(DesktopEntries.byId(id)) }
+
+    // Apps opened from the shell start as its children, so they'd inherit
+    // its environment.  The start-up script may keep the shell itself on
+    // NVIDIA's driver alone (__EGL_VENDOR_LIBRARY_FILENAMES); apps must not
+    // inherit that, so they start exactly as they would from anywhere else.
+    readonly property var appEnv: ({ "__EGL_VENDOR_LIBRARY_FILENAMES": null })
+    function launchEntry(e) {
+        if (!e) return
+        try {
+            let cmd = e.command ? Array.from(e.command) : []
+            if (!cmd.length) { e.execute(); return }
+            if (e.runInTerminal) cmd = [cfg.appTerminalCmd || "kitty", "-e"].concat(cmd)
+            Quickshell.execDetached({
+                command: cmd,
+                workingDirectory: e.workingDirectory || Quickshell.env("HOME"),
+                environment: root.appEnv
+            })
+        } catch (err) {
+            // older Quickshell without this form: start it the plain way
+            e.execute()
+        }
     }
 
     // ---- desktop widgets ---------------------------------------------
@@ -1150,7 +1200,58 @@ ShellRoot {
     // through shell-settings.lua, the shell through motionOn).  Keep
     // awake: holds a systemd idle inhibitor, which hypridle honours, so
     // the screen doesn't lock or blank while it's on.
-    readonly property bool gameMode: cfg.gameMode === true
+    // ---- games (GameWatch.qml) ------------------------------------------
+    // gameRunning: a game is running now.  Automatic game mode then applies
+    // everything Game mode does, without changing the user's own setting;
+    // notifications are held (still kept in history) without touching Do
+    // not disturb.  Both can be switched off in Settings > Windows > Gaming.
+    property bool gameRunning: false
+    property var playWeek: []                 // this week's games, for the playtime card
+    readonly property bool autoGame: gameRunning && cfg.autoGameMode !== false
+    readonly property bool quietNow: dnd || (gameRunning && cfg.gameQuiet !== false)
+    onAutoGameChanged: hyprDebounce.restart()
+    function markGame() { gameWatch.markFocused() }
+
+    // ---- now-playing colours ---------------------------------------------
+    // While something plays, the media views (the media drawer, the bar's
+    // media pill, quick settings' mini player and the island's song card)
+    // take their accent colours from the album art, and fade back to the
+    // wallpaper's when it stops.  The colours come from ArtColors in the
+    // native plugin (via NativeStats.qml); without it, they stay the theme's.
+    // Everything else keeps the wallpaper theme.
+    property bool artValid: false
+    property color artAccent: cBlue
+    property color artOnAccent: cOnAccent
+    property color artContainer: cPrimC
+    property color artOnContainer: cOnPrimC
+    readonly property bool darkTheme: (cBg.r * 0.299 + cBg.g * 0.587 + cBg.b * 0.114) < 0.5
+    readonly property bool playing: player?.playbackState === MprisPlaybackState.Playing
+    readonly property bool artOn: cfg.artColors !== false && artValid && playing
+    // what the media views use
+    property color mBlue: artOn ? artAccent : cBlue
+    property color mOnAccent: artOn ? artOnAccent : cOnAccent
+    property color mPrimC: artOn ? artContainer : cPrimC
+    property color mOnPrimC: artOn ? artOnContainer : cOnPrimC
+    Behavior on mBlue { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
+    Behavior on mOnAccent { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
+    Behavior on mPrimC { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
+    Behavior on mOnPrimC { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
+
+    // ---- scenes (Scenes.qml): saved desktops ----
+    property var sceneList: []                // [{ name, count, saved }], newest first
+    function sceneSave(name) { scenesObj.save(name) }
+    function sceneRestore(name) { scenesObj.restore(name) }
+    function sceneRemove(name) { scenesObj.remove(name) }
+    // "2 h 13 min", "45 min", "under a minute"
+    function fmtPlay(secs) {
+        const m = Math.round(secs / 60)
+        if (m < 1) return "under a minute"
+        if (m < 60) return m + " min"
+        const h = Math.floor(m / 60), r = m % 60
+        return r ? h + " h " + r + " min" : h + " h"
+    }
+
+    readonly property bool gameMode: cfg.gameMode === true || autoGame
     function toggleGameMode() { setting("gameMode", !gameMode) }
     property bool keepAwake: false
     Process {
@@ -1977,16 +2078,6 @@ ShellRoot {
         if (s.indexOf("clear") !== -1) return day === false ? "clear_night" : "sunny"
         return "cloud"
     }
-    function wxGlyph(c) {
-        const s = (c || "").toLowerCase()
-        if (s.indexOf("thunder") !== -1) return "\u{f0e6}"
-        if (s.indexOf("snow") !== -1 || s.indexOf("rime") !== -1) return "\u{f0f36}"
-        if (s.indexOf("rain") !== -1 || s.indexOf("drizzle") !== -1 || s.indexOf("shower") !== -1) return "\u{f0f33}"
-        if (s.indexOf("fog") !== -1) return "\u{f0591}"
-        if (s.indexOf("cloud") !== -1 || s.indexOf("overcast") !== -1) return "\u{f0590}"
-        if (s.indexOf("clear") !== -1) return "\u{f0599}"
-        return "\u{f050f}"
-    }
 
     // manual overrides for apps whose window class doesn't match their
     // .desktop file id
@@ -2152,7 +2243,6 @@ ShellRoot {
     SettingsPanel { app: root }
     VolumePop { app: root }
     // under the islands, so a click outside one closes it
-    IslandCatcher { app: root }
     CenterIsland { app: root }
     Launcher { app: root }
     RightIsland { app: root }
@@ -2160,6 +2250,8 @@ ShellRoot {
     WsPreview { app: root }
     AiPanel { app: root }
     ClipPanel { app: root }
+    GameWatch { id: gameWatch; app: root }
+    Scenes { id: scenesObj; app: root }
     Widgets { app: root }
     Popups { app: root }
 
@@ -2270,6 +2362,22 @@ ShellRoot {
     }
     Timer { id: gpuRestart; interval: 15000; onTriggered: gpuStream.running = true }
 
+    // ---- the native readers, when the plugin is installed ----
+    // NativeStats.qml imports Ether.Native (built from native/ by the
+    // installer).  If it loads, it does the stats and the visualiser, and the
+    // readers above never start.  If not, it fails to load, and they do.
+    Loader {
+        id: nativeLoader
+        source: "NativeStats.qml"
+        onLoaded: { item.home = Quickshell.env("HOME"); item.app = root }
+        onStatusChanged: if (status === Loader.Error) root.startFallbackReaders()
+    }
+    readonly property bool nativeOk: nativeLoader.status === Loader.Ready
+    function startFallbackReaders() {
+        statsProc.running = true
+        gpuStream.running = true
+    }
+
     // ---- stats history, for the system panel's graphs ----------------
     // The last 60 readings of each (two minutes at one every 2 s), as
     // plain numbers.  Sampled on the clock rather than on change, so a
@@ -2376,12 +2484,111 @@ ShellRoot {
         function random(): void { root.randomWallpaper() }
     }
 
+    // ---- each wallpaper's colours, for the swatches in the selector ----
+    // Worked out with matugen's --dry-run (nothing is changed), one
+    // wallpaper at a time in the background, for the current style,
+    // contrast, colour source and mode; cached in
+    // ~/.cache/ether/palettes.json, so they're only worked out once.
+    // wallPalettes: { path: [accent, secondary, tertiary, container, background] }
+    readonly property string paletteKey: themeScheme + "|" + themeContrast.toFixed(2) + "|"
+                                         + themePrefer + "|" + (isLight ? "light" : "dark")
+    property var paletteCache: ({})      // { key: { path: [...] } }
+    readonly property var wallPalettes: paletteCache[paletteKey] || ({})
+    property var paletteQueue: []
+    Process {
+        running: true
+        command: ["sh", "-c", "cat \"$HOME/.cache/ether/palettes.json\" 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: { try { const d = JSON.parse(text); if (d && typeof d === "object") root.paletteCache = d } catch (e) {} }
+        }
+    }
+    // the selector lists wallpapers when it opens: work out any missing
+    onWallpapersChanged: queuePalettes()
+    onPaletteKeyChanged: queuePalettes()
+    function queuePalettes() {
+        const have = paletteCache[paletteKey] || {}
+        paletteQueue = wallpapers.filter(p => !have[p])
+        if (!paletteProc.running) nextPalette()
+    }
+    function nextPalette() {
+        if (!paletteQueue.length) return
+        const path = paletteQueue[0]
+        paletteQueue = paletteQueue.slice(1)
+        paletteProc.path = path
+        paletteProc.key = paletteKey
+        paletteProc.command = ["matugen", "image", path, "--dry-run", "-j", "hex", "-q",
+                               "--type", themeScheme, "--contrast", themeContrast.toFixed(2),
+                               "--prefer", themePrefer, "--mode", isLight ? "light" : "dark"]
+        paletteProc.running = true
+    }
+    Process {
+        id: paletteProc
+        property string path: ""
+        property string key: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const c = JSON.parse(text).colors
+                    const m = paletteProc.key.endsWith("light") ? "light" : "dark"
+                    const pick = k => (c[k] && c[k][m] ? c[k][m].color : "")
+                    const colours = ["primary", "secondary", "tertiary", "primary_container", "surface"].map(pick)
+                    if (colours.every(x => x)) {
+                        const all = Object.assign({}, root.paletteCache)
+                        all[paletteProc.key] = Object.assign({}, all[paletteProc.key] || {})
+                        all[paletteProc.key][paletteProc.path] = colours
+                        root.paletteCache = all
+                        paletteSave.restart()
+                    }
+                } catch (e) {}
+            }
+        }
+        onExited: root.nextPalette()
+    }
+    Timer {
+        id: paletteSave
+        interval: 1500
+        onTriggered: {
+            // only the current settings' colours, and only wallpapers that still exist
+            const keep = {}
+            keep[root.paletteKey] = {}
+            const cur = root.paletteCache[root.paletteKey] || {}
+            for (const p of root.wallpapers) if (cur[p]) keep[root.paletteKey][p] = cur[p]
+            paletteWrite.command = ["sh", "-c",
+                'd="$HOME/.cache/ether"; mkdir -p "$d"; printf "%s" "$1" > "$d/palettes.json.tmp" && mv "$d/palettes.json.tmp" "$d/palettes.json"',
+                "sh", JSON.stringify(keep)]
+            paletteWrite.running = true
+        }
+    }
+    Process { id: paletteWrite }
+
     function applyWallpaper(path) {
         if (!path || wallApply.running) return
         root.currentWall = path
-        wallApply.command = [Quickshell.env("HOME") + "/.local/bin/setwall", path]
+        // automatic light or dark: measure the new wallpaper first (a
+        // moment), so it's themed in the right mode from the start
+        if (cfg.themeMode === "auto" && nativeOk) { wallWait.path = path; wallWait.restart(); return }
+        runSetwall(path)
+    }
+    // setwall, with the theme settings written first (the mode may just
+    // have changed with the wallpaper)
+    function runSetwall(path) {
+        wallApply.command = ["sh", "-c",
+            'f="$HOME/.config/matugen/shell-theme"; ' +
+            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\n" "$1" "$2" "$3" "$4" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
+            'exec "$HOME/.local/bin/setwall" "$5"',
+            "sh", themeScheme, themeContrast.toFixed(2), themePrefer, isLight ? "light" : "dark", path]
         wallApply.running = true
     }
+    // the plugin has measured the wallpaper (NativeStats.qml calls this)
+    function wallMeasured(lightness) {
+        wallLightness = lightness
+        if (wallWait.running) { wallWait.stop(); runSetwall(wallWait.path) }
+    }
+    // measured or not, don't wait longer than this
+    Timer { id: wallWait; property string path: ""; interval: 1500; onTriggered: root.runSetwall(path) }
+    // (Choosing Auto in Settings re-themes through the usual setting change;
+    // a new wallpaper through wallWait above.  The first measurement at
+    // startup changes nothing: the theme on disk already matches it.)
     function randomWallpaper() {
         const pool = root.wallpapers.filter(p => p !== root.currentWall)
         if (pool.length) applyWallpaper(pool[Math.floor(Math.random() * pool.length)])
@@ -2401,7 +2608,8 @@ ShellRoot {
 
     Process {
         id: cavaProc
-        running: root.cardShown
+        // the native reader does this when the plugin is installed
+        running: root.cardShown && !root.nativeOk
         command: ["cava", "-p", Quickshell.env("HOME")
                   + "/.config/cava/quickshell.conf"]
         stdout: SplitParser {
@@ -2432,6 +2640,7 @@ ShellRoot {
                 if (!t.length) return
                 try {
                     root.pal = JSON.parse(t)
+                    if (!root.colourFade) fadeOn.start()
                 } catch (e) {
                     console.log("palette parse failed:", e)
                 }
@@ -2675,8 +2884,6 @@ ShellRoot {
     }
     Component.onCompleted: {
         if (nightLight) applyNight()
-        statsProc.running = true      // the system stats readers
-        gpuStream.running = true
     }
 
     // ---- displays ----------------------------------------------------
@@ -3021,6 +3228,7 @@ ShellRoot {
         winInactive: "inactive_opacity", blurSize: "blur_size",
         blurPasses: "blur_passes", animations: "animations",
         animSpeed: "anim_speed", gameMode: "game_mode", wsAnim: "ws_anim",
+        vrr: "vrr", directScanout: "direct_scanout",
         repeatRate: "repeat_rate", repeatDelay: "repeat_delay",
         sensitivity: "sensitivity", accelFlat: "accel_flat",
         naturalScroll: "natural_scroll", followMouse: "follow_mouse",
@@ -3062,6 +3270,8 @@ ShellRoot {
             if (lv === null) continue
             lines.push("    " + hyprKeys[k] + " = " + lv + ",")
         }
+        // automatic game mode, while a game runs (a later key wins in Lua)
+        if (autoGame) lines.push("    game_mode = true,   -- a game is running")
         return "-- written by the quickshell settings panel; change values there\n"
              + "return {\n" + lines.join("\n") + (lines.length ? "\n" : "") + "}\n"
     }
@@ -3169,7 +3379,7 @@ ShellRoot {
         }
     }
 
-    Process { id: launchProc }
+    Process { id: launchProc; environment: root.appEnv }
     Process { id: saveProc }
 
     Process {
@@ -3302,7 +3512,7 @@ ShellRoot {
 
             root.notifList = [n].concat(root.notifList).slice(0, 100)
             if (!root.quickShown && !root.sidebarShown) root.notifUnseen++
-            if (!root.dnd) {
+            if (!root.quietNow) {
                 // the island shows it; ones with buttons or a reply box still
                 // get their pop-up too, since the island has no room for those
                 const needsPopup = !root.islandNotifs || n.replyable

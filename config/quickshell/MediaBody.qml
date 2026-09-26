@@ -41,8 +41,8 @@ Item {
         implicitWidth: main ? 56 : 40
         implicitHeight: implicitWidth
         radius: implicitWidth / 2
-        color: main ? app.cBlue
-             : lit ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
+        color: main ? app.mBlue
+             : lit ? Qt.rgba(app.mBlue.r, app.mBlue.g, app.mBlue.b, 0.22)
              : ctlHov.hovered && usable ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
              : "transparent"
         opacity: usable ? 1 : 0.35
@@ -55,8 +55,8 @@ Item {
         Text {
             anchors.centerIn: parent
             text: ctl.glyph
-            color: ctl.main ? ctl.app.cOnAccent : ctl.lit ? ctl.app.cBlue : ctl.app.cFg
-            font.family: ctl.app.font
+            color: ctl.main ? ctl.app.mOnAccent : ctl.lit ? ctl.app.mBlue : ctl.app.cFg
+            font.family: "Material Symbols Rounded"
             font.pixelSize: ctl.app.fs(ctl.main ? 26 : 18)
         }
 
@@ -73,6 +73,9 @@ Item {
     Image {
         id: bgArt
         anchors.fill: parent
+        // blurred to a wash of colour: a small copy is all it needs
+        sourceSize.width: 256
+        sourceSize.height: 256
         source: mb.p?.trackArtUrl ?? ""
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
@@ -127,7 +130,9 @@ Item {
                     radius: width / 2
                     color: Qt.tint(app.cMauve, Qt.rgba(app.cTeal.r, app.cTeal.g, app.cTeal.b, index / 28))
                     opacity: 0.25 + 0.35 * parent.f
-                    Behavior on height { NumberAnimation { duration: 55; easing.type: Easing.OutQuad } }
+                    // no animation between readings: cava already smooths
+                    // them, and animating kept the drawer redrawing at the
+                    // screen's full refresh rate the whole time
                 }
             }
         }
@@ -155,11 +160,11 @@ Item {
                     implicitWidth: plRow.implicitWidth + 24
                     implicitHeight: 30
                     radius: 15
-                    color: on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.26)
+                    color: on ? Qt.rgba(app.mBlue.r, app.mBlue.g, app.mBlue.b, 0.26)
                          : plHov.hovered ? app.cSurf
                          : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
                     border.width: on ? 1 : 0
-                    border.color: app.cBlue
+                    border.color: app.mBlue
                     HoverHandler { id: plHov }
                     Row {
                         id: plRow
@@ -203,15 +208,18 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         visible: artImg.status !== Image.Ready
-                        text: "\u{f075a}"
+                        text: "music_note"
                         color: app.cFaint
-                        font.family: app.font
+                        font.family: "Material Symbols Rounded"
                         font.pixelSize: app.fs(46)
                     }
                 }
                 Image {
                     id: artImg
                     anchors.fill: parent
+                    // shown at 156 px (more on a scaled screen): a 400 px copy is plenty
+                    sourceSize.width: 400
+                    sourceSize.height: 400
                     source: mb.p?.trackArtUrl ?? ""
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
@@ -263,7 +271,7 @@ Item {
                     Layout.fillWidth: true
                     visible: text !== ""
                     text: mb.p?.trackArtist ?? ""
-                    color: app.cBlue
+                    color: app.mBlue
                     font.family: "Inter"
                     font.pixelSize: app.fs(13)
                     elide: Text.ElideRight
@@ -286,27 +294,27 @@ Item {
 
                     Ctl {
                         app: mb.app
-                        glyph: "\u{f049d}"
+                        glyph: "shuffle"
                         usable: mb.p?.shuffleSupported ?? false
                         lit: mb.p?.shuffle ?? false
                         onClicked: if (mb.p) mb.p.shuffle = !mb.p.shuffle
                     }
                     Ctl {
                         app: mb.app
-                        glyph: "\u{f04ae}"
+                        glyph: "skip_previous"
                         usable: mb.p?.canGoPrevious ?? false
                         onClicked: mb.p?.previous()
                     }
                     Ctl {
                         app: mb.app
                         main: true
-                        glyph: mb.p?.playbackState === MprisPlaybackState.Playing ? "\u{f03e4}" : "\u{f040a}"
+                        glyph: mb.p?.playbackState === MprisPlaybackState.Playing ? "pause" : "play_arrow"
                         usable: mb.p?.canTogglePlaying ?? false
                         onClicked: mb.p?.togglePlaying()
                     }
                     Ctl {
                         app: mb.app
-                        glyph: "\u{f04ad}"
+                        glyph: "skip_next"
                         usable: mb.p?.canGoNext ?? false
                         onClicked: mb.p?.next()
                     }
@@ -314,7 +322,7 @@ Item {
                     Ctl {
                         app: mb.app
                         readonly property int loop: mb.p?.loopState ?? MprisLoopState.None
-                        glyph: loop === MprisLoopState.Track ? "\u{f0458}" : "\u{f0456}"
+                        glyph: loop === MprisLoopState.Track ? "repeat_one" : "repeat"
                         usable: mb.p?.loopSupported ?? false
                         lit: loop !== MprisLoopState.None
                         onClicked: {
@@ -359,7 +367,7 @@ Item {
                         width: seekTrack.width * mb.frac
                         height: parent.height
                         radius: 3
-                        color: app.cBlue
+                        color: app.mBlue
                     }
                 }
                 Rectangle {
@@ -369,7 +377,7 @@ Item {
                     radius: width / 2
                     anchors.verticalCenter: seekTrack.verticalCenter
                     x: seekTrack.width * mb.frac - width / 2
-                    color: app.cBlue
+                    color: app.mBlue
                     border.width: 2
                     border.color: app.cCard
                     Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
@@ -524,9 +532,9 @@ Item {
 
             Text {
                 Layout.preferredWidth: 44
-                text: "\u{f057e}"
+                text: "volume_up"
                 color: app.cMauve
-                font.family: app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: app.fs(15)
             }
             Item {

@@ -15,15 +15,30 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // Built the first time it's opened, then kept for instant opening:
+        // nothing sits in memory for a panel that's never used.
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || app.powerShown)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: winP
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         // Stays mapped and animates itself: mapping a new surface on each
         // open lagged, and Hyprland's own layer fade fought the shell's.
         // Closed, nothing shows and the mask lets every click through.
         visible: modelData.name === app.mainScreen
         readonly property bool open: app.powerShown
+        // (built because it was just opened, it still runs its opening
+        // setup: the change to open counts as it's created)
 
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
@@ -338,5 +353,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

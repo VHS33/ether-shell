@@ -130,14 +130,17 @@ command -v pacman >/dev/null || die "pacman not found."
 PACKAGES=(
     # desktop
     hyprland hyprlock hypridle hyprsunset xdg-desktop-portal-hyprland polkit-kde-agent
+    # file pickers for apps that use portals (Firefox, Flatpaks), as Hyprland recommends
+    xdg-desktop-portal-gtk
     # the shell
-    quickshell qt6-declarative qt6-wayland qt6-svg
+    quickshell qt6-base qt6-declarative qt6-wayland qt6-svg
     # WebP (and other) images for the wallpaper selector and clipboard thumbnails
     qt6-imageformats
     # theming
-    matugen-bin awww adw-gtk-theme papirus-icon-theme glib2 plasma-integration
-    # fonts: Noto for panels, Inter and Material Symbols for the bar
-    noto-fonts ttf-jetbrains-mono-nerd inter-font ttf-material-symbols-variable-git
+    matugen awww adw-gtk-theme papirus-icon-theme glib2 plasma-integration
+    # fonts: Inter for words, Material Symbols for icons, JetBrains Mono for
+    # the terminal, Noto as a fallback
+    noto-fonts ttf-jetbrains-mono-nerd inter-font ttf-material-symbols-variable
     # emoji, for the launcher's emoji search and in notifications
     noto-fonts-emoji
     # apps the shell opens
@@ -149,20 +152,23 @@ PACKAGES=(
     # brightness
     ddcutil brightnessctl
     # system
-    networkmanager libnotify xdg-utils curl python coreutils util-linux procps-ng dbus
+    networkmanager libnotify xdg-utils curl git python coreutils util-linux procps-ng dbus
     # Bluetooth, for quick settings (harmless without an adapter)
     bluez bluez-utils
     # the sound a finished timer plays
     sound-theme-freedesktop
+    # building the native plugin (Ether.Native)
+    cmake base-devel
 )
 
 if [ "$PKGS" = 1 ]; then
     step "Working out which packages are needed"
     missing=()
     for p in "${PACKAGES[@]}"; do
-        pacman -Q "$p" >/dev/null 2>&1 && continue
-        # matugen-bin provides matugen; accept either
-        [ "$p" = matugen-bin ] && pacman -Q matugen >/dev/null 2>&1 && continue
+        # satisfied by anything installed that provides it: an AUR or -git
+        # version someone already has counts, instead of being replaced
+        # (which pacman would stop on, as the two conflict)
+        pacman -T "$p" >/dev/null 2>&1 && continue
         missing+=("$p")
     done
 
@@ -254,12 +260,32 @@ while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/local/}"
     place "$f" "$HOME/.local/$rel"
 done < <(find "$HERE/local" -type f -print0)
-run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot"
+run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell"
 
 if [ "$backed" -gt 0 ]; then
     info "Replaced $backed existing file(s); the old versions are in $BACKUP"
 else
     info "Nothing needed backing up."
+fi
+
+# ---- the native plugin ---------------------------------------------
+# Ether.Native: CPU, memory, network and GPU readings, and the visualiser,
+# in C++ (native/).  Optional: if it can't be built, the shell uses its own
+# readers, so a failure here only costs a little efficiency.
+step "Building the native plugin"
+qmldir="$HOME/.local/lib/ether-shell/qml"
+if command -v cmake >/dev/null 2>&1 && command -v c++ >/dev/null 2>&1; then
+    nb="$(mktemp -d)"
+    if run cmake -S "$HERE/native" -B "$nb" -DCMAKE_BUILD_TYPE=Release -DETHER_QML_DIR="$qmldir" >/dev/null \
+            && run cmake --build "$nb" -j"$(nproc)" >/dev/null \
+            && run cmake --install "$nb" >/dev/null; then
+        info "Built and installed to $qmldir"
+    else
+        warn "The native plugin didn't build. Ether Shell works without it, just a little less efficiently."
+    fi
+    rm -rf "$nb"
+else
+    warn "cmake or a C++ compiler is missing, so the native plugin wasn't built. Ether Shell works without it."
 fi
 
 step "Wallpapers and folders"
@@ -298,6 +324,26 @@ fi
 if ! systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
     warn "NetworkManager isn't running, so the Wi-Fi tile and network speeds won't show."
     info "If nothing else manages your network, turn it on with: sudo systemctl enable --now NetworkManager"
+fi
+
+# folders matugen writes themes into, so it needn't create them itself
+run mkdir -p "$HOME/.config/fish/conf.d" "$HOME/.config/btop/themes"
+
+# btop: use the wallpaper's colours (the theme matugen writes)
+bt="$HOME/.config/btop/btop.conf"
+if [ "$DRY" = 0 ]; then
+    mkdir -p "$HOME/.config/btop"
+    if [ -f "$bt" ] && grep -q '^color_theme' "$bt"; then
+        sed -i 's|^color_theme.*|color_theme = "ether"|' "$bt"
+    else
+        printf 'color_theme = "ether"\n' >> "$bt"
+    fi
+    # the Ether Shell feel, for anything not already set: see-through (the
+    # terminal's glass shows), rounded corners, smooth graphs, 1 s updates
+    for kv in 'theme_background = False' 'rounded_corners = True' \
+              'graph_symbol = "braille"' 'update_ms = 1000' 'truecolor = True'; do
+        grep -q "^${kv%% *} " "$bt" || printf '%s\n' "$kv" >> "$bt"
+    done
 fi
 
 # ~/.local/bin on PATH for fish, bash and zsh users

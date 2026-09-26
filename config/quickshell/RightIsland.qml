@@ -306,9 +306,18 @@ Variants {
         }
     }
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        active: modelData.name === app.mainScreen
+
     PanelWindow {
         id: isr
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.rightMorph
         // ---- where this section's drawer goes, for the long bar ----
@@ -357,7 +366,10 @@ Variants {
         anchors { top: true; right: true }
         margins { top: att ? 0 : app.gap; right: att ? 0 : app.gap }
         implicitWidth: openW + shadowRoom + 16
-        implicitHeight: att ? app.barBottom + openH + 8
+        // On the long bar just the bar's height: the drawer's contents are
+        // drawn in the glass window (BarStrip), so a drawer-tall window here
+        // only held bigger buffers and redraw area for nothing.
+        implicitHeight: att ? app.barBottom + 6
                             : Math.max(openH, app.pillH) + shadowRoom
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -491,7 +503,10 @@ Variants {
                 anchors.margins: 1
                 height: 120
                 radius: shape.radius
-                opacity: isr.open ? 1 : 0
+                // only for the three-pill style, where the panel opens around
+                // it; on the long bar it drew a tinted pill, rounded corners
+                // and all, inside the section whenever a drawer was open
+                opacity: isr.open && !isr.att ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                 gradient: Gradient {
@@ -770,6 +785,36 @@ Variants {
                                     font.pixelSize: app.fs(12)
                                 }
                             }
+                        }
+                    }
+
+                    // ---- the menu button: opens quick settings ----
+                    // Clicking the clock does too, but nothing about a clock
+                    // says so; a menu button does.  It turns into a close
+                    // button while the menu is open.
+                    Rectangle {
+                        id: menuBtn
+                        implicitWidth: 28
+                        implicitHeight: 28
+                        radius: 14
+                        color: app.quickShown ? app.cPrimC
+                             : menuHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
+                        Behavior on color { ColorAnimation { duration: app.animQuick } }
+                        HoverHandler { id: menuHov }
+                        Text {
+                            anchors.centerIn: parent
+                            text: app.quickShown ? "close" : "menu"
+                            color: app.quickShown ? app.cOnPrimC : app.cFg
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: app.fs(18)
+                            rotation: app.quickShown ? 90 : 0
+                            Behavior on rotation { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: app.quickShown = !app.quickShown
                         }
                     }
                 }
@@ -1346,6 +1391,9 @@ Variants {
                                 Image {
                                     id: miniArt
                                     anchors.fill: parent
+                                    // shown at 44 px
+                                    sourceSize.width: 128
+                                    sourceSize.height: 128
                                     source: mini.p?.trackArtUrl ?? ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
@@ -1403,14 +1451,14 @@ Variants {
                                     implicitWidth: isPlay ? 38 : 30
                                     implicitHeight: implicitWidth
                                     radius: implicitWidth / 2
-                                    color: isPlay ? app.cBlue : mbHov.hovered ? app.cCard : "transparent"
+                                    color: isPlay ? app.mBlue : mbHov.hovered ? app.cCard : "transparent"
                                     HoverHandler { id: mbHov }
                                     Text {
                                         anchors.centerIn: parent
                                         text: mBtn.isPlay
                                             ? (mini.p?.playbackState === MprisPlaybackState.Playing ? "pause" : "play_arrow")
                                             : mBtn.modelData.g
-                                        color: mBtn.isPlay ? app.cOnAccent : app.cFg
+                                        color: mBtn.isPlay ? app.mOnAccent : app.cFg
                                         font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(mBtn.isPlay ? 17 : 14)
                                     }
@@ -2186,7 +2234,7 @@ Variants {
             // second time, lined up against the other monitor's width
             readonly property bool moved: isr.att && app.drawerLayer !== null && isr.visible
             parent: moved ? app.drawerLayer : drawerHome
-            onMovedChanged: console.log("drawer: right contents " + (moved ? "moved into" : "left")
+            onMovedChanged: if (app.debugLog) console.log("drawer: right contents " + (moved ? "moved into" : "left")
                                         + " the bar window, from the copy on " + isr.modelData.name
                                         + " (main is " + app.mainScreen + ")")
             // Always shown (on the long bar), just clipped to nothing while
@@ -2201,5 +2249,6 @@ Variants {
             height: active ? app.drawerCurH : 0
             clip: true
         }
+    }
     }
 }

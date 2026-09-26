@@ -12,9 +12,19 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // part of the older pill style: only built when that's in use
+        active: modelData.name === app.mainScreen && !app.barMorph
+
     PanelWindow {
         id: winC
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.player !== null && app.barMedia && !app.barMorph
 
@@ -42,7 +52,7 @@ Variants {
                 anchors.margins: 5
                 radius: height / 2
                 color: app.cardShown ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
-                     : cHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8)
+                     : cHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                      : "transparent"
                 Behavior on color { ColorAnimation { duration: app.animQuick } }
                 HoverHandler { id: cHov }
@@ -54,9 +64,9 @@ Variants {
                 spacing: 8
 
                 Text {
-                    text: winC.playing ? "\u{f03e4}" : "\u{f040a}"
+                    text: winC.playing ? "pause" : "play_arrow"
                     color: winC.playing ? app.cTeal : app.cFaint
-                    font.family: app.font
+                    font.family: "Material Symbols Rounded"
                     font.pixelSize: app.fs(13)
                 }
                 // title and artist scroll together, marquee-style, only
@@ -75,7 +85,7 @@ Variants {
                         Text {
                             text: app.player?.trackTitle || "Unknown track"
                             color: winC.playing ? app.cFg : app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                             font.weight: Font.DemiBold
                         }
@@ -83,7 +93,7 @@ Variants {
                             visible: text !== ""
                             text: app.player?.trackArtist ?? ""
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                         }
                     }
@@ -166,5 +176,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

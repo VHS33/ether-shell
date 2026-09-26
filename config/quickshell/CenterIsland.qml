@@ -24,9 +24,18 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        active: modelData.name === app.mainScreen
+
     PanelWindow {
         id: isl
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.barMorph
                  && app.player !== null && app.barMedia
@@ -66,7 +75,10 @@ Variants {
         anchors { top: true }
         margins { top: att ? 0 : app.gap }
         implicitWidth: openW + shadowRoom * 2
-        implicitHeight: att ? app.barBottom + openH + 8
+        // On the long bar just the bar's height: the drawer's contents are
+        // drawn in the glass window (BarStrip), so a drawer-tall window here
+        // only held bigger buffers and redraw area for nothing.
+        implicitHeight: att ? app.barBottom + 6
                             : Math.max(openH, app.pillH) + shadowRoom
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -166,11 +178,14 @@ Variants {
                 anchors.margins: 1
                 height: 120
                 radius: shape.radius
-                opacity: isl.open ? 1 : 0
+                // only for the three-pill style, where the panel opens around
+                // it; on the long bar it drew a tinted pill, rounded corners
+                // and all, inside the section whenever a drawer was open
+                opacity: isl.open && !isl.att ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                 gradient: Gradient {
-                    GradientStop { position: 0; color: Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.16) }
+                    GradientStop { position: 0; color: Qt.rgba(app.mBlue.r, app.mBlue.g, app.mBlue.b, 0.16) }
                     GradientStop { position: 1; color: "transparent" }
                 }
             }
@@ -301,13 +316,27 @@ Variants {
                             }
                         }
 
-                        // wait, scroll to the end at an even pace, wait, jump back
+                        // Scrolls once when a new song starts, and again for as
+                        // long as the mouse rests on it; otherwise it's still.
+                        // (It used to scroll forever, keeping the bar, and
+                        // Hyprland's blur behind it, redrawing nonstop.)
+                        readonly property bool canScroll: overflow > 0 && isl.visible && !isl.open
+                        onCanScrollChanged: if (!canScroll) { scroller.stop(); line.x = 0 }
+                        HoverHandler {
+                            id: mqHov
+                            onHoveredChanged: if (hovered && marquee.canScroll && !scroller.running) scroller.start()
+                        }
+                        Connections {
+                            target: app
+                            function onTrackKeyChanged() {
+                                Qt.callLater(() => { if (marquee.canScroll) scroller.restart() })
+                            }
+                        }
+                        // wait, scroll to the end at an even pace, wait, glide back
                         SequentialAnimation {
                             id: scroller
-                            running: marquee.overflow > 0 && isl.visible && !isl.open
-                            loops: Animation.Infinite
                             PropertyAction { target: line; property: "x"; value: 0 }
-                            PauseAnimation { duration: 2000 }
+                            PauseAnimation { duration: 1200 }
                             NumberAnimation {
                                 target: line
                                 property: "x"
@@ -316,6 +345,14 @@ Variants {
                                 easing.type: Easing.InOutSine
                             }
                             PauseAnimation { duration: 1500 }
+                            NumberAnimation {
+                                target: line
+                                property: "x"
+                                to: 0
+                                duration: 400
+                                easing.type: Easing.OutCubic
+                            }
+                            onFinished: if (mqHov.hovered && marquee.canScroll) restart()
                         }
 
                         // a new track starts from the beginning
@@ -408,7 +445,7 @@ Variants {
                     width: (parent.width - app.pillH) * frac
                     height: 2
                     radius: 1
-                    color: app.cBlue
+                    color: app.mBlue
                     opacity: 0.8
                 }
 
@@ -549,7 +586,7 @@ Variants {
             // second time, lined up against the other monitor's width
             readonly property bool moved: isl.att && app.drawerLayer !== null && isl.visible
             parent: moved ? app.drawerLayer : drawerHome
-            onMovedChanged: console.log("drawer: center contents " + (moved ? "moved into" : "left")
+            onMovedChanged: if (app.debugLog) console.log("drawer: center contents " + (moved ? "moved into" : "left")
                                         + " the bar window, from the copy on " + isl.modelData.name
                                         + " (main is " + app.mainScreen + ")")
             // Always shown (on the long bar), just clipped to nothing while
@@ -564,5 +601,6 @@ Variants {
             height: active ? app.drawerCurH : 0
             clip: true
         }
+    }
     }
 }

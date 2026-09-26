@@ -149,9 +149,18 @@ Variants {
         }
     }
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        active: modelData.name === app.mainScreen
+
     PanelWindow {
         id: isl3
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.leftMorph
         // ---- where this section's drawer goes, for the long bar ----
@@ -178,7 +187,12 @@ Variants {
         readonly property bool open: app.sysShown
 
         readonly property real pillW: leftRow.implicitWidth + 12
-        readonly property real openW: Math.max(560, pillW)
+        // On the long bar, worked out as if the title pill were at its widest,
+        // so it stays the same whatever's focused, and is never narrower than
+        // the section (the drawer grows out of the bar's left end, and would
+        // otherwise shrink as it opened).
+        readonly property real openW: att ? Math.max(560, pillW - awGroup.implicitWidth + awGroup.maxW)
+                                          : Math.max(560, pillW)
         readonly property real openH: panel.implicitHeight
 
         // extra room to the right and below, for the open panel's shadow
@@ -188,8 +202,16 @@ Variants {
         readonly property bool att: app.barAttached
         anchors { top: true; left: true }
         margins { top: att ? 0 : app.gap; left: att ? 0 : app.gap }
-        implicitWidth: openW + shadowRoom + 16
-        implicitHeight: att ? app.barBottom + openH + 8
+        // On the long bar a fixed size, well beyond what the section needs, so
+        // nothing inside it (the title growing and shrinking) resizes the
+        // window: resizing makes Hyprland redraw it from scratch.  Only the
+        // shape takes clicks, so the extra width is invisible and inert.
+        implicitWidth: att ? Math.max(openW + 16, Math.round(app.mainScreenW / 2))
+                           : openW + shadowRoom + 16
+        // On the long bar just the bar's height: the drawer's contents are
+        // drawn in the glass window (BarStrip), so a drawer-tall window here
+        // only held bigger buffers and redraw area for nothing.
+        implicitHeight: att ? app.barBottom + 6
                             : Math.max(openH, app.pillH) + shadowRoom
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -289,7 +311,10 @@ Variants {
                 anchors.margins: 1
                 height: 120
                 radius: shape.radius
-                opacity: isl3.open ? 1 : 0
+                // only for the three-pill style, where the panel opens around
+                // it; on the long bar it drew a tinted pill, rounded corners
+                // and all, inside the section whenever a drawer was open
+                opacity: isl3.open && !isl3.att ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                 gradient: Gradient {
@@ -404,12 +429,18 @@ Variants {
                                 Behavior on color { ColorAnimation { duration: app.animQuick } }
                             }
 
+                            // The dots are made once and kept: the model is just how many
+                            // there are, and each dot reads its own details.  (Handing
+                            // the list itself to the Repeater destroyed and remade every
+                            // dot, icons and all, on each change of window focus.)
+                            readonly property var info: app.workspacesFor(app.mainScreen)
                             Repeater {
-                                model: app.workspacesFor(app.mainScreen)
+                                model: wsStrip.count
                                 delegate: Item {
                                     id: ws
-                                    required property var modelData
                                     required property int index
+                                    readonly property var modelData: wsStrip.info[index]
+                                                                     ?? ({ id: -1, occupied: false, app: "" })
                                     readonly property bool active: modelData.id === app.mainActive
                                     readonly property bool showIcon: modelData.app !== ""
                                     x: index * wsStrip.pitch
@@ -439,7 +470,7 @@ Variants {
                                     IconImage {
                                         anchors.centerIn: parent
                                         visible: ws.showIcon
-                                        implicitSize: ws.active ? 16 : 15
+                                        implicitSize: 15
                                         source: ws.showIcon ? app.iconFor(ws.modelData.app) : ""
                                         opacity: ws.active || wsHov.hovered ? 1 : 0.8
                                     }
@@ -507,12 +538,18 @@ Variants {
                                 Behavior on color { ColorAnimation { duration: app.animQuick } }
                             }
 
+                            // The dots are made once and kept: the model is just how many
+                            // there are, and each dot reads its own details.  (Handing
+                            // the list itself to the Repeater destroyed and remade every
+                            // dot, icons and all, on each change of window focus.)
+                            readonly property var info: app.workspacesFor(app.secondScreen)
                             Repeater {
-                                model: app.workspacesFor(app.secondScreen)
+                                model: wsStrip2.count
                                 delegate: Item {
                                     id: ws2
-                                    required property var modelData
                                     required property int index
+                                    readonly property var modelData: wsStrip2.info[index]
+                                                                     ?? ({ id: -1, occupied: false, app: "" })
                                     readonly property bool active: modelData.id === app.secondActive
                                     readonly property bool showIcon: modelData.app !== ""
                                     x: index * wsStrip2.pitch
@@ -542,7 +579,7 @@ Variants {
                                     IconImage {
                                         anchors.centerIn: parent
                                         visible: ws2.showIcon
-                                        implicitSize: ws2.active ? 16 : 15
+                                        implicitSize: 15
                                         source: ws2.showIcon ? app.iconFor(ws2.modelData.app) : ""
                                         opacity: ws2.active || wsHov2.hovered ? 1 : 0.8
                                     }
@@ -608,12 +645,17 @@ Variants {
                     }
                 
                     // ---- the active window: its icon and title ----
+                    // Always shown ("Desktop" with nothing focused), so it never
+                    // appears and disappears.
                     Rectangle {
                         id: awGroup
                         readonly property var tl: ToplevelManager.activeToplevel
                         readonly property string title: tl ? (tl.title || "") : ""
-                        visible: title !== ""
-                        implicitWidth: Math.min(380, awRow.implicitWidth + 22)
+                        // fits the title, up to maxW, and glides to its new size;
+                        // it's last in the row, so nothing else moves
+                        readonly property real maxW: 320
+                        implicitWidth: Math.min(maxW, 9 + 16 + 7 + awT.implicitWidth + 12)
+                        Behavior on implicitWidth { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
                         implicitHeight: 28
                         radius: 14
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
@@ -621,18 +663,32 @@ Variants {
                         RowLayout {
                             id: awRow
                             anchors.left: parent.left
+                            anchors.right: parent.right
                             anchors.leftMargin: 9
+                            anchors.rightMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, 380 - 22)
                             spacing: 7
-                            IconImage {
-                                implicitSize: 16
-                                source: awGroup.tl ? app.iconFor(awGroup.tl.appId || "") : ""
+                            Item {
+                                implicitWidth: 16
+                                implicitHeight: 16
+                                IconImage {
+                                    anchors.fill: parent
+                                    visible: awGroup.title !== ""
+                                    source: awGroup.tl ? app.iconFor(awGroup.tl.appId || "") : ""
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    visible: awGroup.title === ""
+                                    text: "desktop_windows"
+                                    color: app.cDim
+                                    font.family: "Material Symbols Rounded"
+                                    font.pixelSize: app.fs(15)
+                                }
                             }
                             Text {
+                                id: awT
                                 Layout.fillWidth: true
-                                Layout.maximumWidth: 320
-                                text: awGroup.title
+                                text: awGroup.title || "Desktop"
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.8)
                                 font.family: "Inter"
                                 font.weight: Font.Medium
@@ -868,6 +924,175 @@ Variants {
                         }
                     }
 
+                    // ---- playtime: this week's games ----
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: playCol.implicitHeight + 24
+                        radius: 20
+                        color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
+                        opacity: isl3.revealed > 3 ? 1 : 0
+                        transform: Translate { y: isl3.revealed > 3 ? 0 : 10
+                            Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } } }
+                        Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+
+                        ColumnLayout {
+                            id: playCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 12
+                            spacing: 8
+                            readonly property var games: app.playWeek.slice(0, 5)
+                            readonly property real most: games.length ? games[0].week : 1
+                            readonly property real total: app.playWeek.reduce((t, g) => t + g.week, 0)
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 2
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Playtime this week"
+                                    color: app.cDim
+                                    font.family: "Inter"
+                                    font.pixelSize: app.fs(11)
+                                    font.bold: true
+                                }
+                                Text {
+                                    visible: playCol.total > 0
+                                    text: app.fmtPlay(playCol.total)
+                                    color: app.cFaint
+                                    font.family: "Inter"
+                                    font.pixelSize: app.fs(10)
+                                }
+                            }
+
+                            // a game running now: automatic game mode is on
+                            Rectangle {
+                                visible: app.gameRunning
+                                Layout.fillWidth: true
+                                implicitHeight: 30
+                                radius: 15
+                                color: app.cPrimC
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 12
+                                    spacing: 8
+                                    Text {
+                                        text: "sports_esports"
+                                        color: app.cOnPrimC
+                                        font.family: "Material Symbols Rounded"
+                                        font.pixelSize: app.fs(16)
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: app.autoGame ? "Playing now: game mode is on" : "Playing now"
+                                        color: app.cOnPrimC
+                                        font.family: "Inter"
+                                        font.pixelSize: app.fs(11)
+                                        font.weight: Font.Medium
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+
+                            Repeater {
+                                model: playCol.games
+                                delegate: RowLayout {
+                                    id: gRow
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    IconImage {
+                                        implicitSize: 20
+                                        source: gRow.modelData.appId
+                                            ? Quickshell.iconPath("steam_icon_" + gRow.modelData.appId, true) || app.iconFor(gRow.modelData.cls)
+                                            : app.iconFor(gRow.modelData.cls)
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: gRow.modelData.name
+                                                color: app.cFg
+                                                font.family: "Inter"
+                                                font.pixelSize: app.fs(12)
+                                                elide: Text.ElideRight
+                                                textFormat: Text.PlainText
+                                            }
+                                            Text {
+                                                text: app.fmtPlay(gRow.modelData.week)
+                                                color: app.cDim
+                                                font.family: "Inter"
+                                                font.pixelSize: app.fs(11)
+                                            }
+                                        }
+                                        // this week, against the most played
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            implicitHeight: 4
+                                            radius: 2
+                                            color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                            Rectangle {
+                                                width: parent.width * Math.max(0.03, gRow.modelData.week / playCol.most)
+                                                height: parent.height
+                                                radius: 2
+                                                color: app.cBlue
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                visible: !playCol.games.length
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 2
+                                text: "Games you play show up here. Steam games are recognised by themselves."
+                                color: app.cFaint
+                                font.family: "Inter"
+                                font.pixelSize: app.fs(11)
+                                wrapMode: Text.Wrap
+                            }
+
+                            // for games from elsewhere (Heroic, Lutris, emulators)
+                            Rectangle {
+                                Layout.alignment: Qt.AlignLeft
+                                implicitWidth: markRow.implicitWidth + 24
+                                implicitHeight: 30
+                                radius: 15
+                                color: markHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.13)
+                                                       : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
+                                HoverHandler { id: markHov }
+                                RowLayout {
+                                    id: markRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    Text {
+                                        text: "add"
+                                        color: app.cDim
+                                        font.family: "Material Symbols Rounded"
+                                        font.pixelSize: app.fs(15)
+                                    }
+                                    Text {
+                                        text: "Count the last window as a game"
+                                        color: app.cFg
+                                        font.family: "Inter"
+                                        font.pixelSize: app.fs(11)
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: app.markGame()
+                                }
+                            }
+                        }
+                    }
+
                     // the full picture
                     RowLayout {
                         Layout.fillWidth: true
@@ -921,7 +1146,7 @@ Variants {
             // second time, lined up against the other monitor's width
             readonly property bool moved: isl3.att && app.drawerLayer !== null && isl3.visible
             parent: moved ? app.drawerLayer : drawerHome
-            onMovedChanged: console.log("drawer: left contents " + (moved ? "moved into" : "left")
+            onMovedChanged: if (app.debugLog) console.log("drawer: left contents " + (moved ? "moved into" : "left")
                                         + " the bar window, from the copy on " + isl3.modelData.name
                                         + " (main is " + app.mainScreen + ")")
             // Always shown (on the long bar), just clipped to nothing while
@@ -936,5 +1161,6 @@ Variants {
             height: active ? app.drawerCurH : 0
             clip: true
         }
+    }
     }
 }

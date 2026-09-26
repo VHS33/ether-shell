@@ -27,9 +27,21 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // built the first time a workspace is hovered, then kept
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || app.wsHoverId >= 0)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: pw
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen
 
@@ -67,6 +79,8 @@ Variants {
             }
         }
         onAllowedChanged: if (!allowed) { showLater.stop(); shown = false }
+        // built because a workspace is being hovered: begin as if it just started
+        Component.onCompleted: if (app.wsHoverId >= 0) showLater.restart()
 
         // ---- what's being shown ----
         readonly property var ws: Hyprland.workspaces.values.find(w => w.id === pw.shownId) ?? null
@@ -228,5 +242,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

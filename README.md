@@ -2,11 +2,16 @@
 
 A complete Hyprland desktop built on [Quickshell](https://quickshell.org),
 written from scratch. One long frosted bar across the top, whose sections
-pull open into drawers that grow out of the bar itself; a launcher, an AI
-assistant, quick settings, lyrics, a dock, desktop widgets, a lock screen and
-a full settings app. Everything takes its colours from your wallpaper:
-change it and the shell, terminal, window borders, lock screen, and GTK and
-KDE apps all retint together.
+pull open into drawers that grow out of the bar itself, with a dynamic island
+in the middle; a launcher, a clipboard, an AI chat, quick settings, lyrics, a
+desktop that notices your games, saved desktop layouts, a dock, widgets, a
+lock screen and a full settings app. Everything takes its colours from your
+wallpaper, and fades to the new ones when you change it: the shell, terminal,
+prompt, window borders, lock screen, GTK and KDE apps, and more.
+
+It's light: around 440 MB and well under 1% of one CPU core while idle, with
+the continuous work (system stats, the GPU, the visualiser, album-art
+colours) done in a small C++ plugin.
 
 Everything is configured from the settings panel. You shouldn't need to
 open a config file to make Ether Shell yours.
@@ -21,12 +26,20 @@ drawn as one shape with it, and slides back in when you click again, click
 anywhere else or press Esc. Prefer separate floating pills? Settings, Bar,
 Bar style.
 
+**Workspaces**, as numbers or as the icon of the app on each, and hover one
+for a live preview of it. A second monitor gets its own set, and SUPER + 1-5
+reach them while it has focus.
+
+**The dynamic island.** The middle of the bar briefly grows to show what
+just happened: volume and brightness changes, the next song, a timer
+finishing, a game session ending, a scene saved or restored.
+
 **The drawers.**
 - **Media** (click the song): cover, controls, a draggable seek bar, a
   switcher when several apps are playing, the app's own volume, a
   visualiser, and **synced lyrics** that scroll along with the song
   (from [LRCLIB](https://lrclib.net)).
-- **Quick settings** (click the clock or a status icon): weather with an
+- **Quick settings** (the ☰ button, the clock, or a status icon): weather with an
   hourly forecast, this month's calendar, a timer and stopwatch, the
   player, tiles for **Wi-Fi** and **Bluetooth** (with pickers that open
   inside the drawer), do not disturb, night light, **game mode** (blur,
@@ -34,17 +47,39 @@ Bar style.
   volume, microphone and brightness, output switching, and notifications
   **grouped by app** with a history that survives restarts.
 - **System** (click the stats): live graphs for CPU, memory, GPU and GPU
-  temperature, and the busiest processes.
+  temperature, the busiest processes, and this week's playtime.
 
-**The launcher** (tap SUPER). One search box for everything: apps ranked by
-how often you use them, maths (`=`, or just type a sum), emoji (`:`),
-clipboard history (`;`), commands (`>`), timers (`timer 5m`) and web
-search.
+**The launcher** (tap SUPER). A floating search box for everything: apps
+ranked by how often you use them, maths (`=`, or just type a sum), emoji
+(`:`), clipboard history (`;`), commands (`>`), scenes (`@`), timers
+(`timer 5m`) and web search.
+
+**The clipboard** (SUPER + V). A panel down the right side: search, text or
+images (copied pictures show as thumbnails), Enter to copy back.
 
 **The assistant** (SUPER + A). A chat panel down the left side of the
 screen, using **Claude, Gemini or ChatGPT** with your own API key, set up
 from inside the panel. Replies stream in and are formatted. Keys stay on
 your computer, in a file only you can read.
+
+**Games.** Steam games (native or Proton) are recognised by themselves, and
+others can be marked once. While one runs, the desktop switches into game
+mode (animations and blur off, notifications held) and puts everything back
+when it closes, and the island shows how long you played. Variable refresh
+rate and direct scanout for fullscreen games are in Settings.
+
+**Scenes.** Save your whole layout (which apps, on which workspace and
+monitor) under a name, and restore it later: apps that are open are moved
+back, apps that aren't are started. Nothing is ever closed.
+
+**Colours from your wallpaper, done properly.** Material You palettes from
+matugen, with terminal colours that keep their meaning (red is red, green is
+green) but are turned towards the wallpaper's hue and always readable. Swatches
+in the wallpaper selector show each wallpaper's colours before you pick it;
+Auto picks light or dark by how bright the wallpaper is; and while music
+plays, the media views take their colours from the album art. Also themed:
+kitty, fish, starship, btop, rofi, GTK and KDE apps, Firefox (through its
+system theme, or Pywalfox) and Discord (through Vencord or Vesktop).
 
 **And:** a dock with pinned and running apps; desktop widgets (clock,
 weather, calendar, system, media, notes) that sit behind your windows;
@@ -92,8 +127,10 @@ cd ether-shell
 
 The installer:
 
-- installs every dependency, from the official repos where it can and from
-  the AUR otherwise (it installs `yay` first if you have no AUR helper);
+- installs every dependency, all from the official Arch repos (versions you
+  already have from the AUR, like `quickshell-git`, are left alone);
+- builds the small C++ plugin (`native/`); if that fails, the shell still
+  works, just a little less efficiently;
 - moves any config it replaces to `~/.config/ether-backup-<date>/`;
 - copies the configs and scripts in, and three wallpapers to
   `~/Pictures/wallpapers`;
@@ -181,15 +218,14 @@ Check with
 should say `quickshell`. If it says `mako` or `dunst`, remove that
 package and restart the shell.
 
-**Restarting the shell.** Stop every copy before starting a new one, or two
-will run at once:
+**The native plugin didn't build.** Ether Shell works without it, using its
+own readers for the stats and visualiser. To build it, install `cmake` and
+`base-devel` and re-run the installer.
 
-```sh
-# fish
-pkill -x quickshell; while pgrep -x quickshell >/dev/null; sleep 0.1; end; setsid quickshell >/dev/null 2>&1 &
-# bash / zsh
-pkill -x quickshell; while pgrep -x quickshell >/dev/null; do sleep 0.1; done; setsid quickshell >/dev/null 2>&1 &
-```
+**Restarting the shell.** Run `~/.local/bin/ether-shell`. It stops the
+running shell first (so two never run at once) and keeps it on NVIDIA's
+driver alone when that's installed. Its log is
+`$XDG_RUNTIME_DIR/ether-shell.log`.
 
 **Brightness slider missing.** Run `ddcutil detect`. If it lists no
 displays, turn on DDC/CI in your monitor's on-screen menu. Laptop screens
@@ -200,7 +236,7 @@ Ctrl + Alt + F3, log in, run `pkill -USR1 hyprlock`, then switch back with
 Ctrl + Alt + F1 or F2.
 
 **Icons show as words** (like `volume_up`). The icon font is missing:
-`sudo pacman -S inter-font` and `yay -S ttf-material-symbols-variable-git`,
+`sudo pacman -S inter-font ttf-material-symbols-variable`,
 then restart the shell.
 
 **The assistant says a model wasn't found.** Providers rename their models

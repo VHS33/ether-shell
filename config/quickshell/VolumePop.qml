@@ -36,13 +36,13 @@ Variants {
             implicitWidth: 32
             implicitHeight: 32
             radius: 16
-            color: vrHov.hovered ? vr.app.cSurf : "transparent"
+            color: vrHov.hovered ? Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.12) : "transparent"
             HoverHandler { id: vrHov }
             Text {
                 anchors.centerIn: parent
                 text: vr.muted ? vr.mutedGlyph : vr.glyph
                 color: vr.muted ? vr.app.cFaint : vr.accent
-                font.family: vr.app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: vr.app.fs(16)
             }
             MouseArea {
@@ -62,7 +62,7 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 height: 8
                 radius: 4
-                color: vr.app.cSurf
+                color: Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.08)
                 Rectangle {
                     width: vrTrack.width * Math.min(1, vr.v)
                     height: parent.height
@@ -102,14 +102,24 @@ Variants {
             horizontalAlignment: Text.AlignRight
             text: vr.muted ? "Muted" : Math.round(vr.v * 100) + "%"
             color: vr.app.cDim
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: vr.app.fs(11)
         }
     }
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // part of the older pill style: only built when that's in use
+        active: modelData.name === app.mainScreen && !app.rightMorph
+
     PanelWindow {
         id: winV
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         // Stays mapped and animates itself: mapping a new surface on each
         // open lagged, and Hyprland's own layer fade fought the shell's.
@@ -195,7 +205,7 @@ Variants {
                         Text {
                             text: "Sound"
                             color: app.cFg
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(15)
                             font.bold: true
                         }
@@ -203,7 +213,7 @@ Variants {
                             Layout.fillWidth: true
                             text: winV.sink?.nickname || winV.sink?.description || "No output"
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(11)
                             elide: Text.ElideRight
                         }
@@ -212,13 +222,13 @@ Variants {
                         implicitWidth: 32
                         implicitHeight: 32
                         radius: 16
-                        color: gHov.hovered ? app.cSurf : "transparent"
+                        color: gHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                         HoverHandler { id: gHov }
                         Text {
                             anchors.centerIn: parent
-                            text: "\u{f0493}"
+                            text: "settings"
                             color: gHov.hovered ? app.cFg : app.cDim
-                            font.family: app.font
+                            font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(15)
                         }
                         MouseArea {
@@ -236,14 +246,14 @@ Variants {
                 VolRow {
                     app: rootV.app
                     au: winV.sink?.audio ?? null
-                    glyph: "\u{f057e}"
-                    mutedGlyph: "\u{f075f}"
+                    glyph: "volume_up"
+                    mutedGlyph: "volume_off"
                 }
                 VolRow {
                     app: rootV.app
                     au: winV.source?.audio ?? null
-                    glyph: "\u{f036c}"
-                    mutedGlyph: "\u{f036d}"
+                    glyph: "mic"
+                    mutedGlyph: "mic_off"
                     accent: rootV.app.cTeal
                 }
 
@@ -257,7 +267,7 @@ Variants {
                 Text {
                     text: "Output"
                     color: app.cDim
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(11)
                     font.bold: true
                 }
@@ -278,7 +288,7 @@ Variants {
                             implicitHeight: isOut ? 38 : 0
                             radius: 12
                             color: isDefault ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.16)
-                                 : oHov.hovered ? app.cSurf : "transparent"
+                                 : oHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                             Behavior on color { ColorAnimation { duration: app.animQuick } }
                             HoverHandler { id: oHov }
                             RowLayout {
@@ -291,16 +301,16 @@ Variants {
                                     text: outRow.modelData?.nickname || outRow.modelData?.description
                                           || outRow.modelData?.name || "Output"
                                     color: outRow.isDefault ? app.cFg : app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(12)
                                     font.bold: outRow.isDefault
                                     elide: Text.ElideRight
                                 }
                                 Text {
                                     visible: outRow.isDefault
-                                    text: "\u{f012c}"
+                                    text: "check"
                                     color: app.cBlue
-                                    font.family: app.font
+                                    font.family: "Material Symbols Rounded"
                                     font.pixelSize: app.fs(14)
                                 }
                             }
@@ -314,5 +324,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

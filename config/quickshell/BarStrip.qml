@@ -29,41 +29,62 @@ Variants {
 
     // a concave corner: `corner` says which corner of the square is filled
     // ("tl" or "tr"), with a quarter circle cut from the rest
+    // It reaches `pad` pixels past its edges into what it joins (up into the
+    // bar, and sideways into the drawer), so the soft edges of neighbouring
+    // pieces are covered rather than meeting side by side.
     component Fillet: Canvas {
         id: fil
         property var app
         property string corner: "tl"
         property real r: 14
+        property int pad: 2
         property color fill: app.cBg
-        width: Math.ceil(r)
-        height: Math.ceil(r)
+        width: Math.ceil(r) + pad
+        height: Math.ceil(r) + pad
         onFillChanged: requestPaint()
         onRChanged: requestPaint()
         onCornerChanged: requestPaint()
+        onPadChanged: requestPaint()
         onPaint: {
             const ctx = getContext("2d")
             ctx.reset()
-            const w = width
+            const w = Math.ceil(r), p = pad
             if (w < 1) return
             ctx.fillStyle = fill
+            // the rows reaching up into the bar
+            ctx.fillRect(0, 0, w + p, p)
             ctx.beginPath()
             if (corner === "tl") {
-                ctx.moveTo(0, 0)
-                ctx.lineTo(w, 0)
-                ctx.arc(w, w, w, -Math.PI / 2, Math.PI, true)
+                // right of the drawer: the drawer is to the left, so the
+                // extra column is on the left
+                ctx.fillRect(0, p, p, w)
+                ctx.moveTo(p, p)
+                ctx.lineTo(p + w, p)
+                ctx.arc(p + w, p + w, w, -Math.PI / 2, Math.PI, true)
             } else {
-                ctx.moveTo(w, 0)
-                ctx.lineTo(0, 0)
-                ctx.arc(0, w, w, -Math.PI / 2, 0, false)
+                // left of the drawer: the extra column is on the right
+                ctx.fillRect(w, p, p, w)
+                ctx.moveTo(w, p)
+                ctx.lineTo(0, p)
+                ctx.arc(0, p + w, w, -Math.PI / 2, 0, false)
             }
             ctx.closePath()
             ctx.fill()
         }
     }
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        active: modelData.name === app.mainScreen
+
     PanelWindow {
         id: strip
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         // Always shown on the main screen, even in the islands style (where
         // it draws nothing).  Wayland stacks panels in the order they
@@ -82,14 +103,22 @@ Variants {
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
 
-        // Clicks: only the open drawer takes them (the bar's sections are
-        // windows of their own, above this one).
-        mask: Region {
+        // Clicks.  Normally only the open drawer takes them.  While a drawer,
+        // the launcher or the clipboard is open, the whole screen does, and a
+        // click anywhere outside them closes them.  (This used to be a
+        // separate invisible full-screen window on every monitor.)  The bar's
+        // sections are windows of their own, above this one, so clicking
+        // another section still switches drawers.
+        readonly property bool modalOpen: app.cardShown || app.quickShown || app.sysShown
+                                          || app.launcherShown || app.clipShown
+        property Region drawerMask: Region {
             x: Math.round(strip.dl)
             y: strip.y0 + strip.bh
             width: strip.dOpen ? Math.round(strip.dw) : 0
             height: strip.dOpen ? Math.ceil(strip.dh) : 0
         }
+        property Region allMask: Region { width: strip.width; height: strip.height }
+        mask: modalOpen ? allMask : drawerMask
         // Keyboard: the drawers take it when clicked into (a Wi-Fi password,
         // say).
         WlrLayershell.keyboardFocus: !strip.active ? WlrKeyboardFocus.None
@@ -160,53 +189,94 @@ Variants {
         readonly property real f: Math.max(0, Math.min(14, dh, dw / 4))     // the curved join
         readonly property real rb: Math.max(0, Math.min(24, dh / 2, dw / 2)) // the drawer's bottom corners
 
-        // the bar: when a drawer runs flush down one of its ends, that end's
-        // bottom corner straightens as the drawer grows, so the bar's edge
-        // carries straight on down the drawer's side
-        Rectangle {
+        // ---- the glass: one surface, with no seams ----
+        // The bar, the drawer and the curved joins are drawn solid inside one
+        // layer, overlapping a little at every join, and the layer as a whole
+        // is then made see-through.  Drawn separately, each piece was itself
+        // see-through with softened edges, and two half-transparent edges
+        // side by side don't add up to the glass: a faint lighter line showed
+        // where the drawer met the bar.  Solid pieces can overlap without
+        // showing it, and one transparency for the whole leaves nothing to see.
+        Item {
+            id: glass
             visible: strip.active
-            x: strip.x0
-            y: strip.y0
-            width: strip.bw
-            height: strip.bh
-            color: app.cBg
-            radius: strip.r
-            bottomLeftRadius: strip.dOpen && strip.flush === "left" ? Math.max(0, strip.r - strip.dh) : strip.r
-            bottomRightRadius: strip.dOpen && strip.flush === "right" ? Math.max(0, strip.r - strip.dh) : strip.r
+            width: strip.width
+            // just the bar and the tallest drawer, so the layer stays small
+            readonly property real reach: Math.max(app.leftGeom?.h ?? 0, app.centerGeom?.h ?? 0,
+                                                   app.rightGeom?.h ?? 0, app.islandGeom?.h ?? 0)
+            height: Math.min(strip.height, strip.y0 + strip.bh + reach + 8)
+            readonly property color solid: Qt.rgba(app.cBg.r, app.cBg.g, app.cBg.b, 1)
+            opacity: app.cBg.a
+            layer.enabled: true
+
+            // the bar: when a drawer runs flush down one of its ends, that end's
+            // bottom corner straightens as the drawer grows, so the bar's edge
+            // carries straight on down the drawer's side
+            Rectangle {
+                x: strip.x0
+                y: strip.y0
+                width: strip.bw
+                height: strip.bh
+                color: glass.solid
+                radius: strip.r
+                bottomLeftRadius: strip.dOpen && strip.flush === "left" ? Math.max(0, strip.r - strip.dh) : strip.r
+                bottomRightRadius: strip.dOpen && strip.flush === "right" ? Math.max(0, strip.r - strip.dh) : strip.r
+            }
+
+            // the drawer, reaching 2 px up into the bar so the join is covered
+            Rectangle {
+                visible: strip.dOpen
+                x: Math.round(strip.dl)
+                y: strip.y0 + strip.bh - 2
+                width: Math.round(strip.dw)
+                height: strip.dh + 2
+                color: glass.solid
+                topLeftRadius: 0
+                topRightRadius: 0
+                bottomLeftRadius: strip.rb
+                bottomRightRadius: strip.rb
+            }
+
+            // the curved joins, on the sides that aren't flush with an end,
+            // each reaching into the bar above and the drawer beside it
+            Fillet {
+                app: rootV.app
+                fill: glass.solid
+                corner: "tr"
+                r: strip.f
+                x: Math.round(strip.dl) - Math.ceil(strip.f)
+                y: strip.y0 + strip.bh - pad
+                visible: strip.dOpen && strip.flush !== "left" && strip.f >= 1
+            }
+            Fillet {
+                app: rootV.app
+                fill: glass.solid
+                corner: "tl"
+                r: strip.f
+                x: Math.round(strip.dl) + Math.round(strip.dw) - pad
+                y: strip.y0 + strip.bh - pad
+                visible: strip.dOpen && strip.flush !== "right" && strip.f >= 1
+            }
         }
 
-        // the drawer, joined to the bar's bottom edge
-        Rectangle {
-            visible: strip.dOpen
-            x: Math.round(strip.dl)
-            y: strip.y0 + strip.bh
-            width: Math.round(strip.dw)
-            height: strip.dh
-            color: app.cBg
-            topLeftRadius: 0
-            topRightRadius: 0
-            bottomLeftRadius: strip.rb
-            bottomRightRadius: strip.rb
-        }
 
-        // the curved joins, on the sides that aren't flush with an end
-        Fillet {
-            app: rootV.app
-            corner: "tr"
-            r: strip.f
-            x: Math.round(strip.dl) - width
-            y: strip.y0 + strip.bh
-            visible: strip.dOpen && strip.flush !== "left" && strip.f >= 1
+        // ---- a click outside what's open closes it ----
+        MouseArea {
+            anchors.fill: parent
+            enabled: strip.modalOpen
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+            onPressed: mouse => {
+                // an empty spot inside the open drawer isn't "outside"
+                const top = strip.y0 + strip.bh
+                if (strip.dOpen && mouse.x >= strip.dl && mouse.x <= strip.dl + strip.dw
+                        && mouse.y >= top && mouse.y <= top + strip.dh) return
+                app.cardShown = false
+                app.quickShown = false
+                app.sysShown = false
+                app.launcherShown = false
+                app.clipShown = false
+            }
         }
-        Fillet {
-            app: rootV.app
-            corner: "tl"
-            r: strip.f
-            x: Math.round(strip.dl) + Math.round(strip.dw)
-            y: strip.y0 + strip.bh
-            visible: strip.dOpen && strip.flush !== "right" && strip.f >= 1
-        }
-
 
         // ---- the open drawer's contents ----
         // Each section's drawer contents are moved in here, so they're drawn
@@ -447,9 +517,116 @@ Variants {
                         }
                         Text {
                             text: "graphic_eq"
+                            color: app.mBlue
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: app.fs(20)
+                        }
+                    }
+
+                    // ---- a game session ending ----
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 16
+                        visible: islandHost.d.kind === "game"
+                        spacing: 12
+                        Rectangle {
+                            implicitWidth: 40
+                            implicitHeight: 40
+                            radius: 12
+                            color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                            // the game's own icon (Steam installs one per game)
+                            IconImage {
+                                id: gameIcon
+                                anchors.centerIn: parent
+                                implicitSize: 28
+                                source: islandHost.d.kind !== "game" ? ""
+                                      : islandHost.d.appId ? Quickshell.iconPath("steam_icon_" + islandHost.d.appId, true)
+                                                             || app.iconFor(islandHost.d.cls)
+                                      : app.iconFor(islandHost.d.cls)
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: !gameIcon.source || gameIcon.status === Image.Error
+                                text: "sports_esports"
+                                color: app.cDim
+                                font.family: "Material Symbols Rounded"
+                                font.pixelSize: app.fs(20)
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            Text {
+                                Layout.fillWidth: true
+                                text: islandHost.d.name || "Game"
+                                color: app.cFg
+                                font.family: "Inter"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: app.fs(13)
+                                elide: Text.ElideRight
+                                textFormat: Text.PlainText
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Played " + app.fmtPlay(islandHost.d.secs || 0)
+                                      + ((islandHost.d.week || 0) > (islandHost.d.secs || 0) + 59
+                                         ? "  \u2022  " + app.fmtPlay(islandHost.d.week) + " this week" : "")
+                                color: app.cDim
+                                font.family: "Inter"
+                                font.pixelSize: app.fs(11)
+                                elide: Text.ElideRight
+                            }
+                        }
+                        Text {
+                            text: "sports_esports"
                             color: app.cBlue
                             font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(20)
+                        }
+                    }
+
+                    // ---- a scene saved or restored ----
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 18
+                        visible: islandHost.d.kind === "scene"
+                        spacing: 12
+                        Rectangle {
+                            implicitWidth: 36
+                            implicitHeight: 36
+                            radius: 18
+                            color: app.cPrimC
+                            Text {
+                                anchors.centerIn: parent
+                                text: islandHost.d.verb === "Saved" ? "bookmark_added" : "view_quilt"
+                                color: app.cOnPrimC
+                                font.family: "Material Symbols Rounded"
+                                font.pixelSize: app.fs(19)
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            Text {
+                                Layout.fillWidth: true
+                                text: (islandHost.d.verb || "") + " \u201c" + (islandHost.d.name || "") + "\u201d"
+                                color: app.cFg
+                                font.family: "Inter"
+                                font.weight: Font.DemiBold
+                                font.pixelSize: app.fs(13)
+                                elide: Text.ElideRight
+                                textFormat: Text.PlainText
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: islandHost.d.detail || ""
+                                color: app.cDim
+                                font.family: "Inter"
+                                font.pixelSize: app.fs(11)
+                                elide: Text.ElideRight
+                            }
                         }
                     }
 
@@ -520,5 +697,6 @@ Variants {
             value: drawerLayer
             when: strip.active
         }
+    }
     }
 }

@@ -348,9 +348,22 @@ Variants {
     // ---------------------------------------------------------
     //   the sidebar
     // ---------------------------------------------------------
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // the older sidebar: built when the clock opens it (the older style),
+        // or once something opens it, then kept
+        property bool used: false
+        active: modelData.name === app.mainScreen && (used || !app.rightMorph || app.sidebarShown)
+        onActiveChanged: if (active) used = true
+
     PanelWindow {
         id: winS
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         // The window stays mapped and the card slides in and out.  Mapping
         // a new surface on every open (plus Hyprland's layer fade) is what
@@ -1525,5 +1538,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }

@@ -23,6 +23,8 @@ Each module is a `Variants` over `Quickshell.screens`, showing only on
 
 | File | What |
 |---|---|
+| `Scenes.qml` | Saved desktops: save and restore every window's workspace (`~/.local/state/ether/scenes.json`) |
+| `GameWatch.qml` | Recognises games, runs automatic game mode, keeps playtime (`~/.local/state/ether/playtime.json`) |
 | `BarStrip.qml` | The long bar's glass, the open drawer's glass **and** its contents, in one window |
 | `LeftIsland.qml` | Left section (assistant button, workspaces, stats) and the system drawer |
 | `CenterIsland.qml` | Middle section (what's playing) and the media drawer |
@@ -30,7 +32,6 @@ Each module is a `Variants` over `Quickshell.screens`, showing only on
 | `MediaBody.qml` | The media view, shared by the media drawer and `MediaCard.qml` |
 | `Launcher.qml` | The launcher (tap SUPER); `emoji.json` is its emoji list |
 | `AiPanel.qml` | The assistant panel down the left side (SUPER + A) |
-| `IslandCatcher.qml` | Invisible layer under the drawers: a click outside closes them |
 | `Sidebar.qml` | Right sidebar: clipboard history, and more (SUPER + V) |
 | `Popups.qml` | Notification popups |
 | `Dock.qml` | Dock, pinned apps, auto-hide |
@@ -75,15 +76,44 @@ How a drawer opens:
    small corner pieces, meeting edge to edge on whole pixels (no overlap,
    no seam), and clips the contents to the same rectangle.
 
-`BarStrip` takes the keyboard for the launcher (always) and other drawers
-(when clicked into), and handles Esc. `IslandCatcher` sits above it with a
-hole cut where the drawer is, so a click outside closes the drawer and a
-click inside reaches it.
+`BarStrip` takes the keyboard for the drawers (when clicked into) and
+handles Esc. It also closes things on an outside click: while a drawer, the
+launcher or the clipboard is open, its click area becomes the whole screen,
+and a click anywhere but the open drawer closes them. The bar's sections sit
+above it, so clicking another section still switches drawers.
 
 Only one drawer is open at a time: each `on...ShownChanged` handler closes
 the others. `qs ipc call drawer state` prints what the shell believes, and
 `qs ipc call drawer reset` closes everything; every open and close is
 logged as `drawer:` in the shell's log.
+
+## The native plugin (`native/`)
+
+The work that runs all the time is done in C++, in a small QML module,
+`Ether.Native`:
+
+- `SystemStats`: CPU, memory and network read straight from `/proc`, and the
+  GPU through NVIDIA's library (NVML), loaded at runtime, so there's no
+  `nvidia-smi` running alongside. On other hardware `gpuOk` stays false.
+- `CavaReader`: the visualiser's bars, from cava's binary output
+  (`config/cava/quickshell-bin.conf`), newest frame only.
+- `ArtColors`: accent colours from the current song's album art (a file,
+  `file://`, `data:` or http(s) URL), for the media views' `app.mBlue`,
+  `mOnAccent`, `mPrimC` and `mOnPrimC`. Greyscale art leaves the theme alone.
+
+The installer builds it with CMake into `~/.local/lib/ether-shell/qml`, and
+`ether-shell` adds that to `QML_IMPORT_PATH`. **It's optional.**
+`NativeStats.qml` is the only file that imports it, and `shell.qml` loads it
+through a `Loader`. If the module is missing, that load fails and the shell
+starts its own readers (`statsProc`, `gpuStream`, `cavaProc`) instead, so
+the plugin can never take the shell down. Build it by hand with:
+
+```sh
+cmake -S native -B /tmp/ether-build -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/ether-build && cmake --install /tmp/ether-build
+```
+
+Rebuild after a Qt major update (re-running the installer does it).
 
 ## Features that keep state in `shell.qml`
 
@@ -182,11 +212,13 @@ is a − value + stepper), `ChoiceRow`, `Chip`, `IconBtn`, `DeviceRow`,
 - **Panels that open often stay mapped** and slide their content in
   (sidebar). Mapping a new surface each time, plus Hyprland's layer
   animation, is what made opening lag.
-- **Every module is a `Variants`, so there's one copy per screen**, even
-  though only the main screen's is shown. Any copy that writes shared state
-  must check it's the visible one. A hidden `BarStrip` finishing its own
-  animation late and writing "open" is what left empty drawers stuck
-  on screen. (`Binding { when: ...visible }` does the same for bindings.)
+- **Main-screen panels are built once.** Each module is a `Variants` over the
+  screens, but its window sits inside a `LazyLoader` that's only active for
+  `app.mainScreen`, so the other monitors' copies stay empty. Building a
+  hidden copy per monitor doubled memory and background work, and hidden
+  copies writing shared state caused doubled and stuck drawers. Only
+  `Widgets` is genuinely per-screen. Shared values set
+  with `Binding` use `restoreMode: Binding.RestoreNone`.
 - **Never split one visual thing across two windows.** Glass drawn in one
   window with its contents in another, kept in step by a shared number,
   broke in a new way every time it was patched. Put them in one window

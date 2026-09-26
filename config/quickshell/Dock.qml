@@ -22,9 +22,19 @@ Variants {
     property var app
     model: Quickshell.screens
 
+    // Built only for the main screen.  A copy per monitor used to be
+    // made and hidden on the others, doubling the shell's memory and
+    // background work (and causing doubled drawers); the other monitors'
+    // loaders now stay empty.
+    LazyLoader {
+        id: perScreen
+        required property var modelData
+        // only when the dock is switched on
+        active: modelData.name === app.mainScreen && app.dockEnabled
+
     PanelWindow {
         id: winD
-        required property var modelData
+        readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen && app.dockEnabled && app.dockItems.length > 0
 
@@ -212,5 +222,6 @@ Variants {
                 }
             }
         }
+    }
     }
 }
