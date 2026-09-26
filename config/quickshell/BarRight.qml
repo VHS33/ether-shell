@@ -31,7 +31,7 @@ Variants {
         color: lit ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
              : sgHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8)
              : "transparent"
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: sgHov }
 
@@ -54,7 +54,7 @@ Variants {
         id: winR
         required property var modelData
         screen: modelData
-        visible: modelData.name === app.mainScreen
+        visible: modelData.name === app.mainScreen && !app.rightMorph
 
         anchors { top: true; right: true }
         margins { top: app.gap; right: app.gap }
@@ -188,7 +188,7 @@ Variants {
                             height: 24
                             radius: 12
                             color: trHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8) : "transparent"
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on color { ColorAnimation { duration: app.animQuick } }
                             HoverHandler { id: trHov }
                             IconImage {
                                 anchors.centerIn: parent

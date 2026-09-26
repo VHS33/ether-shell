@@ -44,7 +44,7 @@ Variants {
         Layout.fillWidth: true
         implicitHeight: col.implicitHeight + 34
         radius: 18
-        color: Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
+        color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
         ColumnLayout {
             id: col
@@ -67,7 +67,7 @@ Variants {
                         visible: text !== ""
                         text: card.title
                         color: card.app.cFg
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(14)
                         font.bold: true
                         elide: Text.ElideRight
@@ -77,7 +77,7 @@ Variants {
                         visible: text !== ""
                         text: card.desc
                         color: card.app.cDim
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(11)
                         wrapMode: Text.WordWrap
                         lineHeight: 1.15
@@ -103,7 +103,7 @@ Variants {
         Layout.bottomMargin: 6
         Layout.leftMargin: 18
         color: app.cBlue
-        font.family: "Noto Sans"
+        font.family: "Inter"
         font.pixelSize: app.fs(12)
         font.bold: true
     }
@@ -122,9 +122,9 @@ Variants {
         radius: 16
         color: !enabledBtn ? "transparent"
              : sbMa.pressed ? Qt.rgba(accent.r, accent.g, accent.b, 0.35)
-             : sbHov.hovered ? app.cSurf
-             : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
-        Behavior on color { ColorAnimation { duration: 90 } }
+             : sbHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
         HoverHandler { id: sbHov }
 
         Text {
@@ -132,7 +132,7 @@ Variants {
             text: sb.glyph
             color: sb.enabledBtn ? sb.app.cFg : sb.app.cFaint
             opacity: sb.enabledBtn ? 1 : 0.5
-            font.family: sb.app.font
+            font.family: "Material Symbols Rounded"
             font.pixelSize: sb.app.fs(15)
         }
 
@@ -187,7 +187,7 @@ Variants {
 
         StepBtn {
             app: sl.app
-            glyph: "\u{f0374}"
+            glyph: "remove"
             accent: sl.accent
             enabledBtn: !sl.atMin
             onStep: sl.nudge(-1)
@@ -203,7 +203,7 @@ Variants {
                 anchors.centerIn: parent
                 text: sl.label
                 color: sl.muted ? sl.app.cFaint : sl.app.cFg
-                font.family: "Noto Sans"
+                font.family: "Inter"
                 font.pixelSize: sl.app.fs(12)
                 font.bold: true
             }
@@ -217,7 +217,7 @@ Variants {
 
         StepBtn {
             app: sl.app
-            glyph: "\u{f0415}"
+            glyph: "add"
             accent: sl.accent
             enabledBtn: !sl.atMax
             onStep: sl.nudge(1)
@@ -250,9 +250,9 @@ Variants {
                 topRightRadius: last ? 17 : 5
                 bottomRightRadius: last ? 17 : 5
                 color: on ? Qt.rgba(seg.accent.r, seg.accent.g, seg.accent.b, 0.26)
-                     : segHov.hovered ? seg.app.cSurf
-                     : Qt.rgba(seg.app.cSurf.r, seg.app.cSurf.g, seg.app.cSurf.b, 0.6)
-                Behavior on color { ColorAnimation { duration: 120 } }
+                     : segHov.hovered ? Qt.rgba(seg.app.cFg.r, seg.app.cFg.g, seg.app.cFg.b, 0.12)
+                     : Qt.rgba(seg.app.cFg.r, seg.app.cFg.g, seg.app.cFg.b, 0.09)
+                Behavior on color { ColorAnimation { duration: app.animQuick } }
 
                 HoverHandler { id: segHov }
 
@@ -261,16 +261,16 @@ Variants {
                     spacing: 7
                     Text {
                         visible: parent.parent.on
-                        text: "\u{f012c}"
+                        text: "check"
                         color: seg.accent
-                        font.family: seg.app.font
+                        font.family: "Material Symbols Rounded"
                         font.pixelSize: app.fs(13)
                     }
                     Text {
                         id: segT
                         text: modelData
                         color: parent.parent.on ? seg.app.cFg : seg.app.cDim
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(12)
                     }
                 }
@@ -296,11 +296,11 @@ Variants {
         implicitHeight: 32
         radius: 16
         color: selected ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.26)
-             : chipHov.hovered ? app.cSurf
-             : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
+             : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
         border.width: selected ? 1 : 0
         border.color: app.cBlue
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: chipHov }
 
@@ -309,7 +309,7 @@ Variants {
             anchors.centerIn: parent
             text: chip.text
             color: chip.selected ? chip.app.cFg : chip.app.cDim
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: app.fs(12)
             font.bold: chip.selected
         }
@@ -334,9 +334,9 @@ Variants {
         implicitHeight: 36
         radius: 18
         color: active ? Qt.rgba(accent.r, accent.g, accent.b, 0.26)
-             : ibHov.hovered ? app.cSurf
-             : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
-        Behavior on color { ColorAnimation { duration: 120 } }
+             : ibHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: ibHov }
 
@@ -344,7 +344,7 @@ Variants {
             anchors.centerIn: parent
             text: ib.glyph
             color: ib.active ? ib.accent : ib.app.cDim
-            font.family: ib.app.font
+            font.family: "Material Symbols Rounded"
             font.pixelSize: app.fs(16)
         }
 
@@ -370,9 +370,9 @@ Variants {
         implicitHeight: crCol.implicitHeight + 20
         radius: 14
         color: selected ? Qt.rgba(accent.r, accent.g, accent.b, 0.16)
-             : crHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
+             : crHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
              : "transparent"
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: crHov }
 
@@ -390,7 +390,7 @@ Variants {
                     Layout.fillWidth: true
                     text: cr.title
                     color: cr.app.cFg
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(13)
                     font.bold: cr.selected
                 }
@@ -399,7 +399,7 @@ Variants {
                     visible: text !== ""
                     text: cr.desc
                     color: cr.app.cDim
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(11)
                     wrapMode: Text.WordWrap
                 }
@@ -407,9 +407,9 @@ Variants {
 
             Text {
                 visible: cr.selected
-                text: "\u{f012c}"
+                text: "check"
                 color: cr.accent
-                font.family: cr.app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: app.fs(16)
             }
         }
@@ -435,9 +435,9 @@ Variants {
         implicitHeight: 54
         radius: 14
         color: isDefault ? Qt.rgba(accent.r, accent.g, accent.b, 0.16)
-             : drHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
+             : drHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
              : "transparent"
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         readonly property string title:
             node?.nickname || node?.description || node?.name || "Unknown device"
@@ -447,10 +447,10 @@ Variants {
         }
         readonly property string glyph: {
             const s = ((node?.description ?? "") + " " + (node?.name ?? "")).toLowerCase()
-            if (isInput) return "\u{f036c}"
-            if (s.includes("hdmi") || s.includes("displayport")) return "\u{f0379}"
-            if (s.includes("headphone") || s.includes("headset")) return "\u{f02cb}"
-            return "\u{f04c3}"
+            if (isInput) return "mic"
+            if (s.includes("hdmi") || s.includes("displayport")) return "monitor"
+            if (s.includes("headphone") || s.includes("headset")) return "headphones"
+            return "speaker"
         }
 
         HoverHandler { id: drHov }
@@ -465,12 +465,12 @@ Variants {
                 implicitWidth: 34
                 implicitHeight: 34
                 radius: 11
-                color: dr.isDefault ? dr.accent : dr.app.cSurf
+                color: dr.isDefault ? dr.accent : Qt.rgba(dr.app.cFg.r, dr.app.cFg.g, dr.app.cFg.b, 0.08)
                 Text {
                     anchors.centerIn: parent
                     text: dr.glyph
                     color: dr.isDefault ? dr.app.cOnAccent : dr.app.cDim
-                    font.family: dr.app.font
+                    font.family: "Material Symbols Rounded"
                     font.pixelSize: app.fs(16)
                 }
             }
@@ -482,7 +482,7 @@ Variants {
                     Layout.fillWidth: true
                     text: dr.title
                     color: dr.app.cFg
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(13)
                     elide: Text.ElideRight
                 }
@@ -491,7 +491,7 @@ Variants {
                     visible: text !== ""
                     text: dr.sub
                     color: dr.app.cFaint
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(10)
                     elide: Text.ElideRight
                 }
@@ -501,7 +501,7 @@ Variants {
                 visible: dr.isDefault
                 text: "In use"
                 color: dr.accent
-                font.family: "Noto Sans"
+                font.family: "Inter"
                 font.pixelSize: app.fs(11)
                 font.bold: true
             }
@@ -536,7 +536,7 @@ Variants {
         Layout.fillWidth: true
         implicitHeight: scRow.implicitHeight + 30
         radius: 18
-        color: Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
+        color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
         RowLayout {
             id: scRow
@@ -551,7 +551,7 @@ Variants {
                 implicitWidth: 46
                 implicitHeight: 46
                 radius: 14
-                color: sc.app.cSurf
+                color: Qt.rgba(sc.app.cFg.r, sc.app.cFg.g, sc.app.cFg.b, 0.08)
                 IconImage {
                     anchors.centerIn: parent
                     implicitSize: 28
@@ -569,7 +569,7 @@ Variants {
                     Layout.fillWidth: true
                     text: sc.appName
                     color: sc.app.cFg
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(13)
                     font.bold: true
                     elide: Text.ElideRight
@@ -579,7 +579,7 @@ Variants {
                     visible: text !== ""
                     text: sc.mediaName
                     color: sc.app.cDim
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(11)
                     elide: Text.ElideRight
                 }
@@ -604,7 +604,7 @@ Variants {
                 app: sc.app
                 accent: sc.app.cRed
                 active: sc.au?.muted ?? false
-                glyph: active ? "\u{f075f}" : "\u{f057e}"
+                glyph: active ? "volume_off" : "volume_up"
                 onClicked: if (sc.au) sc.au.muted = !sc.au.muted
             }
         }
@@ -617,7 +617,11 @@ Variants {
         id: win
         required property var modelData
         screen: modelData
-        visible: modelData.name === app.mainScreen && app.settingsShown
+        // Stays mapped and animates itself: mapping a new surface on each
+        // open lagged, and Hyprland's own layer fade fought the shell's.
+        // Closed, nothing shows and the mask lets every click through.
+        visible: modelData.name === app.mainScreen
+        readonly property bool open: app.settingsShown
 
         // A transparent full-screen layer with the card moving inside
         // it.  Moving the surface itself made every drag event arrive
@@ -627,7 +631,9 @@ Variants {
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
-        mask: Region { item: card }
+        property Region shownMask: Region { item: card }
+        property Region hiddenMask: Region { width: 0; height: 0 }
+        mask: open ? shownMask : hiddenMask
 
         // tall enough for every page in the navigation, but never
         // taller than the screen it's on
@@ -635,7 +641,7 @@ Variants {
         readonly property int cardH: Math.min(820, height - 80)
 
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+        WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
         // starts centred; dragging breaks the binding and it
         // stays wherever you leave it until quickshell restarts
@@ -679,7 +685,8 @@ Variants {
             { t: "About",          d: "This machine and the software running it" },
             { t: "Widgets",        d: "Clocks, weather and more on the desktop, behind your windows" },
             { t: "Lock screen",    d: "What you see when the screen is locked" },
-            { t: "Default apps",   d: "Which terminal, file manager and browser open" }
+            { t: "Default apps",   d: "Which terminal, file manager and browser open" },
+            { t: "AI assistant",   d: "Which AI answers in the assistant panel, and your key for it" }
         ]
 
         onPageChanged: flick.contentY = 0
@@ -810,7 +817,7 @@ Variants {
         property real vol: 0
         property real bal: 0
         property int sinkCh: 2
-        onVisibleChanged: if (visible) readSink()
+        onOpenChanged: if (open) readSink()
 
         function readSink() { if (!readProc.running) readProc.running = true }
 
@@ -839,7 +846,7 @@ Variants {
         // output while the panel is open; our own writes are ignored
         // for a moment so a drag doesn't fight its own echo
         Process {
-            running: win.visible
+            running: win.open
             command: ["stdbuf", "-oL", "pactl", "subscribe"]
             stdout: SplitParser {
                 onRead: line => {
@@ -895,7 +902,7 @@ Variants {
 
         // bind every node's volume, mute and channels while open
         PwObjectTracker {
-            objects: win.visible ? Pipewire.nodes.values : []
+            objects: win.open ? Pipewire.nodes.values : []
         }
 
         Rectangle {
@@ -904,6 +911,11 @@ Variants {
             y: win.posY
             width: win.cardW
             height: win.cardH
+            opacity: win.open ? 1 : 0
+            scale: win.open ? 1 : 0.95
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             radius: 24
             color: app.cCard
             border.width: 1
@@ -973,9 +985,9 @@ Variants {
                                 color: app.cBlue
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "\u{f0493}"
+                                    text: "settings"
                                     color: app.cOnAccent
-                                    font.family: app.font
+                                    font.family: "Material Symbols Rounded"
                                     font.pixelSize: app.fs(18)
                                 }
                             }
@@ -984,14 +996,14 @@ Variants {
                                 Text {
                                     text: "Settings"
                                     color: app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(15)
                                     font.bold: true
                                 }
                                 Text {
                                     text: "Shell preferences"
                                     color: app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(11)
                                 }
                             }
@@ -1017,32 +1029,33 @@ Variants {
                             Repeater {
                                 model: [
                                     { sec: "Appearance" },
-                                    { i: 0, t: "General",        g: "\u{f062e}" },
-                                    { i: 1, t: "Glass",          g: "\u{f00b5}" },
-                                    { i: 2, t: "Theme",          g: "\u{f03d8}" },
-                                    { i: 3, t: "Wallpaper",      g: "\u{f02e9}" },
+                                    { i: 0, t: "General",        g: "text_fields" },
+                                    { i: 1, t: "Glass",          g: "blur_on" },
+                                    { i: 2, t: "Theme",          g: "palette" },
+                                    { i: 3, t: "Wallpaper",      g: "wallpaper" },
                                     { sec: "Desktop" },
-                                    { i: 4, t: "Bar",            g: "\u{f10aa}" },
-                                    { i: 5, t: "Windows",        g: "\u{f05af}" },
-                                    { i: 6, t: "Dock",           g: "\u{f10a9}" },
-                                    { i: 7, t: "Notifications",  g: "\u{f009a}" },
-                                    { i: 8, t: "Idle",           g: "\u{f033e}" },
-                                    { i: 20, t: "Lock screen",   g: "\u{f0341}" },
-                                    { i: 19, t: "Widgets",       g: "\u{f0a3e}" },
+                                    { i: 4, t: "Bar",            g: "toolbar" },
+                                    { i: 5, t: "Windows",        g: "web_asset" },
+                                    { i: 6, t: "Dock",           g: "dock_to_bottom" },
+                                    { i: 7, t: "Notifications",  g: "notifications" },
+                                    { i: 8, t: "Idle",           g: "lock" },
+                                    { i: 20, t: "Lock screen",   g: "lock_clock" },
+                                    { i: 19, t: "Widgets",       g: "widgets" },
                                     { sec: "Devices" },
-                                    { i: 9, t: "Displays",       g: "\u{f0379}" },
-                                    { i: 10, t: "Keyboard",       g: "\u{f030c}" },
-                                    { i: 11, t: "Mouse",          g: "\u{f037d}" },
+                                    { i: 9, t: "Displays",       g: "monitor" },
+                                    { i: 10, t: "Keyboard",       g: "keyboard" },
+                                    { i: 11, t: "Mouse",          g: "mouse" },
                                     { sec: "Sound" },
-                                    { i: 12, t: "Output",         g: "\u{f04c3}" },
-                                    { i: 13, t: "Applications",   g: "\u{f003b}" },
-                                    { i: 14, t: "Input",          g: "\u{f036c}" },
-                                    { i: 15, t: "Recording apps", g: "\u{f044a}" },
+                                    { i: 12, t: "Output",         g: "speaker" },
+                                    { i: 13, t: "Applications",   g: "apps" },
+                                    { i: 14, t: "Input",          g: "mic" },
+                                    { i: 15, t: "Recording apps", g: "radio_button_checked" },
                                     { sec: "System" },
-                                    { i: 16, t: "Weather",        g: "\u{f0599}" },
-                                    { i: 17, t: "Calendar",       g: "\u{f00ed}" },
-                                    { i: 21, t: "Default apps",   g: "\u{f003b}" },
-                                    { i: 18, t: "About",          g: "\u{f02fd}" }
+                                    { i: 16, t: "Weather",        g: "partly_cloudy_day" },
+                                    { i: 17, t: "Calendar",       g: "calendar_month" },
+                                    { i: 21, t: "Default apps",   g: "apps" },
+                                    { i: 22, t: "AI assistant",   g: "smart_toy" },
+                                    { i: 18, t: "About",          g: "info" }
                                 ]
 
                                 delegate: Item {
@@ -1067,7 +1080,7 @@ Variants {
                                         anchors.bottomMargin: 6
                                         text: navItem.modelData.sec ?? ""
                                         color: app.cFaint
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(11)
                                     }
 
@@ -1077,7 +1090,7 @@ Variants {
                                         radius: 22
                                         color: navItem.on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                                              : navHov.hovered ? app.cTile : "transparent"
-                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
                                         HoverHandler { id: navHov }
 
@@ -1090,14 +1103,14 @@ Variants {
                                             Text {
                                                 text: navItem.modelData.g ?? ""
                                                 color: navItem.on ? app.cBlue : app.cDim
-                                                font.family: app.font
+                                                font.family: "Material Symbols Rounded"
                                                 font.pixelSize: app.fs(16)
                                             }
                                             Text {
                                                 Layout.fillWidth: true
                                                 text: navItem.modelData.t ?? ""
                                                 color: navItem.on ? app.cFg : app.cDim
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(13)
                                                 font.bold: navItem.on
                                             }
@@ -1106,13 +1119,13 @@ Variants {
                                                 implicitWidth: Math.max(22, badgeT.implicitWidth + 12)
                                                 implicitHeight: 20
                                                 radius: 10
-                                                color: app.cSurf
+                                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                 Text {
                                                     id: badgeT
                                                     anchors.centerIn: parent
                                                     text: navItem.badge
                                                     color: app.cDim
-                                                    font.family: "Noto Sans"
+                                                    font.family: "Inter"
                                                     font.pixelSize: app.fs(10)
                                                 }
                                             }
@@ -1140,7 +1153,7 @@ Variants {
                         Layout.bottomMargin: 12
                         text: armed ? "Click again to reset everything" : "Reset all"
                         color: armed ? app.cRed : resetHov.hovered ? app.cFg : app.cFaint
-                        font.family: "Noto Sans"
+                        font.family: "Inter"
                         font.pixelSize: app.fs(11)
                         font.bold: armed
                         HoverHandler { id: resetHov }
@@ -1212,14 +1225,14 @@ Variants {
                                 Text {
                                     text: win.pages[win.page].t
                                     color: app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(22)
                                     font.bold: true
                                 }
                                 Text {
                                     text: win.pages[win.page].d
                                     color: app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(12)
                                 }
                             }
@@ -1229,9 +1242,9 @@ Variants {
                                 anchors.rightMargin: 6
                                 anchors.top: parent.top
                                 anchors.topMargin: 2
-                                text: "\u{f0156}"
+                                text: "close"
                                 color: closeHov.hovered ? app.cFg : app.cDim
-                                font.family: app.font
+                                font.family: "Material Symbols Rounded"
                                 font.pixelSize: app.fs(20)
                                 HoverHandler { id: closeHov }
                                 MouseArea {
@@ -1579,7 +1592,7 @@ Variants {
                                                 Layout.topMargin: 4
                                                 implicitHeight: width * 9 / 16
                                                 radius: 14
-                                                color: app.cSurf
+                                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                 clip: true
                                                 visible: app.currentWall !== ""
 
@@ -1590,7 +1603,7 @@ Variants {
                                                     asynchronous: true
                                                     sourceSize.width: 1200
                                                     opacity: app.wallBusy ? 0.5 : 1
-                                                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                                                    Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
                                                 }
                                             }
                                         }
@@ -1632,7 +1645,7 @@ Variants {
                                                         width: wallGrid.cellW
                                                         height: width * 9 / 16
                                                         radius: 12
-                                                        color: app.cSurf
+                                                        color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                         clip: true
                                                         border.width: isCurrent ? 3 : thHov.hovered ? 2 : 0
                                                         border.color: isCurrent ? app.cBlue : app.cFg
@@ -1659,9 +1672,9 @@ Variants {
                                                             color: app.cBlue
                                                             Text {
                                                                 anchors.centerIn: parent
-                                                                text: "\u{f012c}"
+                                                                text: "check"
                                                                 color: app.cOnAccent
-                                                                font.family: app.font
+                                                                font.family: "Material Symbols Rounded"
                                                                 font.pixelSize: app.fs(13)
                                                             }
                                                         }
@@ -1674,13 +1687,13 @@ Variants {
                                                             height: 26
                                                             color: Qt.rgba(0, 0, 0, 0.55)
                                                             opacity: thHov.hovered ? 1 : 0
-                                                            Behavior on opacity { NumberAnimation { duration: 120 } }
+                                                            Behavior on opacity { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                                                             Text {
                                                                 anchors.centerIn: parent
                                                                 width: parent.width - 14
                                                                 text: String(thumb.modelData).split("/").pop()
                                                                 color: "white"
-                                                                font.family: "Noto Sans"
+                                                                font.family: "Inter"
                                                                 font.pixelSize: app.fs(10)
                                                                 elide: Text.ElideMiddle
                                                                 horizontalAlignment: Text.AlignHCenter
@@ -1744,6 +1757,79 @@ Variants {
                                                     options: ["Off", "On"]
                                                     current: app.cfg.clockDate !== false ? 1 : 0
                                                     onPicked: i => app.setting("clockDate", i === 1)
+                                                }
+                                            ]
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: "Style" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Bar style"
+                                            desc: app.barAttached
+                                                  ? "One long bar across the top. Its sections open cards that slide out from behind it."
+                                                  : "Three separate floating pills that grow into panels."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Long bar", "Islands"]
+                                                    current: app.barAttached ? 0 : 1
+                                                    onPicked: i => {
+                                                        app.cardShown = false
+                                                        app.quickShown = false
+                                                        app.sysShown = false
+                                                        app.setting("barStyle", i === 0 ? "long" : "islands")
+                                                    }
+                                                }
+                                            ]
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: "Centre pill" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Clicking the centre pill"
+                                            desc: app.barMorph
+                                                  ? "The pill itself grows into a panel with the media, the weather and this month. Esc or the arrow at its top shrinks it back."
+                                                  : "Opens the media card in its own panel under the bar."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Grow into a panel", "Card below"]
+                                                    current: app.barMorph ? 0 : 1
+                                                    onPicked: i => { app.cardShown = false; app.setting("barMorph", i === 0) }
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Clicking the clock"
+                                            desc: app.rightMorph
+                                                  ? "The right pill grows into quick settings: toggles, sliders, outputs and notifications. The sidebar is still on SUPER+V."
+                                                  : "Opens the sidebar. Clicking the volume opens its own popover."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Grow into quick settings", "Open the sidebar"]
+                                                    current: app.rightMorph ? 0 : 1
+                                                    onPicked: i => { app.quickShown = false; app.setting("rightMorph", i === 0) }
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Clicking a stat"
+                                            desc: app.leftMorph
+                                                  ? "The left pill grows into a system panel: live graphs and the busiest processes."
+                                                  : "Opens btop in your terminal (GPU opens nvidia-settings)."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Grow into a panel", "Open btop"]
+                                                    current: app.leftMorph ? 0 : 1
+                                                    onPicked: i => { app.sysShown = false; app.setting("leftMorph", i === 0) }
                                                 }
                                             ]
                                         }
@@ -1952,6 +2038,27 @@ Variants {
                                                 }
                                             ]
                                         }
+
+                                        Card {
+                                            id: wsAnimCard
+                                            app: rootV.app
+                                            readonly property var styles: ["slide", "slidevert", "glide", "fade", "off"]
+                                            readonly property int cur: Math.max(0, styles.indexOf(app.cfg.wsAnim || "slide"))
+                                            title: "Switching workspaces"
+                                            desc: ["Workspaces slide side to side, like moving along a row: higher numbers come in from the right.",
+                                                   "Workspaces slide up and down.",
+                                                   "A short slide with a fade: the new workspace drifts in gently.",
+                                                   "The old workspace fades out as the new one fades in.",
+                                                   "Workspaces change instantly."][cur]
+                                                  + (app.cfg.animations === false || app.gameMode ? " (Animations are off right now.)" : "")
+
+                                            Seg {
+                                                app: rootV.app
+                                                options: ["Slide", "Slide vertically", "Glide", "Fade", "Off"]
+                                                current: wsAnimCard.cur
+                                                onPicked: i => app.setting("wsAnim", wsAnimCard.styles[i])
+                                            }
+                                        }
                                     }
 
                                     // ================= DOCK =================
@@ -2036,7 +2143,7 @@ Variants {
                                                         Layout.fillWidth: true
                                                         text: pinRow.entry ? pinRow.entry.name : pinRow.modelData + " (not installed)"
                                                         color: app.cFg
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(12)
                                                         elide: Text.ElideRight
                                                     }
@@ -2055,6 +2162,44 @@ Variants {
                                         width: parent.width
                                         visible: win.page === 7
                                         spacing: 4
+
+                                        SectionLabel { app: rootV.app; text: "The bar's island" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Notifications"
+                                            desc: !app.barAttached
+                                                  ? "The island needs the long bar (Settings > Bar > Bar style)."
+                                                  : app.cfg.islandNotifs === true
+                                                  ? "New notifications grow out of the middle of the bar for a few seconds. Ones with buttons or a reply box still get a popup too."
+                                                  : "New notifications appear as popups."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["In the bar", "As popups"]
+                                                    current: app.cfg.islandNotifs === true ? 0 : 1
+                                                    onPicked: i => app.setting("islandNotifs", i === 0)
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Volume and brightness"
+                                            desc: !app.barAttached
+                                                  ? "The island needs the long bar (Settings > Bar > Bar style)."
+                                                  : app.cfg.islandOsd !== false
+                                                  ? "Changes to volume, the microphone, brightness and night light show in the middle of the bar."
+                                                  : "Changes show in a pop-up near the bottom of the screen."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["In the bar", "As a pop-up"]
+                                                    current: app.cfg.islandOsd !== false ? 0 : 1
+                                                    onPicked: i => app.setting("islandOsd", i === 0)
+                                                }
+                                            ]
+                                        }
 
                                         SectionLabel { app: rootV.app; text: "Popups" }
 
@@ -2244,7 +2389,7 @@ Variants {
                                                     Text {
                                                         text: "Resolution"
                                                         color: app.cDim
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(11)
                                                         font.bold: true
                                                         Layout.topMargin: 4
@@ -2267,7 +2412,7 @@ Variants {
                                                     Text {
                                                         text: "Refresh rate"
                                                         color: app.cDim
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(11)
                                                         font.bold: true
                                                         Layout.topMargin: 6
@@ -2291,7 +2436,7 @@ Variants {
                                                         visible: app.monBus[monSec.modelData.name] !== undefined
                                                         text: "Brightness"
                                                         color: app.cDim
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(11)
                                                         font.bold: true
                                                         Layout.topMargin: 6
@@ -2311,7 +2456,7 @@ Variants {
                                                     Text {
                                                         text: "Scale"
                                                         color: app.cDim
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(11)
                                                         font.bold: true
                                                         Layout.topMargin: 6
@@ -2451,7 +2596,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 implicitHeight: 42
                                                 radius: 12
-                                                color: app.cSurf
+                                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                 border.width: tryIn.activeFocus ? 2 : 0
                                                 border.color: app.cBlue
 
@@ -2463,7 +2608,7 @@ Variants {
                                                     verticalAlignment: TextInput.AlignVCenter
                                                     color: app.cFg
                                                     selectionColor: app.cBlue
-                                                    font.family: "Noto Sans"
+                                                    font.family: "Inter"
                                                     font.pixelSize: app.fs(13)
                                                     clip: true
                                                     Keys.onEscapePressed: { text = ""; keys.forceActiveFocus() }
@@ -2579,7 +2724,7 @@ Variants {
                                                 Layout.topMargin: 4
                                                 implicitHeight: 38
                                                 radius: 19
-                                                color: app.cSurf
+                                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                 border.width: placeIn.activeFocus ? 1 : 0
                                                 border.color: app.cBlue
 
@@ -2589,9 +2734,9 @@ Variants {
                                                     anchors.rightMargin: 14
                                                     spacing: 8
                                                     Text {
-                                                        text: "\u{f0349}"
+                                                        text: "search"
                                                         color: app.cFaint
-                                                        font.family: app.font
+                                                        font.family: "Material Symbols Rounded"
                                                         font.pixelSize: app.fs(14)
                                                     }
                                                     TextInput {
@@ -2599,7 +2744,7 @@ Variants {
                                                         Layout.fillWidth: true
                                                         color: app.cFg
                                                         selectionColor: app.cBlue
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(12)
                                                         clip: true
                                                         onAccepted: app.searchPlace(text)
@@ -2616,7 +2761,7 @@ Variants {
                                                         visible: app.wxSearching
                                                         text: "Searching\u2026"
                                                         color: app.cFaint
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(11)
                                                     }
                                                 }
@@ -2723,14 +2868,14 @@ Variants {
                                                         Layout.preferredWidth: 90
                                                         text: modelData.k
                                                         color: app.cDim
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(12)
                                                     }
                                                     Text {
                                                         Layout.fillWidth: true
                                                         text: modelData.v
                                                         color: app.cFg
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(12)
                                                         wrapMode: Text.WordWrap
                                                     }
@@ -2810,7 +2955,7 @@ Variants {
                                                         Text {
                                                             text: addRow.modelData.name
                                                             color: app.cFg
-                                                            font.family: "Noto Sans"
+                                                            font.family: "Inter"
                                                             font.pixelSize: app.fs(13)
                                                             font.bold: true
                                                         }
@@ -2818,7 +2963,7 @@ Variants {
                                                             Layout.fillWidth: true
                                                             text: addRow.modelData.desc
                                                             color: app.cDim
-                                                            font.family: "Noto Sans"
+                                                            font.family: "Inter"
                                                             font.pixelSize: app.fs(11)
                                                             elide: Text.ElideRight
                                                         }
@@ -2872,7 +3017,7 @@ Variants {
                                                     visible: wCard.modelData.type === "note"
                                                     implicitHeight: Math.max(38, noteEdit.contentHeight + 20)
                                                     radius: 14
-                                                    color: app.cSurf
+                                                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                     border.width: noteEdit.activeFocus ? 1 : 0
                                                     border.color: app.cBlue
                                                     TextEdit {
@@ -2882,7 +3027,7 @@ Variants {
                                                         text: wCard.modelData.text || ""
                                                         color: app.cFg
                                                         selectionColor: app.cBlue
-                                                        font.family: "Noto Sans"
+                                                        font.family: "Inter"
                                                         font.pixelSize: app.fs(12)
                                                         wrapMode: TextEdit.Wrap
                                                         // saved when you click away
@@ -2985,7 +3130,7 @@ Variants {
                                                 visible: app.lockGreetMode === "custom"
                                                 implicitHeight: 38
                                                 radius: 19
-                                                color: app.cSurf
+                                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                 border.width: greetIn.activeFocus ? 1 : 0
                                                 border.color: app.cBlue
                                                 TextInput {
@@ -2997,7 +3142,7 @@ Variants {
                                                     text: app.lockGreetText
                                                     color: app.cFg
                                                     selectionColor: app.cBlue
-                                                    font.family: "Noto Sans"
+                                                    font.family: "Inter"
                                                     font.pixelSize: app.fs(12)
                                                     clip: true
                                                     maximumLength: 80
@@ -3027,6 +3172,161 @@ Variants {
                                                     onPicked: i => app.setting("lockMedia", i === 1)
                                                 }
                                             ]
+                                        }
+                                    }
+
+                                    // ================= AI ASSISTANT =================
+                                    ColumnLayout {
+                                        id: aiPage
+                                        width: parent.width
+                                        visible: win.page === 22
+                                        spacing: 4
+                                        readonly property string p: app.aiProvider
+                                        readonly property var info: app.aiProviders[p]
+                                        onVisibleChanged: if (visible) app.refreshAiKeys()
+
+                                        SectionLabel { app: rootV.app; text: "Provider" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Who answers"
+                                            desc: "Your messages are sent to this company, using your own API key. Each has its own key; switching keeps the others."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Anthropic", "Google", "OpenAI"]
+                                                    current: ["anthropic", "gemini", "openai"].indexOf(aiPage.p)
+                                                    onPicked: i => app.setting("aiProvider", ["anthropic", "gemini", "openai"][i])
+                                                }
+                                            ]
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: aiPage.info.name + " (" + aiPage.info.product + ")" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "API key"
+                                            desc: app.aiKeys[aiPage.p]
+                                                  ? "A key is saved. It's kept in its own file that only you can read, never in the settings file."
+                                                  : "Create one at " + aiPage.info.keyUrl + ", then paste it here and press Save."
+
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 8
+                                                Rectangle {
+                                                    Layout.fillWidth: true
+                                                    implicitHeight: 42
+                                                    radius: 12
+                                                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                                    border.width: keyIn.activeFocus ? 2 : 0
+                                                    border.color: app.cBlue
+                                                    TextInput {
+                                                        id: keyIn
+                                                        anchors.fill: parent
+                                                        anchors.leftMargin: 14
+                                                        anchors.rightMargin: 14
+                                                        verticalAlignment: TextInput.AlignVCenter
+                                                        echoMode: TextInput.Password
+                                                        color: app.cFg
+                                                        selectionColor: app.cBlue
+                                                        font.family: "Inter"
+                                                        font.pixelSize: app.fs(13)
+                                                        clip: true
+                                                        Keys.onReturnPressed: if (text.trim()) { app.saveAiKey(aiPage.p, text); text = "" }
+                                                        Text {
+                                                            visible: !keyIn.text && !keyIn.activeFocus
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            text: app.aiKeys[aiPage.p] ? "Paste a new key to replace it" : "Paste your API key"
+                                                            color: app.cFaint
+                                                            font: keyIn.font
+                                                        }
+                                                    }
+                                                }
+                                                Rectangle {
+                                                    implicitWidth: saveT.implicitWidth + 28
+                                                    implicitHeight: 42
+                                                    radius: 12
+                                                    color: keyIn.text.trim() ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                                    Text {
+                                                        id: saveT
+                                                        anchors.centerIn: parent
+                                                        text: "Save"
+                                                        color: keyIn.text.trim() ? app.cOnAccent : app.cDim
+                                                        font.family: "Inter"
+                                                        font.weight: Font.DemiBold
+                                                        font.pixelSize: app.fs(13)
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: if (keyIn.text.trim()) { app.saveAiKey(aiPage.p, keyIn.text); keyIn.text = "" }
+                                                    }
+                                                }
+                                                Rectangle {
+                                                    visible: app.aiKeys[aiPage.p] === true
+                                                    implicitWidth: remT.implicitWidth + 28
+                                                    implicitHeight: 42
+                                                    radius: 12
+                                                    color: remHov.hovered ? app.cRed : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                                    HoverHandler { id: remHov }
+                                                    Text {
+                                                        id: remT
+                                                        anchors.centerIn: parent
+                                                        text: "Remove"
+                                                        color: remHov.hovered ? app.cOnAccent : app.cFg
+                                                        font.family: "Inter"
+                                                        font.weight: Font.DemiBold
+                                                        font.pixelSize: app.fs(13)
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: app.removeAiKey(aiPage.p)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Model"
+                                            desc: "Which of " + aiPage.info.name + "'s models to use. Leave empty for " + aiPage.info.model + ". Changes apply to your next message."
+
+                                            Rectangle {
+                                                Layout.fillWidth: true
+                                                implicitHeight: 42
+                                                radius: 12
+                                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                                border.width: modelIn.activeFocus ? 2 : 0
+                                                border.color: app.cBlue
+                                                TextInput {
+                                                    id: modelIn
+                                                    anchors.fill: parent
+                                                    anchors.leftMargin: 14
+                                                    anchors.rightMargin: 14
+                                                    verticalAlignment: TextInput.AlignVCenter
+                                                    color: app.cFg
+                                                    selectionColor: app.cBlue
+                                                    font.family: "Inter"
+                                                    font.pixelSize: app.fs(13)
+                                                    clip: true
+                                                    // only letters, numbers and . : _ - reach the request
+                                                    validator: RegularExpressionValidator { regularExpression: /[\w.:-]*/ }
+                                                    text: app.cfg["aiModel_" + aiPage.p] || ""
+                                                    onEditingFinished: {
+                                                        const v = text.trim()
+                                                        if (v === "") app.resetSetting("aiModel_" + aiPage.p)
+                                                        else app.setting("aiModel_" + aiPage.p, v)
+                                                    }
+                                                    Text {
+                                                        visible: !modelIn.text && !modelIn.activeFocus
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        text: aiPage.info.model
+                                                        color: app.cFaint
+                                                        font: modelIn.font
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
@@ -3074,7 +3374,7 @@ Variants {
                                                 visible: appsPage.listFor("TerminalEmulator").length === 0
                                                 text: "None installed that declare themselves as one."
                                                 color: app.cFaint
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(11)
                                             }
                                         }
@@ -3099,7 +3399,7 @@ Variants {
                                                 visible: appsPage.listFor("FileManager").length === 0
                                                 text: "None installed that declare themselves as one."
                                                 color: app.cFaint
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(11)
                                             }
                                         }
@@ -3124,7 +3424,7 @@ Variants {
                                                 visible: appsPage.listFor("WebBrowser").length === 0
                                                 text: "None installed that declare themselves as one."
                                                 color: app.cFaint
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(11)
                                             }
                                         }
@@ -3156,7 +3456,7 @@ Variants {
                                                     app: rootV.app
                                                     accent: rootV.app.cRed
                                                     active: win.sinkAu?.muted ?? false
-                                                    glyph: active ? "\u{f075f}" : "\u{f057e}"
+                                                    glyph: active ? "volume_off" : "volume_up"
                                                     onClicked: if (win.sinkAu)
                                                         win.sinkAu.muted = !win.sinkAu.muted
                                                 }
@@ -3297,7 +3597,7 @@ Variants {
                                                     app: rootV.app
                                                     accent: rootV.app.cRed
                                                     active: win.sourceAu?.muted ?? false
-                                                    glyph: active ? "\u{f036d}" : "\u{f036c}"
+                                                    glyph: active ? "mic_off" : "mic"
                                                     onClicked: if (win.sourceAu)
                                                         win.sourceAu.muted = !win.sourceAu.muted
                                                 }
@@ -3361,7 +3661,7 @@ Variants {
                                 anchors.right: parent.right
                                 width: 4
                                 radius: 2
-                                color: app.cSurf
+                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 y: flick.visibleArea.yPosition * flick.height
                                 height: Math.max(30, flick.visibleArea.heightRatio * flick.height)
                             }

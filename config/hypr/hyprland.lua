@@ -100,7 +100,10 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("quickshell")
     hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/restore-wall")
     hl.exec_cmd("hypridle")
+    -- clipboard history: text, and images (the clipboard panel shows them
+    -- as thumbnails)
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
+    hl.exec_cmd("wl-paste --type image --watch cliphist store")
 end)
 
 
@@ -146,6 +149,9 @@ local winInactive = num(S.inactive_opacity, 1.0, 0.3, 1)
 local blurSize    = int(S.blur_size,        4,   1, 16)
 local blurPasses  = int(S.blur_passes,      3,   1, 4)
 local animOn      = S.animations ~= false
+-- game mode (quick settings): blur, shadows and animations off, for the
+-- highest frame rate; everything returns when it's switched off
+local gameMode    = S.game_mode == true
 local animSpeed   = num(S.anim_speed,       1.0, 0.25, 4)   -- 2 = twice as fast
 local repeatRate  = int(S.repeat_rate,      25,  5,  100)   -- keys per second
 local repeatDelay = int(S.repeat_delay,     600, 150, 1500) -- ms before repeating
@@ -179,7 +185,7 @@ hl.config({
         inactive_opacity = winInactive,
 
         shadow = {
-            enabled      = true,
+            enabled = not gameMode and (true),
             range        = 4,
             render_power = 3,
             color        = 0xee1a1a1a,
@@ -188,7 +194,7 @@ hl.config({
         -- KWin blurs a rectangle, which is why pills had square corners
         -- there.  Hyprland blurs the layer surface and rounds it to match.
         blur = {
-            enabled     = true,
+            enabled     = not gameMode,
             size        = blurSize,    -- radius; raise for a heavier frost
             passes      = blurPasses,  -- keep >=3 when size is large, or it banks
             noise       = 0.02,
@@ -201,7 +207,7 @@ hl.config({
     },
 
     animations = {
-        enabled = animOn,
+        enabled = animOn and not gameMode,
     },
 })
 
@@ -251,9 +257,32 @@ anim({ leaf = "layersIn",      enabled = true,  speed = 4,    bezier = "easeOutQ
 anim({ leaf = "layersOut",     enabled = true,  speed = 1.5,  bezier = "linear",       style = "fade" })
 anim({ leaf = "fadeLayersIn",  enabled = true,  speed = 1.79, bezier = "almostLinear" })
 anim({ leaf = "fadeLayersOut", enabled = true,  speed = 1.39, bezier = "almostLinear" })
-anim({ leaf = "workspaces",    enabled = true,  speed = 4,    bezier = "glide",        style = "slidefade 12%" })
-anim({ leaf = "workspacesIn",  enabled = true,  speed = 1.21, bezier = "almostLinear", style = "fade" })
-anim({ leaf = "workspacesOut", enabled = true,  speed = 1.94, bezier = "almostLinear", style = "fade" })
+-- Switching workspaces (Settings > Windows > Switching workspaces).
+-- Only the "workspaces" leaf decides it: workspacesIn and workspacesOut
+-- used to be set to a quick fade, which overrode the slide and made the
+-- switch look almost instant.  They now follow the same style.
+--   slide      side to side, like moving along a row (the default)
+--   slidevert  up and down
+--   glide      a short slide with a fade: subtler
+--   fade       a cross-fade
+--   off        instant
+local wsStyles = {
+    slide     = { style = "slide",           speed = 4.5, bezier = "glide" },
+    slidevert = { style = "slidevert",       speed = 4.5, bezier = "glide" },
+    glide     = { style = "slidefade 20%",   speed = 4,   bezier = "glide" },
+    fade      = { style = "fade",            speed = 3,   bezier = "almostLinear" },
+}
+local wsChoice = wsStyles[S.ws_anim] and S.ws_anim or (S.ws_anim == "off" and "off" or "slide")
+local ws = wsStyles[wsChoice]
+for _, leaf in ipairs({ "workspaces", "workspacesIn", "workspacesOut" }) do
+    if ws then
+        anim({ leaf = leaf, enabled = true, speed = ws.speed, bezier = ws.bezier, style = ws.style })
+    else
+        anim({ leaf = leaf, enabled = false, speed = 1, bezier = "default" })
+    end
+end
+-- the special (scratchpad) workspace always drops in from above
+anim({ leaf = "specialWorkspace", enabled = wsChoice ~= "off", speed = 4, bezier = "glide", style = "slidevert" })
 anim({ leaf = "zoomFactor",    enabled = true,  speed = 7,    bezier = "quick" })
 
 -- Ref https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/
@@ -367,8 +396,8 @@ hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager),
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu),
         { description = "App menu" })
 
-hl.bind("SUPER_L", hl.dsp.exec_cmd(
-    "sh -c 'pkill rofi || rofi -show drun -theme ~/.config/rofi/launcher.rasi'"),
+-- the shell's own launcher: apps, maths, emoji, clipboard, commands
+hl.bind("SUPER_L", hl.dsp.exec_cmd("qs ipc call launcher toggle"),
     { release = true, ignore_mods = true, description = "Launcher (tap SUPER)" })
 
 -- ---- windows --------------------------------------------------
@@ -392,6 +421,42 @@ hl.bind(mainMod .. " + up",    hl.dsp.focus({ direction = "up" }),
 hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }),
         { description = "Focus down" })
 
+-- Window keys.  Each one is set up through safeBind: if Hyprland ever
+-- rejects its options, that key is skipped (and noted in Hyprland's log)
+-- instead of the whole config failing to load.
+local function safeBind(keys, make, opts)
+    local ok, d = pcall(make)
+    if ok and d then
+        hl.bind(keys, d, opts)
+    else
+        hl.print("Ether Shell: skipped the bind " .. keys .. ": " .. tostring(d))
+    end
+end
+
+-- fullscreen, and maximised (fills the screen but keeps the bar and gaps)
+safeBind(mainMod .. " + F", function()
+    return hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }) end,
+    { description = "Fullscreen" })
+safeBind(mainMod .. " + SHIFT + F", function()
+    return hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }) end,
+    { description = "Maximise" })
+
+-- move the window, and resize it (hold to keep going)
+for _, d in ipairs({ { key = "left", x = -40, y = 0 }, { key = "right", x = 40, y = 0 },
+                     { key = "up", x = 0, y = -40 },   { key = "down", x = 0, y = 40 } }) do
+    safeBind(mainMod .. " + SHIFT + " .. d.key, function()
+        return hl.dsp.window.move({ direction = d.key }) end,
+        { description = "Move window " .. d.key })
+    safeBind(mainMod .. " + CTRL + " .. d.key, function()
+        return hl.dsp.window.resize({ x = d.x, y = d.y, relative = true }) end,
+        { description = "Resize window " .. d.key, repeating = true })
+end
+
+-- back to the last workspace on this monitor
+safeBind(mainMod .. " + Tab", function()
+    return hl.dsp.focus({ workspace = "previous_per_monitor" }) end,
+    { description = "Last workspace" })
+
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),
         { mouse = true, description = "Drag window" })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(),
@@ -400,8 +465,11 @@ hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(),
 -- ---- shell ----------------------------------------------------
 hl.bind("ALT + Tab", hl.dsp.exec_cmd("qs ipc call overview toggle"),
         { description = "Workspace overview" })
+-- the clipboard panel, down the right side
 hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"),
-        { description = "Clipboard / sidebar" })
+        { description = "Clipboard history" })
+hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call ai toggle"),
+        { description = "AI assistant" })
 hl.bind(mainMod .. " + slash", hl.dsp.exec_cmd("qs ipc call cheatsheet toggle"),
         { description = "This cheatsheet" })
 
@@ -410,13 +478,22 @@ hl.bind(mainMod .. " + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/sho
         { description = "Screenshot region" })
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/shot full"),
         { description = "Screenshot screen" })
-hl.bind(mainMod .. " + H", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/setwall"),
-        { description = "Wallpaper picker" })
+-- the wallpaper selector (the rofi list if the shell isn't running)
+hl.bind(mainMod .. " + H", hl.dsp.exec_cmd(
+    "qs ipc call wallpaper toggle || " .. os.getenv("HOME") .. "/.local/bin/setwall"),
+        { description = "Wallpaper selector" })
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"),
         { description = "Lock screen" })
-hl.bind(mainMod .. " + M", hl.dsp.exec_cmd(
-    "command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"),
-    { description = "Exit Hyprland" })
+-- Ether Shell's panels.  (There's no key that quits Hyprland outright: Log out is
+-- in the power menu, behind a countdown, so one slip can't end the session.)
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call quick toggle"),
+        { description = "Quick settings" })
+hl.bind(mainMod .. " + X", hl.dsp.exec_cmd("qs ipc call power toggle"),
+        { description = "Power menu" })
+hl.bind(mainMod .. " + comma", hl.dsp.exec_cmd("qs ipc call settings toggle"),
+        { description = "Settings" })
+hl.bind(mainMod .. " + period", hl.dsp.exec_cmd("qs ipc call launcher emoji"),
+        { description = "Emoji picker" })
 
 -- ---- workspaces -----------------------------------------------
 -- The keys 1-9 then 0 walk the main workspace list in order (default
@@ -433,7 +510,7 @@ local function intList(v, default)
     return #out > 0 and out or default
 end
 local main   = intList(S.main_workspaces, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
-local second = intList(S.second_workspaces, {})
+local second = intList(S.second_workspaces, { 11, 12, 13, 14, 15 })
 local mainOut   = cmd(S.main_output, "")
 local secondOut = cmd(S.second_output, "")
 
@@ -448,12 +525,17 @@ if secondOut ~= "" then
     end
 end
 
+-- SUPER + number goes to the focused monitor's own workspaces: the shell
+-- knows which monitor has focus, and Hyprland's binds can't ask.  If the
+-- shell isn't running, the keys fall back to the main monitor's.
 for i, id in ipairs(main) do
     local key = i % 10
-    hl.bind(mainMod .. " + " .. key, hl.dsp.focus({ workspace = id }),
-            { description = "Workspace " .. id })
-    hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = id }),
-            { description = "Send to workspace " .. id })
+    hl.bind(mainMod .. " + " .. key, hl.dsp.exec_cmd(
+        "qs ipc call ws go " .. i .. " || hyprctl dispatch 'hl.dsp.focus({ workspace = " .. id .. " })'"),
+        { description = "Workspace " .. i })
+    hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.exec_cmd(
+        "qs ipc call ws send " .. i .. " || hyprctl dispatch 'hl.dsp.window.move({ workspace = " .. id .. " })'"),
+        { description = "Send to workspace " .. i })
 end
 
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }),

@@ -70,7 +70,7 @@ Variants {
             id: card
             anchors.horizontalCenter: parent.horizontalCenter
             y: winD.shown ? winD.tipRoom : winD.height + 8
-            Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             width: dockRow.implicitWidth + 16
             height: winD.cardH
             radius: height / 2.4
@@ -102,12 +102,12 @@ Variants {
                         implicitWidth: winD.cell
                         implicitHeight: winD.cell
                         radius: width * 0.32
-                        color: isActive ? app.cSurf
-                             : itHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.7)
+                        color: isActive ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                             : itHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                              : "transparent"
                         opacity: elsewhere ? 0.5 : 1
-                        Behavior on color { ColorAnimation { duration: 130 } }
-                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                        Behavior on color { ColorAnimation { duration: app.animQuick } }
+                        Behavior on opacity { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
 
                         HoverHandler { id: itHov }
 
@@ -128,7 +128,7 @@ Variants {
                             height: 4
                             radius: 2
                             color: it.isActive ? app.cBlue : app.cDim
-                            Behavior on width { NumberAnimation { duration: 130 } }
+                            Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                         }
 
                         // window count
@@ -142,7 +142,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: it.modelData.n
                                 color: app.cOnAccent
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(9)
                                 font.bold: true
                             }
@@ -193,7 +193,7 @@ Variants {
                                         return main + (it.elsewhere ? " (other workspace)" : "")
                                     }
                                     color: app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(11)
                                     elide: Text.ElideRight
                                     horizontalAlignment: Text.AlignHCenter
@@ -203,7 +203,7 @@ Variants {
                                     visible: it.modelData.id !== ""
                                     text: it.modelData.pinned ? "Right-click to unpin" : "Right-click to pin"
                                     color: app.cFaint
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(10)
                                 }
                             }

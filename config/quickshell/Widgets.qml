@@ -60,7 +60,7 @@ Variants {
             visible: app.widgetEdit
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: app.gap + app.pillH + 24
+            anchors.topMargin: app.barBottom + 24
             z: 10
             implicitWidth: tbRow.implicitWidth + 24
             implicitHeight: 52
@@ -442,7 +442,7 @@ Variants {
                                     height: parent.height
                                     radius: 4
                                     color: sysRow.tint
-                                    Behavior on width { NumberAnimation { duration: 400 } }
+                                    Behavior on width { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                                 }
                             }
                         }

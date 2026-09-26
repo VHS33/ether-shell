@@ -18,7 +18,7 @@ import Quickshell.Services.Mpris
 //     tabs        Calendar (with notifications below it) |
 //                 Clipboard, filling whatever height is left
 //
-//   Same visual language as Settings: cards, Noto Sans for words,
+//   Same visual language as Settings: cards, Inter for words,
 //   the Nerd Font only for glyphs.  Lists are Repeaters/ListViews
 //   over plain-value arrays; live notification objects stay in
 //   app.notifRefs.
@@ -47,9 +47,9 @@ Variants {
         implicitHeight: 58
         radius: 18
         color: on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
-             : tHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
-             : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
-        Behavior on color { ColorAnimation { duration: 140 } }
+             : tHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
+             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: tHov }
 
@@ -63,13 +63,13 @@ Variants {
                 implicitWidth: 38
                 implicitHeight: 38
                 radius: 19
-                color: tile.on ? tile.app.cBlue : tile.app.cSurf
-                Behavior on color { ColorAnimation { duration: 140 } }
+                color: tile.on ? tile.app.cBlue : Qt.rgba(tile.app.cFg.r, tile.app.cFg.g, tile.app.cFg.b, 0.08)
+                Behavior on color { ColorAnimation { duration: app.animQuick } }
                 Text {
                     anchors.centerIn: parent
                     text: tile.glyph
                     color: tile.on ? tile.app.cOnAccent : tile.app.cDim
-                    font.family: tile.app.font
+                    font.family: "Material Symbols Rounded"
                     font.pixelSize: app.fs(16)
                 }
             }
@@ -81,7 +81,7 @@ Variants {
                     Layout.fillWidth: true
                     text: tile.title
                     color: tile.app.cFg
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(13)
                     font.bold: true
                     elide: Text.ElideRight
@@ -90,7 +90,7 @@ Variants {
                     Layout.fillWidth: true
                     text: tile.sub
                     color: tile.app.cDim
-                    font.family: "Noto Sans"
+                    font.family: "Inter"
                     font.pixelSize: app.fs(11)
                     elide: Text.ElideRight
                 }
@@ -98,9 +98,9 @@ Variants {
 
             Text {
                 visible: tile.chevron
-                text: "\u{f0142}"
+                text: "chevron_right"
                 color: tile.app.cFaint
-                font.family: tile.app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: app.fs(14)
             }
         }
@@ -163,9 +163,9 @@ Variants {
         implicitWidth: size
         implicitHeight: size
         radius: size / 2
-        color: rbHov.hovered ? (danger ? app.cRed : app.cSurf)
-             : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
-        Behavior on color { ColorAnimation { duration: 120 } }
+        color: rbHov.hovered ? (danger ? app.cRed : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12))
+             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: rbHov }
 
@@ -174,7 +174,7 @@ Variants {
             text: rb.glyph
             color: rbHov.hovered && rb.danger ? rb.app.cOnAccent
                  : rbHov.hovered ? rb.app.cFg : rb.app.cDim
-            font.family: rb.app.font
+            font.family: "Material Symbols Rounded"
             font.pixelSize: app.fs(17)
         }
 
@@ -203,13 +203,13 @@ Variants {
             implicitWidth: 32
             implicitHeight: 32
             radius: 16
-            color: vrHov.hovered ? vr.app.cSurf : "transparent"
+            color: vrHov.hovered ? Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.12) : "transparent"
             HoverHandler { id: vrHov }
             Text {
                 anchors.centerIn: parent
                 text: vr.muted ? vr.mutedGlyph : vr.glyph
                 color: vr.muted ? vr.app.cFaint : vr.accent
-                font.family: vr.app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: app.fs(16)
             }
             MouseArea {
@@ -230,7 +230,7 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 height: 8
                 radius: 4
-                color: vr.app.cSurf
+                color: Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.08)
 
                 Rectangle {
                     width: vrTrack.width * Math.min(1, vr.v)
@@ -272,7 +272,7 @@ Variants {
             horizontalAlignment: Text.AlignRight
             text: vr.muted ? "Muted" : Math.round(vr.v * 100) + "%"
             color: vr.app.cDim
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: app.fs(11)
         }
     }
@@ -291,9 +291,9 @@ Variants {
             implicitHeight: 32
             Text {
                 anchors.centerIn: parent
-                text: "\u{f00e0}"
+                text: "light_mode"
                 color: br.app.cYellow
-                font.family: br.app.font
+                font.family: "Material Symbols Rounded"
                 font.pixelSize: br.app.fs(16)
             }
         }
@@ -308,7 +308,7 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 height: 8
                 radius: 4
-                color: br.app.cSurf
+                color: Qt.rgba(br.app.cFg.r, br.app.cFg.g, br.app.cFg.b, 0.08)
                 Rectangle {
                     width: brTrack.width * br.v
                     height: parent.height
@@ -340,7 +340,7 @@ Variants {
             horizontalAlignment: Text.AlignRight
             text: br.app.brightAvg + "%"
             color: br.app.cDim
-            font.family: "Noto Sans"
+            font.family: "Inter"
             font.pixelSize: br.app.fs(11)
         }
     }
@@ -362,7 +362,7 @@ Variants {
         // the full height between the bar and the dock
         anchors { top: true; right: true; bottom: true }
         margins {
-            top: app.gap + app.pillH + 6
+            top: app.barBottom + 6
             right: app.gap
             bottom: app.gap + app.dockSpace
         }
@@ -406,8 +406,8 @@ Variants {
             x: winS.open ? 8 : parent.width + 8
             opacity: winS.open ? 1 : 0
             visible: opacity > 0
-            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
-            Behavior on opacity { NumberAnimation { duration: 180 } }
+            Behavior on x { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             radius: 24
             color: app.cCard
             border.width: 1
@@ -447,7 +447,7 @@ Variants {
                                       ? Qt.formatDateTime(app.now, "HH:mm")
                                       : Qt.formatDateTime(app.now, "h:mm AP").split(" ")[0]
                                 color: app.cFg
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(38)
                                 font.weight: Font.Light
                             }
@@ -456,14 +456,14 @@ Variants {
                                 anchors.baseline: bigTime.baseline
                                 text: Qt.formatDateTime(app.now, "AP")
                                 color: app.cDim
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(15)
                             }
                         }
                         Text {
                             text: Qt.formatDateTime(app.now, "dddd, d MMMM")
                             color: app.cDim
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(13)
                         }
                     }
@@ -477,9 +477,9 @@ Variants {
                             id: wxRow
                             spacing: 8
                             Text {
-                                text: app.wxOk ? app.wxGlyph(app.wxCond) : "\u{f05f7}"
+                                text: app.wxOk ? app.wxSymbol(app.wxCond, app.wxDay) : "cloud_off"
                                 color: app.cYellow
-                                font.family: app.font
+                                font.family: "Material Symbols Rounded"
                                 font.pixelSize: app.fs(30)
                             }
                             ColumnLayout {
@@ -488,7 +488,7 @@ Variants {
                                     Layout.alignment: Qt.AlignRight
                                     text: app.wxOk ? app.wxTemp : "\u2014"
                                     color: app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(18)
                                     font.bold: true
                                 }
@@ -497,7 +497,7 @@ Variants {
                                     Layout.maximumWidth: 120
                                     text: app.wxOk ? app.wxCond : (app.wxHasPlace ? "No weather" : "Set location in Settings")
                                     color: app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(11)
                                     elide: Text.ElideRight
                                 }
@@ -521,7 +521,7 @@ Variants {
                     Tile {
                         app: rootV.app
                         readonly property bool isMuted: winS.sink?.audio?.muted ?? false
-                        glyph: isMuted ? "\u{f075f}" : "\u{f057e}"
+                        glyph: isMuted ? "volume_off" : "volume_up"
                         title: "Sound"
                         sub: isMuted ? "Muted" : Math.round((winS.sink?.audio?.volume ?? 0) * 100) + "%"
                         on: !isMuted
@@ -530,7 +530,7 @@ Variants {
                     Tile {
                         app: rootV.app
                         readonly property bool isMuted: winS.source?.audio?.muted ?? false
-                        glyph: isMuted ? "\u{f036d}" : "\u{f036c}"
+                        glyph: isMuted ? "mic_off" : "mic"
                         title: "Microphone"
                         sub: isMuted ? "Muted" : "On"
                         on: !isMuted
@@ -538,8 +538,8 @@ Variants {
                     }
                     Tile {
                         app: rootV.app
-                        glyph: app.netKind === "wifi" ? "\u{f05a9}"
-                             : app.netKind === "ethernet" ? "\u{f0200}" : "\u{f05aa}"
+                        glyph: app.netKind === "wifi" ? "wifi"
+                             : app.netKind === "ethernet" ? "lan" : "wifi_off"
                         title: app.netKind === "wifi" ? "Wi-Fi"
                              : app.netKind === "ethernet" ? "Wired" : "Network"
                         sub: app.netName !== "" ? app.netName : "Not connected"
@@ -549,7 +549,7 @@ Variants {
                     }
                     Tile {
                         app: rootV.app
-                        glyph: app.dnd ? "\u{f009b}" : "\u{f009a}"
+                        glyph: app.dnd ? "notifications_off" : "notifications"
                         title: "Do not disturb"
                         sub: app.dnd ? "Popups hidden" : "Off"
                         on: app.dnd
@@ -558,7 +558,7 @@ Variants {
                     Tile {
                         app: rootV.app
                         Layout.columnSpan: 2
-                        glyph: "\u{f0594}"
+                        glyph: "dark_mode"
                         title: "Night light"
                         sub: app.nightLight ? "On, warmer colours" : "Off"
                         on: app.nightLight
@@ -573,31 +573,31 @@ Variants {
                     Item { Layout.fillWidth: true }
                     RoundBtn {
                         app: rootV.app
-                        glyph: "\u{f0104}"
+                        glyph: "screenshot_region"
                         onClicked: winS.closeThen("$HOME/.local/bin/shot")
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {
                         app: rootV.app
-                        glyph: "\u{f02e9}"
+                        glyph: "wallpaper"
                         onClicked: { app.settingsPage = 3; app.settingsShown = true; app.sidebarShown = false }
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {
                         app: rootV.app
-                        glyph: "\u{f0493}"
+                        glyph: "settings"
                         onClicked: { app.settingsShown = true; app.sidebarShown = false }
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {
                         app: rootV.app
-                        glyph: "\u{f033e}"
+                        glyph: "lock"
                         onClicked: winS.closeThen("loginctl lock-session")
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {
                         app: rootV.app
-                        glyph: "\u{f0425}"
+                        glyph: "power_settings_new"
                         danger: true
                         onClicked: { app.powerShown = true; app.sidebarShown = false }
                     }
@@ -611,14 +611,14 @@ Variants {
                     VolRow {
                         app: rootV.app
                         au: winS.sink?.audio ?? null
-                        glyph: "\u{f057e}"
-                        mutedGlyph: "\u{f075f}"
+                        glyph: "volume_up"
+                        mutedGlyph: "volume_off"
                     }
                     VolRow {
                         app: rootV.app
                         au: winS.source?.audio ?? null
-                        glyph: "\u{f036c}"
-                        mutedGlyph: "\u{f036d}"
+                        glyph: "mic"
+                        mutedGlyph: "mic_off"
                         accent: rootV.app.cTeal
                     }
                     BrightRow {
@@ -633,7 +633,7 @@ Variants {
                     visible: app.player !== null
                     implicitHeight: 84
                     radius: 18
-                    color: app.cSurf
+                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
 
                     RoundImage {
                         anchors.fill: parent
@@ -660,9 +660,9 @@ Variants {
                             Text {
                                 anchors.centerIn: parent
                                 visible: !app.player?.trackArtUrl
-                                text: "\u{f075a}"
+                                text: "music_note"
                                 color: app.cFaint
-                                font.family: app.font
+                                font.family: "Material Symbols Rounded"
                                 font.pixelSize: app.fs(22)
                             }
                         }
@@ -674,7 +674,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: app.player?.trackTitle || "Nothing playing"
                                 color: app.cFg
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(13)
                                 font.bold: true
                                 elide: Text.ElideRight
@@ -683,7 +683,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: app.player?.trackArtist ?? ""
                                 color: app.cDim
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(12)
                                 elide: Text.ElideRight
                             }
@@ -691,9 +691,9 @@ Variants {
 
                         Repeater {
                             model: [
-                                { g: "\u{f04ae}", a: "prev" },
+                                { g: "skip_previous", a: "prev" },
                                 { g: "",          a: "play" },
-                                { g: "\u{f04ad}", a: "next" }
+                                { g: "skip_next", a: "next" }
                             ]
                             delegate: Rectangle {
                                 id: mBtn
@@ -708,10 +708,10 @@ Variants {
                                     anchors.centerIn: parent
                                     text: mBtn.isPlay
                                         ? (app.player?.playbackState === MprisPlaybackState.Playing
-                                            ? "\u{f03e4}" : "\u{f040a}")
+                                            ? "pause" : "play_arrow")
                                         : mBtn.modelData.g
                                     color: mBtn.isPlay ? app.cOnAccent : app.cFg
-                                    font.family: app.font
+                                    font.family: "Material Symbols Rounded"
                                     font.pixelSize: app.fs(mBtn.isPlay ? 18 : 15)
                                 }
                                 MouseArea {
@@ -735,7 +735,7 @@ Variants {
                     Layout.fillWidth: true
                     implicitHeight: 40
                     radius: 20
-                    color: Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
+                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
                     RowLayout {
                         anchors.fill: parent
@@ -754,10 +754,10 @@ Variants {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 radius: 16
-                                color: on ? app.cSurf
-                                     : tabHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.5)
+                                color: on ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                                     : tabHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                                      : "transparent"
-                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Behavior on color { ColorAnimation { duration: app.animQuick } }
                                 HoverHandler { id: tabHov }
                                 Row {
                                     anchors.centerIn: parent
@@ -766,7 +766,7 @@ Variants {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: tabItem.modelData.t
                                         color: tabItem.on ? app.cFg : app.cDim
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(12)
                                         font.bold: tabItem.on
                                     }
@@ -782,7 +782,7 @@ Variants {
                                             anchors.centerIn: parent
                                             text: tabItem.badge
                                             color: app.cOnAccent
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(10)
                                             font.bold: true
                                         }
@@ -818,14 +818,14 @@ Variants {
                             RoundBtn {
                                 app: rootV.app
                                 size: 32
-                                glyph: "\u{f0141}"
+                                glyph: "expand_more"
                                 onClicked: app.monthOffset--
                             }
                             Item { Layout.fillWidth: true }
                             Text {
                                 text: Qt.formatDateTime(app.calBase, "MMMM yyyy")
                                 color: app.cFg
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(15)
                                 font.bold: true
                                 MouseArea {
@@ -839,7 +839,7 @@ Variants {
                             RoundBtn {
                                 app: rootV.app
                                 size: 32
-                                glyph: "\u{f0142}"
+                                glyph: "chevron_right"
                                 onClicked: app.monthOffset++
                             }
                         }
@@ -859,7 +859,7 @@ Variants {
                                     Layout.fillWidth: true
                                     text: ["S", "M", "T", "W", "T", "F", "S"][dow]
                                     color: (dow === 0 || dow === 6) ? app.cPeach : app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(11)
                                     font.bold: true
                                     horizontalAlignment: Text.AlignHCenter
@@ -879,14 +879,14 @@ Variants {
                                     // holidays get a soft tint behind the number
                                     readonly property bool isHol: modelData.hol !== ""
                                     color: modelData.today ? app.cBlue
-                                         : sel ? app.cSurf
-                                         : dHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.75)
+                                         : sel ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                                         : dHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                          : isHol ? Qt.rgba(app.cPeach.r, app.cPeach.g, app.cPeach.b,
                                                            modelData.cur ? 0.18 : 0.08)
                                          : "transparent"
                                     border.width: sel && !modelData.today ? 1 : 0
                                     border.color: app.cBlue
-                                    Behavior on color { ColorAnimation { duration: 110 } }
+                                    Behavior on color { ColorAnimation { duration: app.animQuick } }
                                     HoverHandler { id: dHov }
                                     Text {
                                         anchors.centerIn: parent
@@ -894,7 +894,7 @@ Variants {
                                         color: dayCell.modelData.today ? app.cOnAccent
                                              : !dayCell.modelData.cur ? app.cFaint
                                              : dayCell.isHol ? app.cPeach : app.cFg
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(13)
                                         font.bold: dayCell.modelData.today
                                     }
@@ -931,7 +931,7 @@ Variants {
                             visible: app.selectedKey === "" && app.holidayOn(todayKey) !== ""
                             text: "Today is " + app.holidayOn(todayKey)
                             color: app.cPeach
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
@@ -950,7 +950,7 @@ Variants {
                             property bool yearly: false
                             implicitHeight: dcCol.implicitHeight + 24
                             radius: 16
-                            color: Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
+                            color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
                             onKeyChanged: { noteIn.text = ""; yearly = false }
 
@@ -969,16 +969,16 @@ Variants {
                                         text: dayCard.key !== ""
                                               ? Qt.formatDate(new Date(dayCard.key + "T12:00:00"), "dddd d MMMM yyyy") : ""
                                         color: app.cFg
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(13)
                                         font.bold: true
                                         elide: Text.ElideRight
                                     }
                                     // mark / unmark the day
                                     Text {
-                                        text: dayCard.isMarked ? "\u{f04ce}" : "\u{f04d2}"
+                                        text: dayCard.isMarked ? "star" : "star"
                                         color: dayCard.isMarked ? app.cPeach : mkHov.hovered ? app.cFg : app.cFaint
-                                        font.family: app.font
+                                        font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(16)
                                         HoverHandler { id: mkHov }
                                         MouseArea {
@@ -990,14 +990,26 @@ Variants {
                                     }
                                 }
 
-                                Text {
+                                // a holiday: its icon, then its name
+                                RowLayout {
                                     Layout.fillWidth: true
                                     visible: dayCard.hol !== ""
-                                    text: "\u{f00ed}  " + dayCard.hol
-                                    color: app.cPeach
-                                    font.family: "Noto Sans"
-                                    font.pixelSize: app.fs(12)
-                                    wrapMode: Text.WordWrap
+                                    spacing: 6
+                                    Text {
+                                        Layout.alignment: Qt.AlignTop
+                                        text: "celebration"
+                                        color: app.cPeach
+                                        font.family: "Material Symbols Rounded"
+                                        font.pixelSize: app.fs(14)
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: dayCard.hol
+                                        color: app.cPeach
+                                        font.family: "Inter"
+                                        font.pixelSize: app.fs(12)
+                                        wrapMode: Text.WordWrap
+                                    }
                                 }
 
                                 // notes on this day
@@ -1010,9 +1022,9 @@ Variants {
                                         spacing: 8
                                         Text {
                                             Layout.alignment: Qt.AlignTop
-                                            text: noteRow.modelData.yearly ? "\u{f0456}" : "\u{f03eb}"
+                                            text: noteRow.modelData.yearly ? "event_repeat" : "edit_note"
                                             color: app.cBlue
-                                            font.family: app.font
+                                            font.family: "Material Symbols Rounded"
                                             font.pixelSize: app.fs(13)
                                         }
                                         Text {
@@ -1020,15 +1032,15 @@ Variants {
                                             text: noteRow.modelData.text
                                                   + (noteRow.modelData.yearly ? "  (every year)" : "")
                                             color: app.cFg
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(12)
                                             wrapMode: Text.WordWrap
                                         }
                                         Text {
                                             Layout.alignment: Qt.AlignTop
-                                            text: "\u{f0156}"
+                                            text: "close"
                                             color: ndHov.hovered ? app.cRed : app.cFaint
-                                            font.family: app.font
+                                            font.family: "Material Symbols Rounded"
                                             font.pixelSize: app.fs(13)
                                             HoverHandler { id: ndHov }
                                             MouseArea {
@@ -1051,7 +1063,7 @@ Variants {
                                         Layout.fillWidth: true
                                         implicitHeight: 32
                                         radius: 16
-                                        color: app.cSurf
+                                        color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                         border.width: noteIn.activeFocus ? 1 : 0
                                         border.color: app.cBlue
                                         TextInput {
@@ -1062,7 +1074,7 @@ Variants {
                                             verticalAlignment: TextInput.AlignVCenter
                                             color: app.cFg
                                             selectionColor: app.cBlue
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(12)
                                             clip: true
                                             onAccepted: {
@@ -1089,8 +1101,8 @@ Variants {
                                         implicitHeight: 32
                                         radius: 16
                                         color: dayCard.yearly ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.26)
-                                             : yrHov.hovered ? app.cSurf
-                                             : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
+                                             : yrHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                                             : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                                         border.width: dayCard.yearly ? 1 : 0
                                         border.color: app.cBlue
                                         HoverHandler { id: yrHov }
@@ -1099,7 +1111,7 @@ Variants {
                                             anchors.centerIn: parent
                                             text: "Every year"
                                             color: dayCard.yearly ? app.cFg : app.cDim
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(11)
                                             font.bold: dayCard.yearly
                                         }
@@ -1129,7 +1141,7 @@ Variants {
                             Text {
                                 text: "Notifications"
                                 color: app.cFg
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(13)
                                 font.bold: true
                             }
@@ -1144,7 +1156,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: app.notifCount
                                     color: app.cOnAccent
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(10)
                                     font.bold: true
                                 }
@@ -1154,7 +1166,7 @@ Variants {
                                 visible: app.notifCount > 0
                                 text: "Clear all"
                                 color: clrHov.hovered ? app.cRed : app.cDim
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(11)
                                 font.bold: true
                                 HoverHandler { id: clrHov }
@@ -1184,11 +1196,11 @@ Variants {
                                 width: ListView.view.width
                                 implicitHeight: nRow.implicitHeight + 24
                                 radius: 16
-                                color: nHov.hovered ? app.cSurf
-                                     : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
+                                color: nHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                                     : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                                 border.width: modelData.urgency >= 2 ? 1 : 0
                                 border.color: app.cRed
-                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Behavior on color { ColorAnimation { duration: app.animQuick } }
                                 HoverHandler { id: nHov }
 
                                 // clicking does what the app asked for on click
@@ -1231,7 +1243,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 text: nItem.modelData.app
                                                 color: app.cDim
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(10)
                                                 elide: Text.ElideRight
                                             }
@@ -1239,14 +1251,14 @@ Variants {
                                                 visible: !nHov.hovered
                                                 text: nItem.modelData.when
                                                 color: app.cFaint
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(10)
                                             }
                                             Text {
                                                 visible: nHov.hovered
-                                                text: "\u{f0156}"
+                                                text: "close"
                                                 color: nxHov.hovered ? app.cRed : app.cDim
-                                                font.family: app.font
+                                                font.family: "Material Symbols Rounded"
                                                 font.pixelSize: app.fs(13)
                                                 HoverHandler { id: nxHov }
                                                 MouseArea {
@@ -1262,7 +1274,7 @@ Variants {
                                             visible: text !== ""
                                             text: nItem.modelData.summary
                                             color: app.cFg
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(12)
                                             font.bold: true
                                             elide: Text.ElideRight
@@ -1272,7 +1284,7 @@ Variants {
                                             visible: text !== ""
                                             text: nItem.modelData.body
                                             color: app.cDim
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(11)
                                             wrapMode: Text.WordWrap
                                             maximumLineCount: 2
@@ -1296,9 +1308,9 @@ Variants {
                             Text {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
-                                text: app.dnd ? "\u{f009b}" : "\u{f009c}"
+                                text: app.dnd ? "notifications_off" : "notifications"
                                 color: app.cFaint
-                                font.family: app.font
+                                font.family: "Material Symbols Rounded"
                                 font.pixelSize: app.fs(34)
                             }
                             Text {
@@ -1306,7 +1318,7 @@ Variants {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: "You're all caught up"
                                 color: app.cDim
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(14)
                             }
                             Text {
@@ -1315,7 +1327,7 @@ Variants {
                                 visible: app.dnd
                                 text: "Do not disturb is on, so new ones won't pop up"
                                 color: app.cFaint
-                                font.family: "Noto Sans"
+                                font.family: "Inter"
                                 font.pixelSize: app.fs(12)
                                 wrapMode: Text.WordWrap
                             }
@@ -1344,7 +1356,7 @@ Variants {
                                 Layout.fillWidth: true
                                 implicitHeight: 36
                                 radius: 18
-                                color: app.cSurf
+                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 border.width: clipSearch.activeFocus ? 1 : 0
                                 border.color: app.cBlue
 
@@ -1354,9 +1366,9 @@ Variants {
                                     anchors.rightMargin: 12
                                     spacing: 8
                                     Text {
-                                        text: "\u{f0349}"
+                                        text: "search"
                                         color: app.cFaint
-                                        font.family: app.font
+                                        font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(14)
                                     }
                                     TextInput {
@@ -1364,7 +1376,7 @@ Variants {
                                         Layout.fillWidth: true
                                         color: app.cFg
                                         selectionColor: app.cBlue
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(12)
                                         clip: true
                                         Keys.onEscapePressed: {
@@ -1392,16 +1404,16 @@ Variants {
                                 implicitHeight: 36
                                 radius: 18
                                 color: armed ? app.cRed
-                                     : wHov.hovered ? app.cSurf
-                                     : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.55)
-                                Behavior on implicitWidth { NumberAnimation { duration: 140 } }
+                                     : wHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                                     : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+                                Behavior on implicitWidth { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                                 HoverHandler { id: wHov }
                                 Text {
                                     id: wipeT
                                     anchors.centerIn: parent
-                                    text: wipeBtn.armed ? "Clear all?" : "\u{f0a7a}"
+                                    text: wipeBtn.armed ? "Clear all?" : "delete"
                                     color: wipeBtn.armed ? app.cOnAccent : app.cDim
-                                    font.family: wipeBtn.armed ? "Noto Sans" : app.font
+                                    font.family: wipeBtn.armed ? "Inter" : "Material Symbols Rounded"
                                     font.pixelSize: app.fs(wipeBtn.armed ? 11 : 15)
                                     font.bold: wipeBtn.armed
                                 }
@@ -1439,8 +1451,8 @@ Variants {
                                 width: ListView.view.width
                                 implicitHeight: cRow.implicitHeight + 18
                                 radius: 12
-                                color: cHov.hovered ? app.cSurf : "transparent"
-                                Behavior on color { ColorAnimation { duration: 100 } }
+                                color: cHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
+                                Behavior on color { ColorAnimation { duration: app.animQuick } }
                                 HoverHandler { id: cHov }
 
                                 MouseArea {
@@ -1460,9 +1472,9 @@ Variants {
 
                                     Text {
                                         visible: cItem.bin !== null
-                                        text: "\u{f02e9}"
+                                        text: "wallpaper"
                                         color: app.cTeal
-                                        font.family: app.font
+                                        font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(15)
                                     }
                                     Text {
@@ -1472,7 +1484,7 @@ Variants {
                                                 + cItem.bin[3].replace("x", "\u00d7") + ", " + cItem.bin[1]
                                               : cItem.modelData.preview
                                         color: app.cFg
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(12)
                                         wrapMode: Text.WrapAnywhere
                                         maximumLineCount: 2
@@ -1481,9 +1493,9 @@ Variants {
                                     }
                                     Text {
                                         opacity: cHov.hovered ? 1 : 0
-                                        text: "\u{f0156}"
+                                        text: "close"
                                         color: cxHov.hovered ? app.cRed : app.cDim
-                                        font.family: app.font
+                                        font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(13)
                                         HoverHandler { id: cxHov }
                                         MouseArea {
@@ -1503,7 +1515,7 @@ Variants {
                             visible: clipTab.shown.length === 0
                             text: app.clipItems.length === 0 ? "Nothing copied yet" : "No matches"
                             color: app.cFaint
-                            font.family: "Noto Sans"
+                            font.family: "Inter"
                             font.pixelSize: app.fs(12)
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter

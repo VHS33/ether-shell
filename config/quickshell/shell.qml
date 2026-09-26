@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Wayland
 import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Services.SystemTray
@@ -54,6 +55,12 @@ ShellRoot {
     readonly property color cYellow: (isLight ? pal.yellowL : pal.yellow) ?? "#f9e2af"
     // text and icons drawn on top of an accent colour
     readonly property color cOnAccent: pal.onAccent ?? "#1e1e2e"
+    // Material's filled-but-deeper accent (the clock's group, tiles that
+    // are on) and the text that sits on it.  Until matugen has written
+    // them, a mix of the accent and the background stands in.
+    readonly property color cPrimC: pal.primaryC ?? Qt.tint(pal.bg ?? "#1e1e2e",
+                                                    Qt.rgba(cBlue.r, cBlue.g, cBlue.b, 0.35))
+    readonly property color cOnPrimC: pal.onPrimaryC ?? cFg
     // dimming layers: the background colour at a given strength
     function scrim(a) { return withAlpha(pal.bg ?? "#1e1e2e", hexA(a)) }
     readonly property string font:   "JetBrainsMono Nerd Font"
@@ -84,8 +91,175 @@ ShellRoot {
     }
 
     readonly property int pillH: 34
-    readonly property int zoneH: 46
     readonly property int gap:   8
+
+    // ---- bar style ---------------------------------------------------
+    // "long": one long pill floating just below the top edge, its
+    // sections opening cards that slide out from behind it.  "islands":
+    // three separate floating pills.  Settings > Bar > Bar style.
+    // (barAttached is the long bar: the sections sit on a shared bar.)
+    readonly property bool barAttached: cfg.barStyle !== "islands"
+    readonly property int barTop: gap                 // the long bar's distance from the top
+    readonly property int barH: 38                    // its height
+    readonly property int drawerGap: 6                // between the bar and a card
+    // the space reserved at the top of the main screen
+    readonly property int zoneH: barAttached ? barTop + barH + 4 : 46
+    // where things that hang below the bar start
+    readonly property int barBottom: barAttached ? barTop + barH : gap + pillH
+
+    // ---- the drawer: one shape with the long bar ------------------------
+    // Each section publishes where its drawer goes, in screen coordinates
+    // ({ x, w, h, cx, secW }: the drawer's final left edge, width and
+    // height, and the section's centre and width).  BarStrip draws the
+    // bar and the open drawer as one outline; the section's own window
+    // draws the drawer's contents, clipped to the same growing shape.
+    property var leftGeom: null
+    property var centerGeom: null
+    property var rightGeom: null
+    readonly property string drawerNow: !barAttached ? ""
+        : cardShown ? "center" : quickShown ? "right" : sysShown ? "left"
+        : islandShown ? "island" : ""
+    readonly property var drawerNowGeom:
+        drawerNow === "island" ? islandGeom
+        : drawerNow === "center" ? centerGeom : drawerNow === "right" ? rightGeom
+        : drawerNow === "left" ? leftGeom : null
+    // the drawer being shown or put away, kept while it closes
+    property string drawerWho: ""
+    property var drawerGeom: null
+    // BarStrip's layer for the open drawer's contents: they're drawn in the
+    // same window as the glass, so the two can never fall out of step
+    property var drawerLayer: null
+    property real drawerP: 0          // 0 closed, 1 fully open
+
+    // Where the drawer is heading: 0 closed, 1 open.  BarStrip animates
+    // drawerP toward it on its own render loop, in step with the screen's
+    // refresh, and writes each step back here for the sections' windows.
+    // drawerRestart asks it to start again from closed (switching drawers).
+    property real drawerTo: 0
+    property int drawerRestart: 0
+    function animateDrawer(to) {
+        drawerTo = to
+        if (!motionOn) drawerP = to
+    }
+    // ---- the dynamic island --------------------------------------------------
+    // On the long bar, the centre briefly grows a small drawer to show what
+    // just happened (a notification, a volume or brightness change, the next
+    // song, a timer finishing) and draws it back in.  It's a fifth kind of
+    // drawer, drawn by BarStrip like the others, but the lowest: it never
+    // interrupts a real drawer, and one opening puts it away.
+    // islandData is plain values: { kind: "notif" | "osd" | "track" | "timer", ... }
+    readonly property bool islandOn: barAttached
+    // notifications in the island: off unless chosen in Settings
+    readonly property bool islandNotifs: islandOn && cfg.islandNotifs === true
+    readonly property bool islandOsd: islandOn && cfg.islandOsd !== false
+    property bool islandShown: false
+    property var islandData: ({})
+    property var islandGeom: null
+    readonly property real mainScreenW: Quickshell.screens.find(s => s.name === mainScreen)?.width ?? 1920
+    function showIsland(d, ms) {
+        if (!islandOn || cardShown || quickShown || sysShown || launcherShown) return
+        const w = d.kind === "notif" ? 460 : d.kind === "track" ? 420 : d.kind === "timer" ? 380 : 330
+        // a different kind of event folds the island away and grows it again
+        if (islandShown && islandData.kind !== d.kind) drawerRestart++
+        islandData = d
+        islandGeom = { x: Math.round((mainScreenW - w) / 2), w: w, h: 62,
+                       cx: mainScreenW / 2, secW: 140, flush: "" }
+        islandShown = true
+        islandHide.interval = ms
+        if (!islandHeld) islandHide.restart()
+    }
+    function hideIsland() { islandHide.stop(); islandShown = false; islandHeld = false }
+    // it waits while the mouse is over it
+    property bool islandHeld: false
+    function holdIsland(on) {
+        islandHeld = on
+        if (on) islandHide.stop()
+        else if (islandShown) { islandHide.interval = 1500; islandHide.restart() }
+    }
+    Timer { id: islandHide; onTriggered: root.islandShown = false }
+    // the next song: once it has settled, and only while something plays
+    Timer {
+        id: trackIslandLater
+        interval: 700
+        onTriggered: {
+            const p = root.player
+            if (!p || !root.osdLive || root.cardShown || p.playbackState !== MprisPlaybackState.Playing) return
+            if (!(p.trackTitle || "")) return
+            root.showIsland({ kind: "track", title: p.trackTitle || "", artist: p.trackArtist || "",
+                              art: p.trackArtUrl || "", app: p.identity || "" }, 3500)
+        }
+    }
+
+    // ---- drawer diagnostics ----
+    // Every open, close and switch is logged (to /tmp/qs.log when started
+    // the usual way), and `qs ipc call drawer state` prints what the shell
+    // believes right now; `reset` forces every drawer shut.
+    property real drawerStripP: 0          // BarStrip's own progress, for the log
+    function drawerLog(what) {
+        console.log("drawer: " + what + " | now=" + (drawerNow || "-") + " who=" + (drawerWho || "-")
+                    + " to=" + drawerTo + " p=" + drawerP.toFixed(3) + " strip=" + drawerStripP.toFixed(3)
+                    + " card=" + cardShown + " quick=" + quickShown + " sys=" + sysShown
+                    + " launcher=" + launcherShown + " h=" + (drawerGeom ? Math.round(drawerGeom.h) : 0))
+    }
+    IpcHandler {
+        target: "drawer"
+        function state(): string {
+            return JSON.stringify({ now: root.drawerNow, who: root.drawerWho, to: root.drawerTo,
+                p: root.drawerP, strip: root.drawerStripP, curH: root.drawerCurH,
+                card: root.cardShown, quick: root.quickShown, sys: root.sysShown,
+                launcher: root.launcherShown, attached: root.barAttached,
+                geomH: root.drawerGeom ? root.drawerGeom.h : null })
+        }
+        function reset(): void {
+            root.drawerLog("reset asked for")
+            root.cardShown = false
+            root.quickShown = false
+            root.sysShown = false
+            root.launcherShown = false
+            root.drawerTo = 0
+            root.drawerP = 0
+            root.drawerRestart++
+        }
+    }
+
+    onDrawerNowChanged: {
+        drawerLog("drawerNow changed")
+        if (drawerNow !== "" && drawerNow !== "island" && islandShown) { islandHide.stop(); islandShown = false }
+        if (drawerNow !== "") {
+            const switching = drawerWho !== "" && drawerWho !== drawerNow && drawerP > 0
+            drawerWho = drawerNow
+            if (drawerNowGeom) drawerGeom = drawerNowGeom
+            if (switching) drawerRestart++
+            animateDrawer(1)
+        } else {
+            animateDrawer(0)
+        }
+    }
+    // safety net: if nothing is meant to be open but the drawer still is,
+    // a moment after it should have closed, close it
+    Timer {
+        interval: root.animNormal + 350
+        running: root.drawerNow === "" && root.drawerP > 0
+        onTriggered: if (root.drawerNow === "") {
+            root.drawerLog("safety net closed a stranded drawer")
+            root.drawerP = 0
+        }
+    }
+    onDrawerNowGeomChanged: if (drawerNow !== "" && drawerNowGeom) drawerGeom = drawerNowGeom
+
+    // The shape right now.  The centre drawer widens out from its
+    // section's centre; the left and right ones run flush down the bar's
+    // end and widen inward from it.  All extend downward at the same time.
+    readonly property string drawerFlush: drawerGeom ? (drawerGeom.flush || "") : ""
+    readonly property real drawerStartL: !drawerGeom ? 0
+        : drawerFlush === "left" ? drawerGeom.x : drawerGeom.cx - drawerGeom.secW * 0.25
+    readonly property real drawerStartR: !drawerGeom ? 0
+        : drawerFlush === "right" ? drawerGeom.x + drawerGeom.w : drawerGeom.cx + drawerGeom.secW * 0.25
+    readonly property real drawerCurX: !drawerGeom ? 0
+        : drawerStartL + (drawerGeom.x - drawerStartL) * drawerP
+    readonly property real drawerCurW: !drawerGeom ? 0
+        : drawerStartR + (drawerGeom.x + drawerGeom.w - drawerStartR) * drawerP - drawerCurX
+    readonly property real drawerCurH: drawerGeom ? drawerGeom.h * drawerP : 0
 
     property int cpuPct: 0
     property int gpuPct: 0
@@ -127,17 +301,98 @@ ShellRoot {
     }
     readonly property int workspaceCount: mainWorkspaces.length
 
+    // ---- the second monitor's workspaces -----------------------------------
+    // The other monitor (Settings > Displays) has workspaces of its own,
+    // shown on the bar as a second set numbered 1-5.  SUPER + number goes
+    // to the focused monitor's own workspaces (see the "ws" IPC below).
+    readonly property string secondScreen: {
+        const names = Quickshell.screens.map(s => s.name)
+        if (names.indexOf(cfg.secondScreen) >= 0 && cfg.secondScreen !== mainScreen) return cfg.secondScreen
+        return names.find(n => n !== mainScreen) ?? ""
+    }
+    readonly property var secondWorkspaces: {
+        const w = cfg.wsSecond
+        if (Array.isArray(w)) {
+            const ok = w.filter(x => Number.isInteger(x) && x > 0)
+            if (ok.length) return ok
+        }
+        return [11, 12, 13, 14, 15]
+    }
+    // the workspace showing on the second monitor, and whether it has focus
+    readonly property int secondActive: {
+        const m = Hyprland.monitors.values.find(m => m.name === secondScreen)
+        return m && m.activeWorkspace ? m.activeWorkspace.id : -1
+    }
+    // the workspace showing on the main monitor, whichever monitor has focus
+    readonly property int mainActive: {
+        const m = Hyprland.monitors.values.find(m => m.name === mainScreen)
+        return m && m.activeWorkspace ? m.activeWorkspace.id : activeWorkspace
+    }
+    readonly property bool secondFocused: (Hyprland.focusedMonitor?.name ?? "") === secondScreen && secondScreen !== ""
+
+    // the app to show for each workspace: the active window if it's there,
+    // otherwise the first window on it.  Plain strings, keyed by id.
+    readonly property var wsApps: {
+        const out = {}
+        const act = ToplevelManager.activeToplevel
+        for (const w of Hyprland.workspaces.values) {
+            if (w.id <= 0) continue
+            const list = w.toplevels?.values ?? []
+            let pick = null
+            for (const t of list) {
+                const id = t.wayland?.appId ?? ""
+                if (!id) continue
+                if (!pick) pick = id
+                if (act && t.wayland === act) { pick = id; break }
+            }
+            if (pick) out[w.id] = pick
+        }
+        return out
+    }
+
+    // ---- workspace previews ------------------------------------------------
+    // The workspace the mouse is resting on in the bar, where (the middle of
+    // its slot, in screen coordinates) and on which monitor's list; -1 when
+    // none.  WsPreview.qml shows a live miniature of it after a moment.
+    property int wsHoverId: -1
+    property real wsHoverX: 0
+    property string wsHoverScreen: ""
+    function wsHoverStart(id, x, screenName) {
+        wsHoverId = id
+        wsHoverX = x
+        wsHoverScreen = screenName
+    }
+    function wsHoverEnd(id) { if (wsHoverId === id) wsHoverId = -1 }
+
+    // SUPER + number and SUPER + SHIFT + number: the focused monitor's own
+    // workspaces.  Hyprland fixes its binds when the config loads and can't
+    // ask which monitor has focus, so the keys ask the shell.
+    IpcHandler {
+        target: "ws"
+        function go(n: int): void {
+            const list = root.secondFocused ? root.secondWorkspaces : root.mainWorkspaces
+            const id = list[n - 1]
+            if (id !== undefined) Hyprland.dispatch("hl.dsp.focus({ workspace = " + id + " })")
+        }
+        function send(n: int): void {
+            const list = root.secondFocused ? root.secondWorkspaces : root.mainWorkspaces
+            const id = list[n - 1]
+            if (id !== undefined) Hyprland.dispatch("hl.dsp.window.move({ workspace = " + id + " })")
+        }
+    }
+
     function workspacesFor(screenName) {
         const live = {}
         for (const w of Hyprland.workspaces.values) {
             if (w.id > 0) live[w.id] = w
         }
         const out = []
-        for (const id of root.mainWorkspaces) {
+        const ids = screenName !== "" && screenName === root.secondScreen ? root.secondWorkspaces : root.mainWorkspaces
+        for (const id of ids) {
             const w = live[id]
             // a workspace with windows; the focused one exists even empty
             const wins = w ? (w.toplevels?.values?.length ?? 1) : 0
-            out.push({ id: id, occupied: wins > 0 })
+            out.push({ id: id, occupied: wins > 0, app: root.wsApps[id] || "" })
         }
         return out
     }
@@ -275,6 +530,7 @@ ShellRoot {
     property bool powerShown: false
     property bool wallShown: false
     property bool overviewShown: false
+    property int overviewStep: 0      // bumped by Alt+Tab while open
 
     // ---- on-screen display -------------------------------------------
     // Watches the sink rather than the keybinds, so it shows for any
@@ -288,7 +544,7 @@ ShellRoot {
 
     // refreshes wait until the sidebar has slid in, so they don't compete
     // with the opening frames
-    onSidebarShownChanged: if (sidebarShown) sideRefresh.restart()
+    onSidebarShownChanged: if (sidebarShown) { sideRefresh.restart(); notifUnseen = 0 }
     Timer {
         id: sideRefresh
         interval: 260
@@ -424,6 +680,7 @@ ShellRoot {
                     })
                 }
                 root.clipItems = out
+                if (root.clipShown) root.makeClipThumbs()
             }
         }
     }
@@ -435,6 +692,7 @@ ShellRoot {
             "cliphist decode " + id + " | wl-copy"]
         clipAct.running = true
         root.sidebarShown = false
+        root.clipShown = false
     }
 
     function clipDelete(id) {
@@ -498,44 +756,108 @@ ShellRoot {
                     return
                 }
 
+                // key names people recognise
+                const pretty = {
+                    "SUPER_L": "SUPER (tap)", "slash": "/", "Tab": "Tab",
+                    "mouse:272": "Left drag", "mouse:273": "Right drag",
+                    "mouse_down": "Scroll down", "mouse_up": "Scroll up",
+                    "left": "\u2190", "right": "\u2192", "up": "\u2191", "down": "\u2193",
+                    "XF86AudioRaiseVolume": "Volume up key", "XF86AudioLowerVolume": "Volume down key",
+                    "XF86AudioMute": "Mute key", "XF86AudioMicMute": "Mic mute key",
+                    "XF86MonBrightnessUp": "Brightness up key", "XF86MonBrightnessDown": "Brightness down key",
+                    "XF86AudioNext": "Next key", "XF86AudioPrev": "Previous key",
+                    "XF86AudioPlay": "Play key", "XF86AudioPause": "Pause key"
+                }
+                // which group a bind belongs to, from its description
+                const groupOf = l => {
+                    if (/^(Go to|Send window to) workspace|workspace|overview/i.test(l)) return "Workspaces"
+                    if (/screenshot/i.test(l)) return "Screenshots"
+                    if (/volume|mute|brightness|track|play|pause/i.test(l)) return "Media"
+                    if (/window|float|pseudotile|split|focus|drag|resize|fullscreen|maximi/i.test(l)) return "Windows"
+                    if (/terminal|file manager|app menu|launcher/i.test(l)) return "Apps"
+                    return "Shell"
+                }
+
                 const out = []
+                const seen = {}
                 for (const b of raw) {
                     const key = b.key ?? ""
                     if (!key.length) continue
 
-                    const parts = root.modString(b.modmask ?? 0)
-                    parts.push(key.length === 1 ? key.toUpperCase() : key)
-
-                    // a description if the bind has one, else something
-                    // readable from the dispatcher
                     let label = b.description ?? ""
                     if (!label.length) {
                         const d = b.dispatcher ?? ""
                         label = d === "__lua" ? "(lua)" : d
                     }
 
-                    out.push({ keys: parts.join(" + "), label: label })
+                    const mods = root.modString(b.modmask ?? 0)
+                    // SUPER_L is the tap itself, not a modifier plus a key
+                    let keys = key === "SUPER_L" ? ["SUPER (tap)"]
+                             : mods.concat([pretty[key] ?? (key.length === 1 ? key.toUpperCase() : key)])
+
+                    // twenty workspace binds become two rows
+                    if (/^Workspace \d+$/.test(label)) {
+                        label = "Go to workspace"
+                        keys = mods.concat(["1 \u2026 0"])
+                    } else if (/^Send to workspace \d+$/.test(label)) {
+                        label = "Send window to workspace"
+                        keys = mods.concat(["1 \u2026 0"])
+                    }
+
+                    const id = keys.join("+") + "|" + label
+                    if (seen[id]) continue
+                    seen[id] = true
+                    out.push({ keys: keys, label: label, group: groupOf(label) })
                 }
                 root.cheatBinds = out
             }
         }
     }
 
+    // ---- motion ----------------------------------------------------------
+    // Every animation in the shell takes its length from here, so the
+    // desktop moves as one: three speeds, one curve, all following
+    // Settings > Windows > Animation speed, and nothing moves when
+    // animations are off there.
+    readonly property bool motionOn: cfg.animations !== false && !gameMode
+    readonly property real motionScale:
+        Math.max(0.25, Math.min(4, Number(cfg.animSpeed) || 1))
+    readonly property int animQuick: dur(140)     // hovers, colours, small changes
+    readonly property int animNormal: dur(240)    // panels opening and closing
+    readonly property int animSlow: dur(360)      // big movements
+    readonly property int easeOut: Easing.OutCubic
+    function dur(ms) { return motionOn ? Math.round(ms / motionScale) : 0 }
+
+    // ---- on-screen display ----------------------------------------------
+    // One bubble for volume, microphone, brightness and night light.
+    // osdKind says which; osdValue is 0-1; osdMuted means muted / off.
     property bool osdShown: false
+    property string osdKind: "volume"
     property real osdValue: 0
     property bool osdMuted: false
-    property bool osdReady: false
+    // PipeWire reports its starting state as "changes" while the shell
+    // loads; nothing shows until that has settled
+    property bool osdLive: false
+    Timer {
+        running: true
+        interval: 2500
+        onTriggered: root.osdLive = true
+    }
 
-    function showOsd(vol, muted) {
-        root.osdValue = vol
+    function showOsdOf(kind, value, muted) {
+        root.osdKind = kind
+        root.osdValue = Math.max(0, Math.min(1, value))
         root.osdMuted = muted
-        if (!root.osdReady) {
-            root.osdReady = true
+        if (!root.osdLive) return
+        // in the island when it can take it; otherwise the usual pop-up
+        if (root.islandOsd && !root.cardShown && !root.quickShown && !root.sysShown && !root.launcherShown) {
+            root.showIsland({ kind: "osd", osdKind: kind, value: root.osdValue, muted: muted }, root.osdMs)
             return
         }
         root.osdShown = true
         osdTimer.restart()
     }
+    function showOsd(vol, muted) { showOsdOf("volume", vol, muted) }
 
     Timer {
         id: osdTimer
@@ -552,6 +874,15 @@ ShellRoot {
         function onMutedChanged() {
             root.showOsd(Pipewire.defaultAudioSink.audio.volume,
                          Pipewire.defaultAudioSink.audio.muted)
+        }
+    }
+
+    // the microphone only shows when it's muted or unmuted, from anywhere
+    Connections {
+        target: Pipewire.defaultAudioSource?.audio ?? null
+        function onMutedChanged() {
+            const a = Pipewire.defaultAudioSource.audio
+            root.showOsdOf("mic", a.volume, a.muted)
         }
     }
 
@@ -621,11 +952,88 @@ ShellRoot {
     property var notifRefs: ({})
     readonly property int notifCount: notifList.length
 
+    // ---- grouped by app, and history ------------------------------------
+    // Groups are worked out from notifList: { app, icon, items } with the
+    // newest group first and each group's newest item first.
+    readonly property var notifGroups: {
+        const idx = {}, out = []
+        for (const n of notifList) {
+            const k = n.app || "notification"
+            if (idx[k] === undefined) { idx[k] = out.length; out.push({ app: k, items: [] }) }
+            out[idx[k]].items.push(n)
+        }
+        return out
+    }
+    function dismissGroup(appName) {
+        for (const n of notifList.filter(x => (x.app || "notification") === appName)) {
+            const obj = notifRefs[n.id]
+            if (obj) { try { obj.dismiss() } catch (e) {} }
+        }
+        notifList = notifList.filter(x => (x.app || "notification") !== appName)
+        popups = popups.filter(x => (x.app || "notification") !== appName)
+    }
+    // when it arrived: the time today, the day before that
+    function notifWhen(n) {
+        if (!n.ts) return n.when || ""
+        const d = new Date(n.ts), now = new Date()
+        if (d.toDateString() === now.toDateString())
+            return Qt.formatDateTime(d, cfg.clock24h === true ? "HH:mm" : "h:mm AP")
+        return Qt.formatDateTime(d, "ddd d")
+    }
+    // arrived since quick settings or the sidebar was last opened
+    property int notifUnseen: 0
+
+    // Saved to ~/.local/state/ether/notifications.json (the newest 100),
+    // and read back at startup.  Saved ones come back without their
+    // buttons: the app that sent them has moved on.
+    property bool notifLoaded: false
+    Process {
+        running: true
+        // (the project was called Aether; its folder is moved across once)
+        command: ["sh", "-c", "s=\"$HOME/.local/state\"; " +
+            "[ -d \"$s/aether\" ] && [ ! -e \"$s/ether\" ] && mv \"$s/aether\" \"$s/ether\"; " +
+            "cat \"$s/ether/notifications.json\" 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const saved = JSON.parse(text)
+                    if (Array.isArray(saved)) {
+                        const old = saved.map(n => Object.assign({}, n, { saved: true, actions: [], replyable: false }))
+                        let top = root.notifSeq
+                        for (const n of old) top = Math.max(top, n.id || 0)
+                        root.notifSeq = top
+                        root.notifList = root.notifList.concat(old).slice(0, 100)
+                    }
+                } catch (e) {}
+                root.notifLoaded = true
+            }
+        }
+    }
+    onNotifListChanged: if (notifLoaded) notifSave.restart()
+    Timer {
+        id: notifSave
+        interval: 800
+        onTriggered: {
+            notifWrite.command = ["sh", "-c",
+                'd="$HOME/.local/state/ether"; mkdir -p "$d"; ' +
+                'printf "%s" "$1" > "$d/notifications.json.tmp" && mv "$d/notifications.json.tmp" "$d/notifications.json"',
+                "sh", JSON.stringify(root.notifList.slice(0, 100))]
+            notifWrite.running = true
+        }
+    }
+    Process { id: notifWrite }
+
     property string wxCond: ""
     property string wxTemp: ""
     property string wxFeel: ""
     property string wxHum: ""
     property string wxWind: ""
+    // the next twelve hours ({ time, temp, cond, day, rain }, plain values),
+    // today's high and low, and whether it's daytime where you are
+    property var wxHours: []
+    property string wxHi: ""
+    property string wxLo: ""
+    property bool wxDay: true
     property bool   wxOk: false
 
     property int monthOffset: 0
@@ -693,16 +1101,643 @@ ShellRoot {
         }
     }
 
+    // The player everything controls: the one picked in the media card
+    // if it's still around, else whichever is playing, else the first.
+    property string pickedPlayer: ""
     readonly property var player: {
         const list = Mpris.players.values
         if (!list || list.length === 0) return null
+        if (pickedPlayer !== "")
+            for (const p of list) if (p.dbusName === pickedPlayer) return p
         for (const p of list) {
             if (p.playbackState === MprisPlaybackState.Playing) return p
         }
         return list[0]
     }
+    // every player, as plain values for the card's switcher
+    readonly property var playerList: (Mpris.players.values || []).map(p => ({
+        key: p.dbusName, name: p.identity || p.dbusName,
+        playing: p.playbackState === MprisPlaybackState.Playing
+    }))
 
     onPlayerChanged: if (!player) cardShown = false
+
+    // one island open at a time: opening one closes the others
+    onCardShownChanged: if (cardShown) {
+        quickShown = false; sysShown = false; launcherShown = false
+        lyricsLater.restart()
+    }
+    onQuickShownChanged: if (quickShown) {
+        cardShown = false; sysShown = false; launcherShown = false
+        notifUnseen = 0
+        quickSettle.restart()
+    }
+    // Brightness (ddcutil, slow), network, Wi-Fi, Bluetooth and the
+    // clipboard are read once quick settings has finished opening, so the
+    // opening animation has the machine to itself.
+    Timer {
+        id: quickSettle
+        interval: Math.round(root.animSlow * 1.3) + 40
+        onTriggered: if (root.quickShown) {
+            root.refreshSidebar()
+            root.refreshWifi(false)
+            root.refreshBt()
+        }
+    }
+
+    // ---- game mode and keep awake ---------------------------------------
+    // Game mode: blur, shadows and animations off everywhere (Hyprland
+    // through shell-settings.lua, the shell through motionOn).  Keep
+    // awake: holds a systemd idle inhibitor, which hypridle honours, so
+    // the screen doesn't lock or blank while it's on.
+    readonly property bool gameMode: cfg.gameMode === true
+    function toggleGameMode() { setting("gameMode", !gameMode) }
+    property bool keepAwake: false
+    Process {
+        running: root.keepAwake
+        command: ["systemd-inhibit", "--what=idle:sleep", "--who=Ether Shell",
+                  "--why=Keep awake is on", "sleep", "infinity"]
+    }
+
+    // ---- Wi-Fi (NetworkManager) ------------------------------------------
+    // Lists are plain values.  Connecting runs nmcli with its arguments
+    // as a list, never through a shell, so a network name or password
+    // can't be mistaken for a command.
+    property bool wifiHas: false
+    property bool wifiOn: false
+    property var wifiList: []            // { ssid, signal, secure, active }
+    property string wifiBusy: ""         // the network being joined
+    property string wifiAskPw: ""        // the network that needs a password
+    property string wifiError: ""
+    function refreshWifi(rescan) {
+        wifiScan.command = ["sh", "-c",
+            "nmcli -t -f TYPE device | grep -qx wifi && echo HAS; " +
+            "echo \"RADIO $(nmcli radio wifi)\"; " +
+            "nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list --rescan " +
+            (rescan ? "yes" : "auto") + " 2>/dev/null | sed 's/^/NET /'"]
+        wifiScan.running = true
+    }
+    Process {
+        id: wifiScan
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let has = false, on = false
+                const seen = {}, out = []
+                for (const line of text.split("\n")) {
+                    if (line === "HAS") has = true
+                    else if (line.startsWith("RADIO ")) on = line.slice(6).trim() === "enabled"
+                    else if (line.startsWith("NET ")) {
+                        const f = root.nmFields(line.slice(4))
+                        if (f.length < 4 || !f[1]) continue
+                        const n = { active: f[0] === "*", ssid: f[1], signal: parseInt(f[2]) || 0,
+                                    secure: f[3] !== "" && f[3] !== "--" }
+                        if (seen[n.ssid] !== undefined) {
+                            const o = out[seen[n.ssid]]
+                            if (n.active || n.signal > o.signal) out[seen[n.ssid]] = n
+                            continue
+                        }
+                        seen[n.ssid] = out.length
+                        out.push(n)
+                    }
+                }
+                out.sort((a, b) => (b.active - a.active) || (b.signal - a.signal))
+                root.wifiHas = has
+                root.wifiOn = on
+                root.wifiList = out
+            }
+        }
+    }
+    Process {
+        id: wifiAct
+        stdout: StdioCollector { id: wifiActOut }
+        stderr: StdioCollector { id: wifiActErr }
+        onExited: code => {
+            const msg = (wifiActErr.text + " " + wifiActOut.text).toLowerCase()
+            if (code !== 0 && root.wifiBusy !== "") {
+                if (/secret|password|802-11-wireless-security/.test(msg)) root.wifiAskPw = root.wifiBusy
+                else root.wifiError = "Couldn't join " + root.wifiBusy
+            } else {
+                root.wifiAskPw = ""
+                root.wifiError = ""
+            }
+            root.wifiBusy = ""
+            root.refreshWifi(false)
+            netStatProc.running = true
+        }
+    }
+    // nmcli -t separates fields with ":" and escapes any inside a field
+    // (a network called "Cafe: 2" comes out as "Cafe\: 2")
+    function nmFields(line) {
+        const out = []
+        let cur = ""
+        for (let i = 0; i < line.length; i++) {
+            const c = line[i]
+            if (c === "\\" && i + 1 < line.length) { cur += line[++i]; continue }
+            if (c === ":") { out.push(cur); cur = ""; continue }
+            cur += c
+        }
+        out.push(cur)
+        return out
+    }
+    function wifiToggle() {
+        wifiAct.command = ["nmcli", "radio", "wifi", wifiOn ? "off" : "on"]
+        wifiAct.running = true
+    }
+    function wifiConnect(ssid, pw) {
+        wifiBusy = ssid
+        wifiError = ""
+        wifiAct.command = pw ? ["nmcli", "device", "wifi", "connect", ssid, "password", pw]
+                             : ["nmcli", "device", "wifi", "connect", ssid]
+        wifiAct.running = true
+    }
+    function wifiDisconnect(ssid) {
+        wifiAct.command = ["nmcli", "connection", "down", "id", ssid]
+        wifiAct.running = true
+    }
+
+    // ---- Bluetooth (bluetoothctl) -----------------------------------------
+    property bool btHas: false
+    property bool btOn: false
+    property var btList: []              // { mac, name, paired, connected }
+    property bool btScanning: false
+    property string btBusy: ""
+    function refreshBt() {
+        btRead.command = ["sh", "-c",
+            "bluetoothctl list 2>/dev/null | grep -q Controller && echo HAS; " +
+            "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && echo ON; " +
+            "bluetoothctl devices Paired 2>/dev/null | sed 's/^Device /PAIRED /'; " +
+            "bluetoothctl devices Connected 2>/dev/null | sed 's/^Device /CONN /'; " +
+            "bluetoothctl devices 2>/dev/null | sed 's/^Device /SEEN /'"]
+        btRead.running = true
+    }
+    Process {
+        id: btRead
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let has = false, on = false
+                const dev = {}, order = []
+                for (const line of text.split("\n")) {
+                    if (line === "HAS") { has = true; continue }
+                    if (line === "ON") { on = true; continue }
+                    const m = line.match(/^(PAIRED|CONN|SEEN) ([0-9A-F:]{17}) ?(.*)$/)
+                    if (!m) continue
+                    if (!dev[m[2]]) { dev[m[2]] = { mac: m[2], name: m[3] || m[2], paired: false, connected: false }; order.push(m[2]) }
+                    if (m[1] === "PAIRED") dev[m[2]].paired = true
+                    if (m[1] === "CONN") dev[m[2]].connected = true
+                }
+                // connected first, then paired, then everything else nearby;
+                // unnamed devices (just an address) are left out
+                const out = order.map(k => dev[k]).filter(d => d.paired || !/^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/i.test(d.name))
+                out.sort((a, b) => (b.connected - a.connected) || (b.paired - a.paired) || a.name.localeCompare(b.name))
+                root.btHas = has
+                root.btOn = on
+                root.btList = out
+            }
+        }
+    }
+    Process {
+        id: btAct
+        onExited: { root.btBusy = ""; root.refreshBt() }
+    }
+    Process {
+        id: btScanProc
+        command: ["bluetoothctl", "--timeout", "12", "scan", "on"]
+        onExited: { root.btScanning = false; root.refreshBt() }
+    }
+    Timer {
+        // while scanning, show devices as they're found
+        interval: 2000; repeat: true
+        running: root.btScanning
+        onTriggered: root.refreshBt()
+    }
+    function btToggle() {
+        btAct.command = ["bluetoothctl", "power", btOn ? "off" : "on"]
+        btAct.running = true
+    }
+    function btScan() {
+        if (btScanning) return
+        btScanning = true
+        btScanProc.running = true
+    }
+    function btConnect(mac, paired) {
+        if (!/^[0-9A-F:]{17}$/i.test(mac)) return
+        btBusy = mac
+        btAct.command = paired ? ["bluetoothctl", "connect", mac]
+            : ["sh", "-c", "bluetoothctl pair \"$1\" && bluetoothctl trust \"$1\" && bluetoothctl connect \"$1\"", "sh", mac]
+        btAct.running = true
+    }
+    function btDisconnect(mac) {
+        if (!/^[0-9A-F:]{17}$/i.test(mac)) return
+        btBusy = mac
+        btAct.command = ["bluetoothctl", "disconnect", mac]
+        btAct.running = true
+    }
+
+    // ---- synced lyrics (LRCLIB) -------------------------------------------
+    // Fetched from lrclib.net, a free lyrics database with no key, only
+    // while the media drawer is open and only once per song.  The artist
+    // and title go to curl as arguments, never pasted into a command.
+    // lyrics: [{ t: seconds, text }], plain values.
+    readonly property bool lyricsOn: cfg.lyricsShown !== false
+    property var lyrics: []
+    property string lyricsPlain: ""
+    property string lyricsState: ""        // loading, synced, plain, none
+    property string lyricsKey: ""
+    property var lyricsCache: ({})
+    readonly property string trackKey: player
+        ? (player.trackArtist || "") + "\u0001" + (player.trackTitle || "") : ""
+    // the line being sung: the last one that has started
+    readonly property int lyricIndex: {
+        if (lyricsState !== "synced" || !player) return -1
+        const pos = player.position + 0.25
+        let lo = 0, hi = lyrics.length - 1, ans = -1
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1
+            if (lyrics[mid].t <= pos) { ans = mid; lo = mid + 1 } else hi = mid - 1
+        }
+        return ans
+    }
+    function parseLrc(lrc) {
+        const out = []
+        for (const line of (lrc || "").split("\n")) {
+            const stamps = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g)
+            if (!stamps) continue
+            const text = line.replace(/\[[^\]]*\]/g, "").trim()
+            for (const st of stamps) {
+                const m = st.match(/\[(\d+):(\d+(?:\.\d+)?)\]/)
+                out.push({ t: parseInt(m[1]) * 60 + parseFloat(m[2]), text: text })
+            }
+        }
+        out.sort((a, b) => a.t - b.t)
+        return out
+    }
+    function showLyrics(entry) {
+        lyrics = entry.synced
+        lyricsPlain = entry.plain
+        lyricsState = entry.synced.length ? "synced" : entry.plain ? "plain" : "none"
+    }
+    function fetchLyrics() {
+        if (!player || trackKey === "" || !lyricsOn) return
+        if (trackKey === lyricsKey && lyricsState !== "") return
+        lyricsKey = trackKey
+        const hit = lyricsCache[trackKey]
+        if (hit) { showLyrics(hit); return }
+        lyrics = []
+        lyricsPlain = ""
+        lyricsState = "loading"
+        lyricsProc.key = trackKey
+        lyricsProc.command = ["sh", "-c",
+            'UA="Ether Shell (github.com/VHS33/ether-shell)"; ' +
+            'r=$(curl -s --max-time 8 -A "$UA" -G "https://lrclib.net/api/get" ' +
+            '--data-urlencode "artist_name=$1" --data-urlencode "track_name=$2" ' +
+            '--data-urlencode "album_name=$3" --data-urlencode "duration=$4"); ' +
+            'case "$r" in *yncedLyrics*|*lainLyrics*) printf "%s" "$r"; exit 0;; esac; ' +
+            'curl -s --max-time 8 -A "$UA" -G "https://lrclib.net/api/search" ' +
+            '--data-urlencode "track_name=$2" --data-urlencode "artist_name=$1"',
+            "sh", player.trackArtist || "", player.trackTitle || "", player.trackAlbum || "",
+            String(Math.round(player.length || 0))]
+        lyricsProc.running = true
+    }
+    Process {
+        id: lyricsProc
+        property string key: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let entry = { synced: [], plain: "" }
+                try {
+                    let j = JSON.parse(text)
+                    // the search gives a list: prefer one with timings
+                    if (Array.isArray(j)) j = j.find(x => x && x.syncedLyrics) || j.find(x => x && x.plainLyrics) || {}
+                    entry = { synced: root.parseLrc(j.syncedLyrics || ""), plain: (j.plainLyrics || "").trim() }
+                } catch (e) {}
+                const c = Object.assign({}, root.lyricsCache)
+                c[lyricsProc.key] = entry
+                const keys = Object.keys(c)
+                if (keys.length > 40) delete c[keys[0]]
+                root.lyricsCache = c
+                if (lyricsProc.key === root.lyricsKey) root.showLyrics(entry)
+            }
+        }
+    }
+    // a new song, or the media drawer opening: fetch (once) after a beat
+    onTrackKeyChanged: { lyricsLater.restart(); trackIslandLater.restart() }
+    Timer {
+        id: lyricsLater
+        interval: 400
+        onTriggered: if (root.cardShown) root.fetchLyrics()
+    }
+
+    // ---- AI assistant -----------------------------------------------------
+    // A chat with whichever provider the user picks in Settings: Anthropic,
+    // Google or OpenAI, with their own API key.  Keys live one per file in
+    // ~/.config/ether/ai/, readable only by the user, and are written
+    // through stdin, so they never show up in a process list.  Requests
+    // stream, so replies appear as they're written.
+    property bool aiShown: false
+    onAiShownChanged: if (aiShown) { sysShown = false; refreshAiKeys() }
+    IpcHandler {
+        target: "ai"
+        function toggle(): void { root.aiShown = !root.aiShown }
+        function open(): void { root.aiShown = true }
+        function close(): void { root.aiShown = false }
+    }
+    readonly property var aiProviders: ({
+        anthropic: { name: "Anthropic", product: "Claude", model: "claude-sonnet-5",
+                     keyUrl: "console.anthropic.com" },
+        gemini:    { name: "Google", product: "Gemini", model: "gemini-2.5-flash",
+                     keyUrl: "aistudio.google.com" },
+        openai:    { name: "OpenAI", product: "ChatGPT", model: "gpt-4.1-mini",
+                     keyUrl: "platform.openai.com" }
+    })
+    readonly property string aiProvider: aiProviders[cfg.aiProvider] ? cfg.aiProvider : "anthropic"
+    function aiModelFor(p) { return cfg["aiModel_" + p] || aiProviders[p].model }
+    readonly property string aiModel: aiModelFor(aiProvider)
+    readonly property string aiSystem:
+        "You are the assistant built into Ether Shell, a desktop shell on the user's Arch Linux " +
+        "computer running Hyprland. Be concise and practical. Use Markdown for lists and code. " +
+        "The user's shell is fish."
+
+    // which providers have a key saved
+    property var aiKeys: ({})
+    function refreshAiKeys() { aiKeyList.running = true }
+    Process {
+        id: aiKeyList
+        running: true
+        // (the project was called Aether; its folder is moved across once)
+        command: ["sh", "-c", "c=\"$HOME/.config\"; " +
+            "[ -d \"$c/aether\" ] && [ ! -e \"$c/ether\" ] && mv \"$c/aether\" \"$c/ether\"; " +
+            "ls \"$c/ether/ai\" 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const k = {}
+                for (const f of text.split("\n")) if (f.endsWith(".key")) k[f.slice(0, -4)] = true
+                root.aiKeys = k
+            }
+        }
+    }
+    property string aiKeyPending: ""
+    Process {
+        id: aiKeyWrite
+        stdinEnabled: true
+        onStarted: { write(root.aiKeyPending); root.aiKeyPending = ""; stdinEnabled = false }
+        onExited: { stdinEnabled = true; root.refreshAiKeys() }
+    }
+    function saveAiKey(p, key) {
+        key = (key || "").trim()
+        if (!aiProviders[p] || key === "") return
+        aiKeyPending = key
+        aiKeyWrite.command = ["sh", "-c",
+            'umask 077; d="$HOME/.config/ether/ai"; mkdir -p "$d"; cat > "$d/$1.key"', "sh", p]
+        aiKeyWrite.running = true
+    }
+    Process { id: aiKeyRemove; onExited: root.refreshAiKeys() }
+    function removeAiKey(p) {
+        if (!aiProviders[p]) return
+        aiKeyRemove.command = ["sh", "-c", 'rm -f "$HOME/.config/ether/ai/$1.key"', "sh", p]
+        aiKeyRemove.running = true
+    }
+
+    // the conversation: plain values; the reply being written is kept apart
+    // so the list doesn't rebuild on every word
+    property var aiMessages: []          // { role: "user" | "assistant", text, error }
+    property string aiStreaming: ""
+    property bool aiBusy: false
+    property string aiRaw: ""            // anything that wasn't a stream event (errors)
+    function aiNew() {
+        if (aiBusy) aiStop()
+        aiMessages = []
+        aiStreaming = ""
+    }
+    function aiStop() {
+        if (!aiBusy) return
+        aiProc.running = false
+    }
+    function aiBody() {
+        const p = aiProvider, msgs = aiMessages.filter(m => !m.error)
+        if (p === "gemini")
+            return JSON.stringify({
+                systemInstruction: { parts: [{ text: aiSystem }] },
+                contents: msgs.map(m => ({ role: m.role === "assistant" ? "model" : "user",
+                                           parts: [{ text: m.text }] })) })
+        if (p === "openai")
+            return JSON.stringify({ model: aiModel, stream: true,
+                messages: [{ role: "system", content: aiSystem }]
+                          .concat(msgs.map(m => ({ role: m.role, content: m.text }))) })
+        return JSON.stringify({ model: aiModel, max_tokens: 4096, stream: true, system: aiSystem,
+                                messages: msgs.map(m => ({ role: m.role, content: m.text })) })
+    }
+    function aiSend(text) {
+        text = (text || "").trim()
+        if (text === "" || aiBusy) return
+        aiMessages = aiMessages.concat([{ role: "user", text: text }])
+        aiStreaming = ""
+        aiRaw = ""
+        aiBusy = true
+        aiPendingBody = aiBody()
+        aiProc.command = ["sh", "-c",
+            'p="$1"; model="$2"; k=$(cat "$HOME/.config/ether/ai/$p.key" 2>/dev/null); ' +
+            '[ -n "$k" ] || { echo ETHER_NOKEY; exit 0; }; ' +
+            'h=$(mktemp); trap \'rm -f "$h"\' EXIT; ' +
+            'case "$p" in ' +
+            '  anthropic) printf "x-api-key: %s\\nanthropic-version: 2023-06-01\\ncontent-type: application/json\\n" "$k" > "$h"; ' +
+            '             url="https://api.anthropic.com/v1/messages";; ' +
+            '  openai)    printf "Authorization: Bearer %s\\ncontent-type: application/json\\n" "$k" > "$h"; ' +
+            '             url="https://api.openai.com/v1/chat/completions";; ' +
+            '  gemini)    printf "x-goog-api-key: %s\\ncontent-type: application/json\\n" "$k" > "$h"; ' +
+            '             url="https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse";; ' +
+            'esac; ' +
+            'curl -sN --max-time 180 -H @"$h" --data-binary @- "$url"',
+            "sh", aiProvider, /^[\w.:-]+$/.test(aiModel) ? aiModel : aiProviders[aiProvider].model]
+        aiProc.running = true
+    }
+    property string aiPendingBody: ""
+    Process {
+        id: aiProc
+        stdinEnabled: true
+        onStarted: { write(root.aiPendingBody); root.aiPendingBody = ""; stdinEnabled = false }
+        stdout: SplitParser {
+            onRead: line => {
+                if (line === "ETHER_NOKEY") {
+                    root.aiRaw = "ETHER_NOKEY"
+                    return
+                }
+                if (!line.startsWith("data:")) {
+                    if (line.trim() !== "" && !line.startsWith("event:")) root.aiRaw += line + "\n"
+                    return
+                }
+                const payload = line.slice(5).trim()
+                if (payload === "" || payload === "[DONE]") return
+                try {
+                    const j = JSON.parse(payload)
+                    let d = ""
+                    if (root.aiProvider === "anthropic") {
+                        if (j.type === "content_block_delta" && j.delta) d = j.delta.text || ""
+                        else if (j.type === "error") root.aiRaw += payload
+                    } else if (root.aiProvider === "openai") {
+                        d = j.choices && j.choices[0] && j.choices[0].delta ? (j.choices[0].delta.content || "") : ""
+                        if (j.error) root.aiRaw += payload
+                    } else {
+                        const parts = j.candidates && j.candidates[0] && j.candidates[0].content
+                                      ? (j.candidates[0].content.parts || []) : []
+                        d = parts.map(p => p.text || "").join("")
+                        if (j.error) root.aiRaw += payload
+                    }
+                    if (d) root.aiStreaming += d
+                } catch (e) {}
+            }
+        }
+        onExited: {
+            stdinEnabled = true
+            let msg = null
+            if (root.aiStreaming !== "") {
+                msg = { role: "assistant", text: root.aiStreaming }
+            } else if (root.aiRaw === "ETHER_NOKEY") {
+                msg = { role: "assistant", error: true,
+                        text: "No API key saved for " + root.aiProviders[root.aiProvider].name
+                              + ". Add one in Settings, under AI assistant." }
+            } else {
+                let why = ""
+                try {
+                    const j = JSON.parse(root.aiRaw.trim())
+                    why = (j.error && (j.error.message || j.error)) || j.message || ""
+                } catch (e) {
+                    why = root.aiRaw.trim().slice(0, 300)
+                }
+                msg = { role: "assistant", error: true,
+                        text: why ? "The request failed: " + why
+                                  : "No reply came back. Check your connection and API key." }
+            }
+            root.aiMessages = root.aiMessages.concat([msg])
+            root.aiStreaming = ""
+            root.aiBusy = false
+        }
+    }
+
+    // ---- timer and stopwatch ---------------------------------------------
+    // Times are kept against the clock (when it ends, when it started), not
+    // counted by ticks, so they stay right even if the shell is busy.  The
+    // tick only refreshes what's shown.
+    property double timerEnd: 0          // when a running timer ends (ms)
+    property int timerTotal: 0           // its length (s)
+    property int timerHeld: 0            // seconds left while paused
+    property int timerLeft: 0            // seconds left, for showing
+    readonly property bool timerOn: timerEnd > 0 || timerHeld > 0
+    readonly property bool timerPaused: timerEnd === 0 && timerHeld > 0
+    property double swStart: 0           // when the stopwatch last started (ms)
+    property double swBanked: 0          // time counted before that (ms)
+    property bool swRunning: false
+    property double swMs: 0              // elapsed, for showing
+    readonly property bool swOn: swRunning || swBanked > 0
+
+    function startTimer(sec) {
+        sec = Math.max(1, Math.round(sec))
+        timerTotal = sec
+        timerHeld = 0
+        timerEnd = Date.now() + sec * 1000
+        timerLeft = sec
+    }
+    function pauseTimer() {
+        if (timerEnd === 0) return
+        timerHeld = Math.max(1, Math.ceil((timerEnd - Date.now()) / 1000))
+        timerEnd = 0
+    }
+    function resumeTimer() {
+        if (timerHeld <= 0) return
+        timerEnd = Date.now() + timerHeld * 1000
+        timerHeld = 0
+    }
+    function cancelTimer() { timerEnd = 0; timerHeld = 0; timerLeft = 0; timerTotal = 0 }
+    function swToggle() {
+        if (swRunning) { swBanked += Date.now() - swStart; swRunning = false }
+        else { swStart = Date.now(); swRunning = true }
+        swMs = swBanked
+    }
+    function swReset() { swRunning = false; swBanked = 0; swMs = 0 }
+    // 75 -> "1:15", 3700 -> "1:01:40"
+    function fmtDur(sec) {
+        sec = Math.max(0, Math.floor(sec))
+        const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = sec % 60
+        const p = v => (v < 10 ? "0" : "") + v
+        return h > 0 ? h + ":" + p(m) + ":" + p(x) : m + ":" + p(x)
+    }
+    // "5m", "90s", "1h 30m", "2.5m" -> seconds; 0 when it isn't a length
+    function parseDur(t) {
+        let total = 0, found = false
+        const re = /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|m|min|mins|minutes?|s|sec|secs|seconds?)?/gi
+        let m
+        while ((m = re.exec(t)) !== null) {
+            if (m[0].trim() === "") { re.lastIndex++; continue }
+            const n = parseFloat(m[1]), u = (m[2] || "m").toLowerCase()
+            total += u.startsWith("h") ? n * 3600 : u.startsWith("s") ? n : n * 60
+            found = true
+        }
+        return found ? Math.round(total) : 0
+    }
+    Timer {
+        interval: 200
+        repeat: true
+        running: root.timerEnd > 0 || root.swRunning
+        onTriggered: {
+            const now = Date.now()
+            if (root.timerEnd > 0) {
+                root.timerLeft = Math.max(0, Math.ceil((root.timerEnd - now) / 1000))
+                if (now >= root.timerEnd) root.timerDone()
+            }
+            if (root.swRunning) root.swMs = root.swBanked + now - root.swStart
+        }
+    }
+    function timerDone() {
+        const len = timerTotal
+        cancelTimer()
+        // in the island if it's there (it says so itself); otherwise a notification
+        if (islandOn) showIsland({ kind: "timer", len: fmtDur(len) }, 10000)
+        timerAlert.command = ["sh", "-c",
+            (islandOn ? '' : 'notify-send -a Timer -u critical -i alarm "Time\'s up" "Your $1 timer has finished"; ') +
+            'for f in /usr/share/sounds/freedesktop/stereo/complete.oga /usr/share/sounds/freedesktop/stereo/bell.oga; do ' +
+            '[ -f "$f" ] && { pw-play "$f" 2>/dev/null || paplay "$f" 2>/dev/null; break; }; done',
+            "sh", fmtDur(len)]
+        timerAlert.running = true
+    }
+    Process { id: timerAlert }
+
+    // ---- launcher --------------------------------------------------------
+    // SUPER (tapped) or `qs ipc call launcher toggle`.  It grows out of the
+    // centre of the long bar like the other drawers; in the islands style
+    // it's a card under the bar.
+    property bool launcherShown: false
+    property var launcherGeom: null
+    onLauncherShownChanged: if (launcherShown) {
+        cardShown = false; quickShown = false; sysShown = false
+        clipProc.running = true          // fresh clipboard history for ;
+    }
+    // how often each app has been opened from the launcher, for ranking
+    readonly property var launchCounts: cfg.launchCounts ?? ({})
+    function noteLaunch(id) {
+        const c = Object.assign({}, launchCounts)
+        c[id] = (c[id] || 0) + 1
+        setting("launchCounts", c)
+    }
+    IpcHandler {
+        target: "launcher"
+        function toggle(): void { root.launcherShown = !root.launcherShown }
+        function open(): void { root.launcherShown = true }
+        function close(): void { root.launcherShown = false }
+        // SUPER + V: straight into clipboard history (the launcher's ; mode)
+        function clipboard(): void { root.launcherInMode(";") }
+        // SUPER + period: straight into emoji
+        function emoji(): void { root.launcherInMode(":") }
+    }
+    // what the search box starts with when the launcher opens (";" for the
+    // clipboard); cleared once used
+    property string launcherPrefill: ""
+    // open the launcher in one mode; the same key again closes it
+    function launcherInMode(prefix) {
+        if (launcherShown && launcherPrefill === prefix) { launcherShown = false; return }
+        launcherPrefill = prefix
+        if (launcherShown) launcherPrefillNow++
+        else launcherShown = true
+    }
+    property int launcherPrefillNow: 0
     onCalShownChanged: if (!calShown) { monthOffset = 0; selectedKey = "" }
 
     function fmtTime(sec) {
@@ -929,6 +1964,19 @@ ShellRoot {
         return cells
     }
 
+    // the same, as a Material Symbol, with night versions
+    function wxSymbol(c, day) {
+        const s = (c || "").toLowerCase()
+        if (s.indexOf("thunder") !== -1) return "thunderstorm"
+        if (s.indexOf("snow") !== -1 || s.indexOf("rime") !== -1) return "weather_snowy"
+        if (s.indexOf("rain") !== -1 || s.indexOf("drizzle") !== -1 || s.indexOf("shower") !== -1) return "rainy"
+        if (s.indexOf("fog") !== -1) return "foggy"
+        if (s.indexOf("overcast") !== -1) return "cloud"
+        if (s.indexOf("cloud") !== -1 || s.indexOf("mainly") !== -1)
+            return day === false ? "partly_cloudy_night" : "partly_cloudy_day"
+        if (s.indexOf("clear") !== -1) return day === false ? "clear_night" : "sunny"
+        return "cloud"
+    }
     function wxGlyph(c) {
         const s = (c || "").toLowerCase()
         if (s.indexOf("thunder") !== -1) return "\u{f0e6}"
@@ -1027,23 +2075,55 @@ ShellRoot {
 
     IpcHandler {
         target: "clipboard"
-        // the clipboard is a section of the sidebar now, so opening it
-        // means opening the sidebar with that section unfolded
-        function toggle(): void {
-            if (root.sidebarShown && root.sideTab === 1) {
-                root.sidebarShown = false
-            } else {
-                root.sideTab = 1
-                root.sidebarShown = true
-            }
+        // SUPER + V: the clipboard panel down the right side (ClipPanel.qml)
+        function toggle(): void { root.clipShown = !root.clipShown }
+        function open(): void { root.clipShown = true }
+        function close(): void { root.clipShown = false }
+    }
+
+    // ---- the clipboard panel ----------------------------------------------
+    // History comes from cliphist (clipItems).  Copied pictures show as
+    // thumbnails: each is decoded once into ~/.cache/ether/clip/ and reused;
+    // clipThumbVer changes when new ones are ready.
+    property bool clipShown: false
+    onClipShownChanged: if (clipShown) {
+        launcherShown = false
+        clipProc.running = true
+    }
+    // "[[ binary data 55 KiB png 1920x1080 ]]" -> { ext: "png", size: "1920x1080" }
+    function clipImageInfo(preview) {
+        const m = (preview || "").match(/^\[\[ binary data (.+?) (png|jpe?g|bmp|webp|gif)(?: (\d+x\d+))? \]\]$/i)
+        return m ? { ext: m[2].toLowerCase(), size: m[3] || "", bytes: m[1] } : null
+    }
+    readonly property string clipThumbDir: Quickshell.env("HOME") + "/.cache/ether/clip"
+    property int clipThumbVer: 0
+    function makeClipThumbs() {
+        const args = []
+        for (const c of clipItems.slice(0, 60)) {
+            const info = clipImageInfo(c.preview)
+            if (info && /^[0-9]+$/.test(c.id)) args.push(c.id + ":" + info.ext)
         }
-        function open(): void { root.sideTab = 1; root.sidebarShown = true }
-        function close(): void { root.sidebarShown = false }
+        if (!args.length) return
+        clipThumbProc.command = ["sh", "-c",
+            'd="$HOME/.cache/ether/clip"; mkdir -p "$d"; ' +
+            'for x in "$@"; do id=${x%%:*}; ext=${x#*:}; ' +
+            '[ -s "$d/$id.$ext" ] || cliphist decode "$id" > "$d/$id.$ext" 2>/dev/null; done',
+            "sh"].concat(args)
+        clipThumbProc.running = true
+    }
+    Process {
+        id: clipThumbProc
+        onExited: root.clipThumbVer++
     }
 
     IpcHandler {
         target: "overview"
-        function toggle(): void { root.overviewShown = !root.overviewShown }
+        // Alt+Tab while it's already open steps to the next workspace
+        // (releasing Alt then goes there), like a window switcher
+        function toggle(): void {
+            if (root.overviewShown) root.overviewStep++
+            else root.overviewShown = true
+        }
         function open(): void { root.overviewShown = true }
         function close(): void { root.overviewShown = false }
     }
@@ -1057,6 +2137,8 @@ ShellRoot {
 
 
     Spacer { app: root }
+    // the attached strip, created first so everything else sits above it
+    BarStrip { app: root }
     BarLeft { app: root }
     BarCenter { app: root }
     BarRight { app: root }
@@ -1069,6 +2151,15 @@ ShellRoot {
     Cheatsheet { app: root }
     SettingsPanel { app: root }
     VolumePop { app: root }
+    // under the islands, so a click outside one closes it
+    IslandCatcher { app: root }
+    CenterIsland { app: root }
+    Launcher { app: root }
+    RightIsland { app: root }
+    LeftIsland { app: root }
+    WsPreview { app: root }
+    AiPanel { app: root }
+    ClipPanel { app: root }
     Widgets { app: root }
     Popups { app: root }
 
@@ -1078,18 +2169,155 @@ ShellRoot {
     // time as a root property instead so they can bind to app.now
     property date now: new Date()
 
-    Timer { interval: 1000; running: true; repeat: true; onTriggered: root.now = new Date() }
+    // The time only moves on when the minute changes (or every second if
+    // the clock shows seconds): everything built from it, the calendars
+    // included, would otherwise be worked out again every second.
+    Timer {
+        interval: 1000; running: true; repeat: true
+        onTriggered: {
+            const d = new Date()
+            if (root.cfg.clockSeconds === true || d.getMinutes() !== root.now.getMinutes()
+                    || d.getHours() !== root.now.getHours() || d.getDate() !== root.now.getDate())
+                root.now = d
+        }
+    }
 
     Timer {
-        interval: 500
-        running: (root.cardShown || root.sidebarShown) && root.player !== null
+        // the track position: every half second while a media view is
+        // open, every second otherwise, for the pill's progress line
+        // four times a second while lyrics are following along
+        interval: root.cardShown && root.lyricsState === "synced" && root.lyricsOn ? 250
+                : (root.cardShown || root.sidebarShown) ? 500 : 1000
+        running: root.player !== null
         repeat: true; triggeredOnStart: true
         onTriggered: root.player?.positionChanged()
     }
 
+    // ---- system stats -----------------------------------------------------
+    // Two long-running readers instead of launching four commands (nine
+    // programs) every 2 seconds.  statsProc loops by itself, reading
+    // /proc/stat, /proc/meminfo and /proc/net/dev with the shell's own
+    // built-ins, so the only thing it starts is `sleep`.  gpuStream is one
+    // nvidia-smi in its looping mode, which keeps the driver awake between
+    // readings instead of waking it from scratch each time.  If either
+    // stops, it's started again a few seconds later.
+    Process {
+        id: statsProc
+        command: ["sh", "-c",
+            'while :; do ' +
+            '  read -r _ u n s i w q sq st _ < /proc/stat; ' +
+            '  t=0; a=0; ' +
+            '  while read -r k v _; do case $k in MemTotal:) t=$v;; MemAvailable:) a=$v; break;; esac; done < /proc/meminfo; ' +
+            '  rx=0; tx=0; ' +
+            '  { read -r _; read -r _; while read -r line; do ' +
+            '      name=${line%%:*}; set -- $name; name=$1; [ "$name" = lo ] && continue; ' +
+            '      set -- ${line#*:}; rx=$((rx + $1)); tx=$((tx + $9)); ' +
+            '    done; } < /proc/net/dev; ' +
+            '  echo "S $u $n $s $i $w $q $sq $st $t $a $rx $tx"; ' +
+            '  sleep 2; ' +
+            'done']
+        stdout: SplitParser {
+            onRead: line => {
+                const f = line.trim().split(/\s+/)
+                if (f[0] !== "S" || f.length < 13) return
+                const v = f.slice(1).map(Number)
+                // cpu: busy share of the time since the last reading
+                const total = v[0] + v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7]
+                const idle = v[3] + v[4]
+                if (root.lastCpu) {
+                    const dt = total - root.lastCpu.total, di = idle - root.lastCpu.idle
+                    if (dt > 0) root.cpuPct = Math.round(100 * (dt - di) / dt)
+                }
+                root.lastCpu = { total: total, idle: idle }
+                // memory in use
+                if (v[8] > 0) root.memPct = Math.round((v[8] - v[9]) * 100 / v[8])
+                // network: bytes per second since the last reading
+                const now = Date.now()
+                if (root.lastNet) {
+                    const secs = (now - root.lastNet.t) / 1000
+                    if (secs > 0) {
+                        root.netDown = root.fmtRate(Math.max(0, (v[10] - root.lastNet.rx) / secs))
+                        root.netUp   = root.fmtRate(Math.max(0, (v[11] - root.lastNet.tx) / secs))
+                    }
+                }
+                root.lastNet = { rx: v[10], tx: v[11], t: now }
+                root.recordStats()
+            }
+        }
+        onExited: statsRestart.restart()
+    }
+    Timer { id: statsRestart; interval: 3000; onTriggered: statsProc.running = true }
+
+    Process {
+        id: gpuStream
+        command: ["sh", "-c",
+            "command -v nvidia-smi >/dev/null || exit 0; " +
+            "exec nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw " +
+            "--format=csv,noheader,nounits -lms 2000 2>/dev/null"]
+        stdout: SplitParser {
+            onRead: line => {
+                const p = line.split(",").map(x => parseFloat(x.trim()))
+                if (p.length < 5 || isNaN(p[0])) return
+                root.gpuPct    = Math.round(p[0])
+                root.gpuTemp   = Math.round(p[1])
+                root.gpuMemPct = p[3] > 0 ? Math.round(100 * p[2] / p[3]) : 0
+                root.gpuWatts  = Math.round(p[4])
+                root.gpuOk = true
+            }
+        }
+        // no NVIDIA card, or the driver went away: try again in a while
+        onExited: { root.gpuOk = false; gpuRestart.restart() }
+    }
+    Timer { id: gpuRestart; interval: 15000; onTriggered: gpuStream.running = true }
+
+    // ---- stats history, for the system panel's graphs ----------------
+    // The last 60 readings of each (two minutes at one every 2 s), as
+    // plain numbers.  Sampled on the clock rather than on change, so a
+    // flat line is still a line and the graphs keep an even pace.
+    property var cpuHist: []
+    property var memHist: []
+    property var gpuHist: []
+    property var tempHist: []
+    function recordStats() {
+        const push = (a, v) => { const b = a.slice(-59); b.push(v); return b }
+        cpuHist = push(cpuHist, cpuPct)
+        memHist = push(memHist, memPct)
+        if (gpuOk) {
+            gpuHist = push(gpuHist, gpuPct)
+            tempHist = push(tempHist, gpuTemp)
+        }
+    }
+
+    // the busiest processes, read only while the system panel is open
+    property bool sysShown: false
+    property var topProcs: []
+    Process {
+        id: procsProc
+        command: ["sh", "-c", "ps -eo comm,%cpu,%mem --sort=-%cpu --no-headers | head -5"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = []
+                for (const line of text.split("\n")) {
+                    const f = line.trim().split(/\s+/)
+                    if (f.length < 3) continue
+                    const mem = parseFloat(f.pop()), cpu = parseFloat(f.pop())
+                    out.push({ name: f.join(" "), cpu: cpu || 0, mem: mem || 0 })
+                }
+                root.topProcs = out
+            }
+        }
+    }
     Timer {
-        interval: 2000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: { cpuProc.running = true; memProc.running = true; netProc.running = true; gpuProc.running = true }
+        interval: 2000; repeat: true; triggeredOnStart: true
+        running: root.sysShown
+        onTriggered: procsProc.running = true
+    }
+    onSysShownChanged: if (sysShown) {
+        aiShown = false
+        upProc.running = true
+        cardShown = false
+        quickShown = false
+        launcherShown = false
     }
 
     Timer {
@@ -1125,6 +2353,27 @@ ShellRoot {
                 root.wallpapers = lines
             }
         }
+    }
+
+    // SUPER + N: quick settings.  SUPER + X: the power menu.
+    IpcHandler {
+        target: "quick"
+        function toggle(): void { root.quickShown = !root.quickShown }
+    }
+    IpcHandler {
+        target: "power"
+        function toggle(): void { root.powerShown = !root.powerShown }
+    }
+
+    // SUPER + H: the wallpaper selector (Settings, on its Wallpaper page)
+    IpcHandler {
+        target: "wallpaper"
+        function toggle(): void {
+            if (root.settingsShown && root.settingsPage === 3) root.settingsShown = false
+            else { root.settingsPage = 3; root.settingsShown = true }
+        }
+        function open(): void { root.settingsPage = 3; root.settingsShown = true }
+        function random(): void { root.randomWallpaper() }
     }
 
     function applyWallpaper(path) {
@@ -1252,6 +2501,16 @@ ShellRoot {
     readonly property bool barGpu:   cfg.barGpu !== false
     readonly property bool barNet:   cfg.barNet !== false
     readonly property bool barMedia: cfg.barMedia !== false
+    // the centre pill grows into a panel (CenterIsland), or opens the
+    // separate card under the bar (BarCenter + MediaCard)
+    readonly property bool barMorph: cfg.barMorph !== false
+    // the right pill grows into quick settings (RightIsland), or the
+    // clock opens the sidebar and the volume its popover (BarRight)
+    readonly property bool rightMorph: cfg.rightMorph !== false
+    // the left pill grows into the system panel (LeftIsland), or its
+    // stats open btop (BarLeft)
+    readonly property bool leftMorph: cfg.leftMorph !== false
+    property bool quickShown: false
     readonly property string clockFormat:
         (cfg.clockDate !== false ? "ddd d MMM   " : "")
         + (cfg.clock24h === true ? "HH:mm" : "h:mm")
@@ -1376,6 +2635,7 @@ ShellRoot {
     }
     function setAllBright(v) {
         for (const n of Object.keys(monBus)) setBright(n, v)
+        showOsdOf("brightness", brightAvg / 100, false)
     }
     Timer {
         id: brightDebounce
@@ -1411,8 +2671,13 @@ ShellRoot {
     function toggleNight() {
         setting("nightLight", !nightLight)
         applyNight()
+        showOsdOf("night", nightLight ? 1 : 0, !nightLight)
     }
-    Component.onCompleted: if (nightLight) applyNight()
+    Component.onCompleted: {
+        if (nightLight) applyNight()
+        statsProc.running = true      // the system stats readers
+        gpuStream.running = true
+    }
 
     // ---- displays ----------------------------------------------------
     // monInfo: plain values from `hyprctl monitors all -j`, refreshed
@@ -1755,7 +3020,7 @@ ShellRoot {
         rounding: "rounding", winActive: "active_opacity",
         winInactive: "inactive_opacity", blurSize: "blur_size",
         blurPasses: "blur_passes", animations: "animations",
-        animSpeed: "anim_speed",
+        animSpeed: "anim_speed", gameMode: "game_mode", wsAnim: "ws_anim",
         repeatRate: "repeat_rate", repeatDelay: "repeat_delay",
         sensitivity: "sensitivity", accelFlat: "accel_flat",
         naturalScroll: "natural_scroll", followMouse: "follow_mouse",
@@ -1904,45 +3169,6 @@ ShellRoot {
         }
     }
 
-    Process {
-        id: gpuProc
-        command: ["sh", "-c",
-            "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw --format=csv,noheader,nounits 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                if (!t.length) { root.gpuOk = false; return }
-                const p = t.split(",").map(s => parseFloat(s.trim()))
-                if (p.length < 5 || isNaN(p[0])) { root.gpuOk = false; return }
-                root.gpuPct    = Math.round(p[0])
-                root.gpuTemp   = Math.round(p[1])
-                root.gpuMemPct = p[3] > 0 ? Math.round(100 * p[2] / p[3]) : 0
-                root.gpuWatts  = Math.round(p[4])
-                root.gpuOk = true
-            }
-        }
-    }
-
-    Process {
-        id: netProc
-        command: ["sh", "-c",
-            "cat /proc/net/dev | awk 'NR>2 {gsub(/:/,\"\"); if ($1 != \"lo\") {rx+=$2; tx+=$10}} END {print rx, tx}'"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const p = text.trim().split(/\s+/).map(Number)
-                if (p.length < 2 || isNaN(p[0])) return
-                const now = Date.now()
-                if (root.lastNet) {
-                    const dt = (now - root.lastNet.t) / 1000
-                    if (dt > 0) {
-                        root.netDown = root.fmtRate(Math.max(0, (p[0] - root.lastNet.rx) / dt))
-                        root.netUp   = root.fmtRate(Math.max(0, (p[1] - root.lastNet.tx) / dt))
-                    }
-                }
-                root.lastNet = { rx: p[0], tx: p[1], t: now }
-            }
-        }
-    }
     Process { id: launchProc }
     Process { id: saveProc }
 
@@ -1963,7 +3189,9 @@ ShellRoot {
             "curl -s --max-time 12 'https://api.open-meteo.com/v1/forecast"
             + "?latitude=" + root.wxLat + "&longitude=" + root.wxLon
             + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
-            + "wind_speed_10m,weather_code"
+            + "wind_speed_10m,weather_code,is_day"
+            + "&hourly=temperature_2m,weather_code,precipitation_probability,is_day&forecast_hours=13"
+            + "&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto"
             + (root.wxMetric ? "&temperature_unit=celsius&wind_speed_unit=kmh'"
                              : "&temperature_unit=fahrenheit&wind_speed_unit=mph'")]
         stdout: StdioCollector {
@@ -1980,8 +3208,26 @@ ShellRoot {
             })
             onStreamFinished: {
                 try {
-                    const c = JSON.parse(text).current
+                    const j = JSON.parse(text)
+                    const c = j.current
                     const u = root.wxMetric ? "\u00b0C" : "\u00b0F"
+                    root.wxDay = c.is_day !== 0
+                    // the hours ahead, starting with the one we're in
+                    const h = j.hourly || {}
+                    const hours = []
+                    for (let i = 0; i < (h.time || []).length && hours.length < 12; i++) {
+                        const hr = parseInt(h.time[i].slice(11, 13))
+                        const label = i === 0 ? "Now"
+                            : root.cfg.clock24h === true ? (hr < 10 ? "0" : "") + hr
+                            : ((hr % 12) || 12) + (hr < 12 ? " AM" : " PM")
+                        hours.push({ time: label, temp: Math.round(h.temperature_2m[i]) + "\u00b0",
+                                     cond: codes[h.weather_code[i]] || "", day: h.is_day[i] !== 0,
+                                     rain: h.precipitation_probability ? (h.precipitation_probability[i] || 0) : 0 })
+                    }
+                    root.wxHours = hours
+                    const d = j.daily || {}
+                    root.wxHi = d.temperature_2m_max ? Math.round(d.temperature_2m_max[0]) + "\u00b0" : ""
+                    root.wxLo = d.temperature_2m_min ? Math.round(d.temperature_2m_min[0]) + "\u00b0" : ""
                     root.wxTemp = Math.round(c.temperature_2m) + u
                     root.wxFeel = Math.round(c.apparent_temperature) + u
                     root.wxHum  = c.relative_humidity_2m + "%"
@@ -1995,6 +3241,7 @@ ShellRoot {
         }
     }
 
+    onPowerShownChanged: if (powerShown) upProc.running = true
     Process {
         id: upProc
         command: ["uptime", "-p"]
@@ -2036,6 +3283,7 @@ ShellRoot {
                 // clients); Discord doesn't offer one
                 replyable: notif.hasInlineReply === true,
                 replyHint: notif.inlineReplyPlaceholder || "",
+                ts: Date.now(),
                 when: Qt.formatDateTime(new Date(), root.cfg.clock24h === true ? "HH:mm" : "h:mm AP")
             }
 
@@ -2052,33 +3300,22 @@ ShellRoot {
                 root.notifRefs = r
             })
 
-            root.notifList = [n].concat(root.notifList).slice(0, 50)
-            if (!root.dnd) root.popups = root.popups.concat([n]).slice(-4)
-        }
-    }
-
-    Process {
-        id: cpuProc
-        command: ["sh", "-c", "grep -m1 '^cpu ' /proc/stat"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const f = text.trim().split(/\s+/).slice(1).map(Number)
-                const total = f.reduce((a, b) => a + b, 0)
-                const idle = f[3] + (f[4] || 0)
-                if (root.lastCpu) {
-                    const dt = total - root.lastCpu.total
-                    const di = idle - root.lastCpu.idle
-                    if (dt > 0) root.cpuPct = Math.round(100 * (dt - di) / dt)
-                }
-                root.lastCpu = { total: total, idle: idle }
+            root.notifList = [n].concat(root.notifList).slice(0, 100)
+            if (!root.quickShown && !root.sidebarShown) root.notifUnseen++
+            if (!root.dnd) {
+                // the island shows it; ones with buttons or a reply box still
+                // get their pop-up too, since the island has no room for those
+                const needsPopup = !root.islandNotifs || n.replyable
+                    || (n.actions || []).some(a => a.key !== "default")
+                if (needsPopup) root.popups = root.popups.concat([n]).slice(-4)
+                if (root.islandNotifs)
+                    root.showIsland({ kind: "notif", id: n.id, app: n.app, summary: n.summary, body: n.body,
+                                      icon: root.notifIcon(n), urgent: n.urgency >= 2,
+                                      canOpen: (n.actions || []).some(a => a.key === "default") },
+                                    n.urgency >= 2 ? 8000 : 4500)
             }
         }
     }
 
-    Process {
-        id: memProc
-        command: ["sh", "-c", "awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{printf \"%d\", (t-a)*100/t}' /proc/meminfo"]
-        stdout: StdioCollector { onStreamFinished: root.memPct = parseInt(text.trim()) || 0 }
-    }
 }
 

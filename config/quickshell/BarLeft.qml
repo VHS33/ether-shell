@@ -31,7 +31,7 @@ Variants {
         radius: 12
         color: clickable && stHov.hovered
                ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8) : "transparent"
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: app.animQuick } }
 
         HoverHandler { id: stHov }
 
@@ -76,7 +76,7 @@ Variants {
         id: winL
         required property var modelData
         screen: modelData
-        visible: modelData.name === app.mainScreen
+        visible: modelData.name === app.mainScreen && !app.leftMorph
 
         anchors { top: true; left: true }
         margins { top: app.gap; left: app.gap }
@@ -134,7 +134,7 @@ Variants {
                         color: app.cBlue
                         visible: wsStrip.activeIndex >= 0
                         Behavior on x {
-                            NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 0.9 }
+                            NumberAnimation { duration: app.animNormal; easing.type: Easing.OutBack; easing.overshoot: 0.9 }
                         }
                     }
 
@@ -163,9 +163,9 @@ Variants {
                                 border.width: ws.modelData.occupied ? 0 : 1.5
                                 border.color: app.cFaint
                                 opacity: ws.active ? 0 : 1
-                                Behavior on opacity { NumberAnimation { duration: 140 } }
-                                Behavior on width { NumberAnimation { duration: 100 } }
-                                Behavior on height { NumberAnimation { duration: 100 } }
+                                Behavior on opacity { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
+                                Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
+                                Behavior on height { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                             }
 
                             MouseArea {

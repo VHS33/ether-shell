@@ -16,7 +16,7 @@ Variants {
         id: winC
         required property var modelData
         screen: modelData
-        visible: modelData.name === app.mainScreen && app.player !== null && app.barMedia
+        visible: modelData.name === app.mainScreen && app.player !== null && app.barMedia && !app.barMorph
 
         anchors { top: true }
         margins { top: app.gap }
@@ -44,7 +44,7 @@ Variants {
                 color: app.cardShown ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                      : cHov.hovered ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.8)
                      : "transparent"
-                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on color { ColorAnimation { duration: app.animQuick } }
                 HoverHandler { id: cHov }
             }
 

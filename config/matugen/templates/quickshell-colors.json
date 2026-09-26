@@ -18,5 +18,8 @@
   "onAccent": "{{colors.on_primary.default.hex}}",
   "mauveL":   "{{colors.on_primary_fixed_variant.default.hex}}",
   "tealL":    "{{colors.on_tertiary_fixed_variant.default.hex}}",
-  "yellowL":  "{{colors.on_secondary_fixed_variant.default.hex}}"
+  "yellowL":  "{{colors.on_secondary_fixed_variant.default.hex}}",
+
+  "primaryC":   "{{colors.primary_container.default.hex}}",
+  "onPrimaryC": "{{colors.on_primary_container.default.hex}}"
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
-#   Æther installer
+#   Ether Shell installer
+#
+#   curl -fsSL https://raw.githubusercontent.com/VHS33/ether-shell/main/install.sh | bash
 #
 #   ./install.sh              install everything
 #   ./install.sh --dry-run    show what would happen, change nothing
@@ -9,21 +11,57 @@
 #
 #   Needs an Arch-based system (Arch, EndeavourOS, CachyOS, ...) and
 #   Hyprland 0.55 or newer, which uses a Lua config.
-#   Anything it replaces is moved to ~/.config/aether-backup-<time>/.
+#   Anything it replaces is moved to ~/.config/ether-backup-<time>/.
 # ============================================================
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Where the repo is.  When piped from curl there's no file, so this falls
+# back to the current folder, and the check below fetches the repo.
+SELF="${BASH_SOURCE[0]:-}"
+if [ -n "$SELF" ] && [ -f "$SELF" ]; then
+    HERE="$(cd "$(dirname "$SELF")" && pwd)"
+else
+    HERE="$(pwd)"
+fi
+REPO_URL="https://github.com/VHS33/ether-shell.git"
 DRY=0; PKGS=1; YES=0
 for a in "$@"; do
     case "$a" in
         --dry-run)     DRY=1 ;;
         --no-packages) PKGS=0 ;;
         --yes|-y)      YES=1 ;;
-        -h|--help)     sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)     sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $a (try --help)"; exit 1 ;;
     esac
 done
+
+# true when there's a terminal to ask questions on (it may look readable
+# yet fail to open, e.g. under automation)
+has_tty() { { : < /dev/tty; } 2>/dev/null; }
+
+# ---- run from curl: fetch the repo, then run the installer inside it ----
+# Keyboard input comes from the terminal from here on: piped into bash,
+# the script itself is what stdin reads.
+if [ ! -d "$HERE/config/quickshell" ]; then
+    SRC="${ETHER_DIR:-$HOME/.local/share/ether-shell}"
+    echo
+    echo "Fetching Ether Shell into $SRC"
+    if ! command -v git >/dev/null; then
+        echo "git isn't installed; installing it first."
+        sudo pacman -S --needed --noconfirm git
+    fi
+    if [ -d "$SRC/.git" ]; then
+        git -C "$SRC" pull --ff-only
+    else
+        mkdir -p "$(dirname "$SRC")"
+        git clone --depth 1 "$REPO_URL" "$SRC"
+    fi
+    if has_tty; then
+        exec bash "$SRC/install.sh" "$@" < /dev/tty
+    else
+        exec bash "$SRC/install.sh" "$@"
+    fi
+fi
 
 # ---- output ----------------------------------------------------
 if [ -t 1 ]; then B=$'\e[1m'; D=$'\e[2m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; N=$'\e[0m'
@@ -38,20 +76,26 @@ run()  {
 }
 
 # ---- banner ------------------------------------------------------
-# ÆTHER in block letters, the Æ drawn by hand (font generators don't have
-# it), shaded from teal to violet down the lines when the terminal has
-# colour.
+# ETHER SHELL in block letters, the two words stacked (on one line it's too
+# wide for many terminals), shaded from teal to violet down the lines when
+# the terminal has colour.
 banner() {
     local lines=(
-        " ███████████╗ ████████╗██╗  ██╗███████╗██████╗ "
-        "██╔══██╔════╝ ╚══██╔══╝██║  ██║██╔════╝██╔══██╗"
-        "██████████╗      ██║   ███████║█████╗  ██████╔╝"
-        "██╔══██╔══╝      ██║   ██╔══██║██╔══╝  ██╔══██╗"
-        "██║  ███████╗    ██║   ██║  ██║███████╗██║  ██║"
-        "╚═╝  ╚══════╝    ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝"
+        "███████╗████████╗██╗  ██╗███████╗██████╗"
+        "██╔════╝╚══██╔══╝██║  ██║██╔════╝██╔══██╗"
+        "█████╗     ██║   ███████║█████╗  ██████╔╝"
+        "██╔══╝     ██║   ██╔══██║██╔══╝  ██╔══██╗"
+        "███████╗   ██║   ██║  ██║███████╗██║  ██║"
+        "╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝"
+        "███████╗██╗  ██╗███████╗██╗     ██╗"
+        "██╔════╝██║  ██║██╔════╝██║     ██║"
+        "███████╗███████║█████╗  ██║     ██║"
+        "╚════██║██╔══██║██╔══╝  ██║     ██║"
+        "███████║██║  ██║███████╗███████╗███████╗"
+        "╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝"
     )
     # teal -> violet, one shade per line
-    local colours=("94;226;213" "110;200;226" "128;176;235" "148;152;240" "170;130;240" "190;112;235")
+    local colours=("94;226;213" "103;216;215" "111;205;217" "120;195;219" "129;185;221" "138;174;223" "146;164;225" "155;153;227" "164;143;229" "173;133;231" "181;122;233" "190;112;235")
     local i
     echo
     for i in "${!lines[@]}"; do
@@ -88,10 +132,14 @@ PACKAGES=(
     hyprland hyprlock hypridle hyprsunset xdg-desktop-portal-hyprland polkit-kde-agent
     # the shell
     quickshell qt6-declarative qt6-wayland qt6-svg
+    # WebP (and other) images for the wallpaper selector and clipboard thumbnails
+    qt6-imageformats
     # theming
     matugen-bin awww adw-gtk-theme papirus-icon-theme glib2 plasma-integration
-    # fonts
-    noto-fonts ttf-jetbrains-mono-nerd
+    # fonts: Noto for panels, Inter and Material Symbols for the bar
+    noto-fonts ttf-jetbrains-mono-nerd inter-font ttf-material-symbols-variable-git
+    # emoji, for the launcher's emoji search and in notifications
+    noto-fonts-emoji
     # apps the shell opens
     kitty rofi dolphin btop pavucontrol nm-connection-editor
     # sound and media
@@ -102,6 +150,10 @@ PACKAGES=(
     ddcutil brightnessctl
     # system
     networkmanager libnotify xdg-utils curl python coreutils util-linux procps-ng dbus
+    # Bluetooth, for quick settings (harmless without an adapter)
+    bluez bluez-utils
+    # the sound a finished timer plays
+    sound-theme-freedesktop
 )
 
 if [ "$PKGS" = 1 ]; then
@@ -125,7 +177,11 @@ if [ "$PKGS" = 1 ]; then
         [ ${#aur[@]} -gt 0 ]  && info "From the AUR: ${aur[*]}"
 
         if [ "$YES" = 0 ] && [ "$DRY" = 0 ]; then
-            read -r -p "    Install these now? [Y/n] " ans
+            if has_tty; then
+                read -r -p "    Install these now? [Y/n] " ans < /dev/tty
+            else
+                ans=y
+            fi
             case "${ans:-y}" in [Yy]*) ;; *) die "Stopped. Re-run with --no-packages to skip this step." ;; esac
         fi
 
@@ -160,7 +216,7 @@ if command -v Hyprland >/dev/null; then
     if [ -n "$hv" ]; then
         maj="${hv%%.*}"; rest="${hv#*.}"; min="${rest%%.*}"
         if [ "$maj" -eq 0 ] && [ "$min" -lt 55 ]; then
-            warn "Hyprland $hv found. Æther's config is Lua, which needs 0.55 or newer."
+            warn "Hyprland $hv found. Ether Shell's config is Lua, which needs 0.55 or newer."
         else
             info "Hyprland $hv"
         fi
@@ -168,7 +224,7 @@ if command -v Hyprland >/dev/null; then
 fi
 
 # ---- back up and copy -------------------------------------------------
-BACKUP="$HOME/.config/aether-backup-$(date +%Y%m%d-%H%M%S)"
+BACKUP="$HOME/.config/ether-backup-$(date +%Y%m%d-%H%M%S)"
 backed=0
 place() {  # place <source> <destination>
     local src="$1" dst="$2"
@@ -211,7 +267,7 @@ run mkdir -p "$HOME/Pictures/wallpapers" "$HOME/Pictures/screenshots"
 for w in "$HERE"/wallpapers/*; do
     [ -e "$HOME/Pictures/wallpapers/$(basename "$w")" ] || run cp "$w" "$HOME/Pictures/wallpapers/"
 done
-info "Three Æther wallpapers are in ~/Pictures/wallpapers. Add your own there too."
+info "Three Ether Shell wallpapers are in ~/Pictures/wallpapers. Add your own there too."
 
 # ---- one-time system setup ------------------------------------------
 step "System setup"
@@ -230,6 +286,20 @@ if pacman -Q mako >/dev/null 2>&1; then
 fi
 info "Other notification daemons are blocked from auto-starting (~/.local/share/dbus-1/services)."
 
+# Bluetooth: the service has to be running for quick settings' Bluetooth tile
+if systemctl list-unit-files bluetooth.service >/dev/null 2>&1 \
+        && ! systemctl is-enabled --quiet bluetooth.service 2>/dev/null; then
+    info "Turning on the Bluetooth service, for quick settings"
+    run sudo systemctl enable --now bluetooth.service || warn "Couldn't start Bluetooth; the tile stays hidden until it runs."
+fi
+
+# networking: Ether Shell talks to NetworkManager.  It isn't switched on here, in
+# case this system uses something else to get online.
+if ! systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
+    warn "NetworkManager isn't running, so the Wi-Fi tile and network speeds won't show."
+    info "If nothing else manages your network, turn it on with: sudo systemctl enable --now NetworkManager"
+fi
+
 # ~/.local/bin on PATH for fish, bash and zsh users
 case ":$PATH:" in
     *":$HOME/.local/bin:"*) ;;
@@ -246,24 +316,24 @@ fi
 
 # ---- first theme ----------------------------------------------------
 step "First theme"
-first="$(find "$HOME/Pictures/wallpapers" -maxdepth 1 -type f -iname 'aether-*' 2>/dev/null | sort | head -1 || true)"
+first="$(find "$HOME/Pictures/wallpapers" -maxdepth 1 -type f -iname 'ether-*' 2>/dev/null | sort | head -1 || true)"
 if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && [ -n "$first" ]; then
     info "Generating colours from $(basename "$first")"
     run "$HOME/.local/bin/setwall" "$first" < /dev/null || warn "setwall failed; run it after logging in."
     run hyprctl reload >/dev/null || true
 else
     info "Not inside Hyprland right now, so this waits until you log in."
-    info "After logging in, run:  setwall ~/Pictures/wallpapers/aether-nightfall.jpg"
+    info "After logging in, run:  setwall ~/Pictures/wallpapers/ether-nightfall.jpg"
 fi
 
 # ---- done ------------------------------------------------------------
 cat << DONE
 
-${G}${B}Æther is installed.${N}
+${G}${B}Ether Shell is installed.${N}
 
   Next:
   1. Log in to Hyprland (or restart it) if you aren't in it already.
-  2. Open Settings: click the clock, then the gear.
+  2. Open Settings: SUPER + comma (or click the clock, then the gear).
      - Weather: search for your city.
      - Displays: pick your main monitor and set modes.
   3. Press SUPER + / to see every keybind.

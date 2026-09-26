@@ -77,8 +77,8 @@ Variants {
                     Component.onDestruction: if (winN.replyHost === pop) winN.replyHost = null
                     ParallelAnimation {
                         id: enter
-                        NumberAnimation { target: pop; property: "opacity"; to: 1; duration: 180; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: slide; property: "x"; to: 0; duration: 260; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: pop; property: "opacity"; to: 1; duration: app.animNormal; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: slide; property: "x"; to: 0; duration: app.animNormal; easing.type: Easing.OutCubic }
                     }
 
                     // the countdown holds while hovered or while typing a reply
@@ -140,7 +140,7 @@ Variants {
                                 implicitWidth: 40
                                 implicitHeight: 40
                                 radius: 12
-                                color: app.cSurf
+                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 IconImage {
                                     anchors.centerIn: parent
                                     implicitSize: 26
@@ -159,7 +159,7 @@ Variants {
                                         Layout.fillWidth: true
                                         text: pop.modelData.app
                                         color: pop.crit ? app.cRed : app.cDim
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(11)
                                         elide: Text.ElideRight
                                     }
@@ -167,15 +167,15 @@ Variants {
                                         visible: !popHov.hovered
                                         text: pop.modelData.when
                                         color: app.cFaint
-                                        font.family: "Noto Sans"
+                                        font.family: "Inter"
                                         font.pixelSize: app.fs(11)
                                     }
                                     // close, in place of the time while hovered
                                     Text {
                                         visible: popHov.hovered
-                                        text: "\u{f0156}"
+                                        text: "close"
                                         color: xHov.hovered ? app.cFg : app.cDim
-                                        font.family: app.font
+                                        font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(14)
                                         HoverHandler { id: xHov }
                                         MouseArea {
@@ -192,7 +192,7 @@ Variants {
                                     visible: text !== ""
                                     text: pop.modelData.summary
                                     color: app.cFg
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(14)
                                     font.bold: true
                                     wrapMode: Text.WordWrap
@@ -204,7 +204,7 @@ Variants {
                                     visible: text !== ""
                                     text: pop.modelData.body
                                     color: app.cDim
-                                    font.family: "Noto Sans"
+                                    font.family: "Inter"
                                     font.pixelSize: app.fs(12)
                                     lineHeight: 1.2
                                     wrapMode: Text.WordWrap
@@ -220,7 +220,7 @@ Variants {
                                     visible: pop.canReply
                                     implicitHeight: 36
                                     radius: 18
-                                    color: app.cSurf
+                                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                     border.width: replyIn.activeFocus ? 1 : 0
                                     border.color: app.cBlue
 
@@ -235,7 +235,7 @@ Variants {
                                             Layout.fillWidth: true
                                             color: app.cFg
                                             selectionColor: app.cBlue
-                                            font.family: "Noto Sans"
+                                            font.family: "Inter"
                                             font.pixelSize: app.fs(12)
                                             clip: true
                                             onAccepted: app.sendNotifReply(pop.modelData.id, text)
@@ -261,9 +261,9 @@ Variants {
                                             color: replyIn.text ? app.cBlue : "transparent"
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: "\u{f048a}"
+                                                text: "send"
                                                 color: replyIn.text ? app.cOnAccent : app.cFaint
-                                                font.family: app.font
+                                                font.family: "Material Symbols Rounded"
                                                 font.pixelSize: app.fs(13)
                                             }
                                             MouseArea {
@@ -288,16 +288,16 @@ Variants {
                                             implicitWidth: actT.implicitWidth + 28
                                             implicitHeight: 30
                                             radius: 15
-                                            color: actHov.hovered ? app.cSurf
-                                                 : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
-                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                            color: actHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
+                                                 : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+                                            Behavior on color { ColorAnimation { duration: app.animQuick } }
                                             HoverHandler { id: actHov }
                                             Text {
                                                 id: actT
                                                 anchors.centerIn: parent
                                                 text: modelData.text
                                                 color: app.cFg
-                                                font.family: "Noto Sans"
+                                                font.family: "Inter"
                                                 font.pixelSize: app.fs(12)
                                             }
                                             MouseArea {
@@ -318,7 +318,7 @@ Variants {
                                 implicitWidth: 64
                                 implicitHeight: 64
                                 radius: 12
-                                color: app.cSurf
+                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 clip: true
                                 Image {
                                     anchors.fill: parent

@@ -111,26 +111,32 @@ Variants {
         id: winV
         required property var modelData
         screen: modelData
-        visible: modelData.name === app.mainScreen && app.volPopShown
+        // Stays mapped and animates itself: mapping a new surface on each
+        // open lagged, and Hyprland's own layer fade fought the shell's.
+        // Closed, nothing shows and the mask lets every click through.
+        visible: modelData.name === app.mainScreen
+        readonly property bool open: app.volPopShown
 
         anchors { top: true; right: true }
-        margins { top: app.gap + app.pillH + 6; right: app.gap }
+        margins { top: app.barBottom + 6; right: app.gap }
         implicitWidth: 360
         implicitHeight: card.implicitHeight + 16
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+        WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-        mask: Region { x: 8; y: 8; width: winV.width - 16; height: winV.height - 16 }
+        property Region shownMask: Region { x: 8; y: 8; width: winV.width - 16; height: winV.height - 16 }
+        property Region hiddenMask: Region { width: 0; height: 0 }
+        mask: open ? shownMask : hiddenMask
 
         readonly property var sink: Pipewire.defaultAudioSink
         readonly property var source: Pipewire.defaultAudioSource
 
         PwObjectTracker {
-            objects: winV.visible ? Pipewire.nodes.values : []
+            objects: winV.open ? Pipewire.nodes.values : []
         }
 
-        onVisibleChanged: if (visible) { entered = false; keys.forceActiveFocus(); leaveTimer.stop() }
+        onOpenChanged: if (open) { entered = false; keys.forceActiveFocus(); leaveTimer.stop() }
 
         // close once the pointer has been gone for a moment; it only
         // arms after the pointer has been over the popover once
@@ -147,6 +153,12 @@ Variants {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 8
+            // drops down from the bar
+            anchors.topMargin: winV.open ? 8 : -16
+            opacity: winV.open ? 1 : 0
+            visible: opacity > 0
+            Behavior on anchors.topMargin { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             implicitHeight: col.implicitHeight + 32
             radius: 22
             color: app.cCard
@@ -267,7 +279,7 @@ Variants {
                             radius: 12
                             color: isDefault ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.16)
                                  : oHov.hovered ? app.cSurf : "transparent"
-                            Behavior on color { ColorAnimation { duration: 110 } }
+                            Behavior on color { ColorAnimation { duration: app.animQuick } }
                             HoverHandler { id: oHov }
                             RowLayout {
                                 anchors.fill: parent

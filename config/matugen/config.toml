@@ -1,4 +1,4 @@
-# ~/.config/matugen/config.toml  (Æther)
+# ~/.config/matugen/config.toml  (Ether Shell)
 #
 #   setwall <image>  ->  palette derived from the image, written into
 #                        every app below, each reloaded by its post_hook
