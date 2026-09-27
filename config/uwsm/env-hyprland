@@ -1,0 +1,3 @@
+# ~/.config/uwsm/env-hyprland  (Ether Shell)
+# Hyprland's own variables, for a UWSM-managed Hyprland session.
+export HYPRCURSOR_SIZE=24

@@ -100,6 +100,31 @@ The work that runs all the time is done in C++, in a small QML module,
 - `ArtColors`: accent colours from the current song's album art (a file,
   `file://`, `data:` or http(s) URL), for the media views' `app.mBlue`,
   `mOnAccent`, `mPrimC` and `mOnPrimC`. Greyscale art leaves the theme alone.
+  The same component reads the wallpaper (in `NativeStats.qml`) for three
+  more things: its `lightness` (Auto light or dark), a `suggestedScheme`
+  (Auto colour style: monochrome, neutral, fidelity or tonal spot, from
+  Hasler and Susstrunk's colourfulness and how much colour is one hue), and
+  `calmSpots()`, the calmest places for widgets by edge detail (Sobel), with
+  the wallpaper's crop to the screen taken into account; the shell only
+  moves a widget to a spot measuring 8 or less out of 255.
+- The colour a theme is built from (the colour source "smart", the default):
+  `ArtColors.smartAnalyse`, in OKLab. It trims uniform borders, finds the
+  subject (detail and colour that stands out), counts skin tones for less,
+  and scores hue families on area, vividness and how much they're the
+  subject; `smartSeed` goes to `setwall` as `SEED`, which runs `matugen color
+  hex` instead of `matugen image`, and `smartSecond` becomes the shell's
+  third accent. Developed against matugen's own picks on 40 real wallpapers
+  (a Python prototype, then this; the two agreed on 39 of 40). The lock
+  screen's wallpaper comes from `hyprlock-wallpaper.conf`, written by
+  `setwall`, since `matugen color` has no image.
+- Themes are made in two matugen passes. `config.toml` is the theme itself,
+  in the chosen style. `config-terminal.toml` is the colours that must keep
+  their meaning (the terminal's 16, and fish, btop, starship and Discord,
+  which use them), always in the tonal spot style: monochrome turns them all
+  white and content turns the bright ones black. kitty includes both
+  (`colors.conf`, `ansi.conf`). The shell's third accent (`thirdAccent`)
+  comes from the picture: its second colour, or a close neighbour of the main
+  one, never Material's rotated hue.
 
 The installer builds it with CMake into `~/.local/lib/ether-shell/qml`, and
 `ether-shell` adds that to `QML_IMPORT_PATH`. **It's optional.**
@@ -302,3 +327,94 @@ pointing at `/bin/false`, so D-Bus can't auto-start another daemon.
 - **The user's shell may be fish**: `while ...; ...; end`, not `do ... done`.
 - Lint with `qmllint` (it catches syntax, not runtime errors), check
   braces balance, then watch Quickshell's log on the first run.
+- File search (`FileIndex`, in `NativeStats.qml`): every file and folder in
+  home, minus hidden folders, dependency and cache folders (anything with a
+  `CACHEDIR.TAG`) and game internals. 16 bytes a node, names in one shared
+  arena (about 5 MB for 80,000 entries); scanned on a thread at start-up,
+  kept live with inotify (within half the kernel's watch budget), rescanned
+  every 30 minutes. Searches run on a thread; `resultsFor` says which query
+  results belong to, so the launcher never shows a stale search. `/` in the
+  launcher is files only; files also follow apps from three letters.
+- `local/bin/ocr` (SUPER + SHIFT + T): slurp, grim at 2x, Tesseract, wl-copy.
+- Wi-Fi and Bluetooth: `NetNative.qml` uses Quickshell's own
+  `Quickshell.Networking` (NetworkManager) and `Quickshell.Bluetooth` (BlueZ)
+  modules, live, nothing polled. `shell.qml` loads it with a Loader and binds
+  its values onto the same properties the nmcli and bluetoothctl code sets,
+  so on a Quickshell without those modules it fails to load and the old code
+  carries on. Tested against stand-in modules built from the 0.3.0 source's
+  API (passwords, wrong passwords, open networks, scanning, pairing).
+- Brightness: `Ddc` (native/src/ddc.*, the protocol in ddcproto.h) talks
+  DDC/CI to /dev/i2c-N directly, framed as ddcutil frames it (checked
+  against ddcutil's source and its unit test's checksum). Buses stay open;
+  a background thread sends only the newest value per monitor, 50 ms apart
+  (40 ms between a get and its reply); plain write()/read(), which NVIDIA's
+  driver accepts. ddcutil still maps connectors to buses at start-up, and
+  any monitor the direct route fails for uses ddcutil from then on.
+- The visualiser: `AudioBars` (native/src/audiobars.*, the analysis in
+  spectrum.h) captures the default output's monitor from PipeWire
+  (stream.capture.sink, so no microphone and not listed as recording) and
+  computes 28 bars itself: a 4096-point FFT, bands from 50 Hz to 10 kHz
+  spaced by pitch, linear strength lifted with pitch, each band evened out
+  against its own recent peaks (0.5x to 3x), cava-style automatic
+  sensitivity, gravity and smoothing; values 0-100 as cava's reader gives
+  them. Tuned live against cava on the same audio: about 1.3x cava's bar
+  swing, 2.7x the log-scale version it replaced. Only while the media drawer is open. Tested against a real
+  PipeWire daemon with test tones and drums; about 0.6% of a core. Built
+  only when libpipewire-0.3 is found; otherwise, or if PipeWire can't be
+  reached, cava runs as before.
+- The clipboard: `ClipboardHistory` (native/src/clipboard.*) has its own
+  Wayland connection, on its own thread, using the wlr data-control protocol
+  (native/protocols/, bindings generated by wayland-scanner at build time).
+  One poll loop covers the compositor, incoming data and outgoing data, so
+  copying from our own history never waits on itself; SIGPIPE is blocked on
+  that thread. Text up to 5 MB and pictures up to 40 MB are kept in
+  ~/.local/share/ether-shell/clipboard/ (0700, files 0600); duplicates move
+  up; x-kde-passwordManagerHint copies are never kept; when the app that
+  copied goes away, the last copy is offered again (not at login). cliphist's
+  history is imported once. Without the protocol (or Wayland development
+  files at build time) the shell starts wl-paste and cliphist watchers
+  itself. Tested against headless sway.
+- The accent in every app: setwall takes a quick look at the new palette
+  (a one-line probe template), works out the accent (Vivid: the smart colour
+  lightened only to 4.5:1 on the new background, in awk, the same rule as the
+  shell's readableAccent, checked colour for colour; Soft: Material's
+  primary) and adds it to both passes as the custom colours vivid and
+  on_vivid (blend off). Templates use vivid_value / on_vivid_value for
+  accents; container colours stay Material's. The shell reads pal.vivid, so
+  the bar and every app match exactly.
+- The palette from the picture: with the vivid accent, the second and third
+  colours are the picture's own (ArtColors.smartSecond / smartThird: its
+  other colour families, each 35 degrees apart and at least 2% of it, then
+  its neutral tone), made readable by setwall's readable() (the same rule as
+  the accent) and passed to the templates as the custom colours second and
+  third. A dull yellow-green (OKLab hue 90-125, chroma under 0.10) is
+  penalised as an accent, as Material's DislikeAnalyzer does. Checked on 43
+  pictures that every colour in each theme is one the picture has.
+- The login screen: config/ether-greeter (greeter.qml wraps GreeterView.qml,
+  which is plain QtQuick and testable alone). install-greeter.sh puts it in
+  /etc/ether-greeter, verifies its Hyprland config (hyprland.lua, started by
+  greetd as "start-hyprland -- --config ..."), sets up /var/lib/ether-greeter
+  (group ether-greeter, 2775, plus an ACL for the installing user) where each
+  user's shell shares its wallpaper, colours and main screen, records the
+  previous display manager and switches to greetd. uninstall-greeter.sh
+  reverses it. Both honour ETHER_TEST_ROOT and --dry-run; tested end to end
+  in a test root (install, re-install, undo).
+- UWSM: hyprland.lua reads /proc/self/cgroup at load (a wayland-wm@ unit
+  means UWSM; never run a program there: Hyprland waits for its config); under UWSM
+  its long-running programs and app keybinds go through `uwsm-app --` (or
+  `uwsm app --`), the shell's launchEntry does the same (appLauncher), and
+  ether-shell starts quickshell with `uwsm app -s b --` (a scope keeps the
+  script's environment). Plain Hyprland is unchanged. Variables for UWSM are
+  in ~/.config/uwsm/env and env-hyprland (never overwritten by the
+  installer); hyprland.lua keeps its hl.env lines for the plain session.
+- The login screen for real: `sudo ether-login install` installs greetd and
+  greetd-agreety, copies config/ether-greeter to /etc/ether-greeter, makes
+  /var/lib/ether-greeter the user's (the shell shares its look there) and
+  /var/cache/ether-greeter the greeter's, writes /etc/greetd/config.toml
+  (backing up the old one) and switches display-manager.service to greetd,
+  remembering the previous one for `ether-login undo`. greetd runs
+  /etc/ether-greeter/start: start-hyprland with the greeter's own
+  hyprland.lua, which runs greeter.qml and exits with it; the greeter marks a
+  sign-in just before launching, and without that mark the script falls back
+  to agreety (so a broken login screen never locks anyone out). Rehearsed on
+  a pretend root with ETHER_ROOT.

@@ -43,9 +43,72 @@ ShellRoot {
     property color cFg:     pal.fg     ?? "#cdd6f4"
     property color cDim:    pal.dim    ?? "#a6adc8"
     property color cFaint:  pal.faint  ?? "#6c7086"
-    property color cBlue:   pal.blue   ?? "#89b4fa"
-    property color cGreen:  pal.green  ?? "#a6e3a1"
-    property color cPeach:  pal.peach  ?? "#fab387"
+    // ---- the accent: the wallpaper's own colour (Settings > Theme > Accent) ----
+    // Material's dark themes always use a light version of the colour (its
+    // tone 80), so an orange wallpaper gets a soft salmon accent.  "vivid"
+    // (the default) uses the wallpaper's actual colour, adjusted only when it
+    // wouldn't be readable: lightened (or darkened, on a light theme) just
+    // until it has 4.5:1 contrast with the background, keeping its hue.  Text
+    // on it is dark or light, whichever reads better.  Greyscale wallpapers,
+    // and the monochrome and neutral styles, keep Material's colours.
+    readonly property bool vividOn: cfg.accentStyle !== "soft" && smartOn && wallSeed !== ""
+                                    && wallWhy !== "no strong colour"
+                                    && themeScheme !== "scheme-monochrome" && themeScheme !== "scheme-neutral"
+    function relLum(c) {
+        const f = x => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
+    }
+    function contrast(a, b) {
+        const la = relLum(Qt.color(a)), lb = relLum(Qt.color(b))
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+    }
+    // the colour, lightened or darkened only as far as needed to read on bg
+    function readableAccent(colour, bg) {
+        const c = Qt.color(colour), b = Qt.color(bg)
+        if (contrast(c, b) >= 4.5) return c
+        const darkBg = relLum(b) < 0.18
+        const h = c.hslHue < 0 ? 0 : c.hslHue, s = c.hslSaturation
+        let l = c.hslLightness
+        for (let i = 0; i < 60; i++) {
+            l = darkBg ? Math.min(1, l + 0.01) : Math.max(0, l - 0.01)
+            const t = Qt.hsla(h, s, l, 1)
+            if (contrast(t, b) >= 4.5) return t
+        }
+        return Qt.hsla(h, s, l, 1)
+    }
+    // dark or light text on the accent, whichever reads better
+    function textOn(accent, darkText, lightText) {
+        return contrast(accent, darkText) >= contrast(accent, lightText) ? darkText : lightText
+    }
+    // setwall works the accent out for every app (vivid or soft, by the same
+    // rule) and writes it as pal.vivid; before a theme with it has been made,
+    // the shell works it out itself
+    property color cBlue: pal.vivid ?? (vividOn ? readableAccent(wallSeed, pal.bg ?? "#1e1e2e") : (pal.blue ?? "#89b4fa"))
+    // The shell's third accent, from the picture itself.  Material builds the
+    // third accent by turning the main colour round the colour wheel, which
+    // often lands on a colour that isn't in the wallpaper (teal beside an
+    // orange picture).  With the smart colour: the picture's own second
+    // colour when it has one, otherwise a close neighbour of the main colour;
+    // at the palette's own third-accent lightness, so it sits in the theme.
+    // Monochrome and neutral keep theirs (their greys are the point).
+    readonly property color palGreen:  pal.green  ?? "#a6e3a1"
+    function thirdAccent(primary, tertiary, second, scheme) {
+        if (!smartOn || scheme === "scheme-monochrome" || scheme === "scheme-neutral") return tertiary
+        const t = Qt.color(tertiary), p = Qt.color(primary)
+        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+        if (second) {
+            const s2 = Qt.color(second)
+            if (s2.hslHue >= 0) return Qt.hsla(s2.hslHue, clamp(s2.hslSaturation, 0.3, 0.62), t.hslLightness, 1)
+        }
+        if (p.hslHue < 0) return tertiary
+        return Qt.hsla((p.hslHue + 28 / 360) % 1, clamp(Math.min(p.hslSaturation, t.hslSaturation + 0.15), 0.25, 0.6),
+                       t.hslLightness, 1)
+    }
+    // second and third accents: with the vivid accent, the picture's own
+    // second and third colours (setwall makes them readable); Material's
+    // otherwise.  (thirdAccent for colour files from before these existed.)
+    property color cGreen: pal.third ?? thirdAccent(pal.blue ?? "#89b4fa", palGreen, wallSecond, themeScheme)
+    property color cPeach:  pal.second ?? pal.peach ?? "#fab387"
     // light mode swaps the three pastel "fixed" accents for darker
     // companions, which would otherwise wash out on a light background
     // Light, dark, or "auto": light for wallpapers that look bright (their
@@ -59,7 +122,8 @@ ShellRoot {
     property color cRed:    pal.red    ?? "#f38ba8"
     property color cYellow: (isLight ? pal.yellowL : pal.yellow) ?? "#f9e2af"
     // text and icons drawn on top of an accent colour
-    property color cOnAccent: pal.onAccent ?? "#1e1e2e"
+    property color cOnAccent: pal.onVivid ?? (vividOn ? textOn(cBlue, pal.bg ?? "#1e1e2e", pal.fg ?? "#cdd6f4")
+                                                      : (pal.onAccent ?? "#1e1e2e"))
     // Material's filled-but-deeper accent (the clock's group, tiles that
     // are on) and the text that sits on it.  Until matugen has written
     // them, a mix of the accent and the background stands in.
@@ -186,6 +250,7 @@ ShellRoot {
     property var islandData: ({})
     property var islandGeom: null
     readonly property real mainScreenW: Quickshell.screens.find(s => s.name === mainScreen)?.width ?? 1920
+    readonly property real mainScreenH: Quickshell.screens.find(s => s.name === mainScreen)?.height ?? 1080
     function showIsland(d, ms) {
         if (!islandOn || cardShown || quickShown || sysShown || launcherShown) return
         const w = d.kind === "notif" ? 460 : d.kind === "track" ? 420 : d.kind === "timer" ? 380
@@ -518,6 +583,21 @@ ShellRoot {
     // NVIDIA's driver alone (__EGL_VENDOR_LIBRARY_FILENAMES); apps must not
     // inherit that, so they start exactly as they would from anywhere else.
     readonly property var appEnv: ({ "__EGL_VENDOR_LIBRARY_FILENAMES": null })
+    // Under UWSM, apps start as their own systemd units (through uwsm-app, its
+    // fast client, or uwsm app): contained, stopped cleanly at log out, with
+    // their own memory and CPU accounting.  Otherwise they start as before.
+    property var appLauncher: []
+    Process {
+        running: true
+        command: ["sh", "-c", "h=$(pgrep -xo Hyprland); command -v uwsm >/dev/null && [ -n \"$h\" ] && grep -q wayland-wm@ /proc/$h/cgroup 2>/dev/null || exit 0; " +
+                              "if command -v uwsm-app >/dev/null; then echo uwsm-app; else echo uwsm; fi"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const t = text.trim()
+                root.appLauncher = t === "uwsm-app" ? ["uwsm-app", "--"] : t === "uwsm" ? ["uwsm", "app", "--"] : []
+            }
+        }
+    }
     function launchEntry(e) {
         if (!e) return
         try {
@@ -525,7 +605,7 @@ ShellRoot {
             if (!cmd.length) { e.execute(); return }
             if (e.runInTerminal) cmd = [cfg.appTerminalCmd || "kitty", "-e"].concat(cmd)
             Quickshell.execDetached({
-                command: cmd,
+                command: root.appLauncher.concat(cmd),
                 workingDirectory: e.workingDirectory || Quickshell.env("HOME"),
                 environment: root.appEnv
             })
@@ -587,9 +667,23 @@ ShellRoot {
     // source of volume change.  The first reading after startup is
     // ignored, or the OSD would flash every time quickshell restarts.
     // ---- clipboard history -------------------------------------------
-    // Entries are { id, preview } plain strings; cliphist keeps the real
-    // contents, which can include anything, so nothing is stored here.
+    // Entries are { id, preview } plain strings.  Natively (the plugin talks
+    // to the compositor's clipboard; see NativeStats.qml) the history keeps
+    // itself up to date; otherwise cliphist keeps it, fed by wl-paste
+    // watchers this shell starts only then, and is asked when needed.
     property var clipItems: []
+    readonly property bool clipNativeOn: nativeOk && nativeLoader.item !== null && nativeLoader.item.clipAvailable
+    Binding { target: root; property: "clipItems"; when: root.clipNativeOn
+              value: nativeLoader.item ? nativeLoader.item.clipItems : []; restoreMode: Binding.RestoreNone }
+    function readClipboard() {
+        if (clipNativeOn) return              // live already
+        clipProc.running = true
+    }
+    // the fallback's watchers, once it's clear the native history isn't there
+    property bool clipDecided: false
+    Timer { interval: 3000; running: true; onTriggered: root.clipDecided = true }
+    Process { running: root.clipDecided && !root.clipNativeOn; command: ["wl-paste", "--type", "text", "--watch", "cliphist", "store"] }
+    Process { running: root.clipDecided && !root.clipNativeOn; command: ["wl-paste", "--type", "image", "--watch", "cliphist", "store"] }
 
 
     // refreshes wait until the sidebar has slid in, so they don't compete
@@ -602,8 +696,8 @@ ShellRoot {
     }
     function refreshSidebar() {
         readBrightness()
-        clipProc.running = true
-        netStatProc.running = true
+        root.readClipboard()
+        if (!netNativeOn) netStatProc.running = true
     }
 
     // ---- network, for the sidebar's network tile ----------------------
@@ -738,6 +832,7 @@ ShellRoot {
     Process { id: clipAct }
 
     function clipCopy(id) {
+        if (clipNativeOn) { nativeLoader.item.clipCopy(id); root.sidebarShown = false; root.clipShown = false; return }
         clipAct.command = ["sh", "-c",
             "cliphist decode " + id + " | wl-copy"]
         clipAct.running = true
@@ -746,6 +841,7 @@ ShellRoot {
     }
 
     function clipDelete(id) {
+        if (clipNativeOn) { nativeLoader.item.clipRemove(id); return }
         clipAct.command = ["sh", "-c",
             "cliphist list | grep -m1 '^" + id + "\t' | cliphist delete"]
         clipAct.running = true
@@ -753,6 +849,7 @@ ShellRoot {
     }
 
     function clipWipe() {
+        if (clipNativeOn) { nativeLoader.item.clipClear(); return }
         clipAct.command = ["sh", "-c", "cliphist wipe"]
         clipAct.running = true
         clipRefresh.restart()
@@ -761,7 +858,7 @@ ShellRoot {
     Timer {
         id: clipRefresh
         interval: 120
-        onTriggered: clipProc.running = true
+        onTriggered: root.readClipboard()
     }
 
     // ---- keybind cheatsheet ------------------------------------------
@@ -821,7 +918,7 @@ ShellRoot {
                 // which group a bind belongs to, from its description
                 const groupOf = l => {
                     if (/^(Go to|Send window to) workspace|workspace|overview/i.test(l)) return "Workspaces"
-                    if (/screenshot/i.test(l)) return "Screenshots"
+                    if (/screenshot|text from the screen/i.test(l)) return "Screenshots"
                     if (/volume|mute|brightness|track|play|pause/i.test(l)) return "Media"
                     if (/window|float|pseudotile|split|focus|drag|resize|fullscreen|maximi/i.test(l)) return "Windows"
                     if (/terminal|file manager|app menu|launcher/i.test(l)) return "Apps"
@@ -1260,7 +1357,35 @@ ShellRoot {
                   "--why=Keep awake is on", "sleep", "infinity"]
     }
 
-    // ---- Wi-Fi (NetworkManager) ------------------------------------------
+    // ---- Wi-Fi and Bluetooth, native (Quickshell 0.3+) -------------------
+    // NetNative.qml uses Quickshell's own NetworkManager and BlueZ modules:
+    // live, nothing polled, no programs run.  Loaded on its own, so on an
+    // older Quickshell (no such modules) it just fails to load and the
+    // nmcli and bluetoothctl code below carries on.  Either way the same
+    // properties and actions, so the UI doesn't need to know which.
+    Loader { id: netNative; source: "NetNative.qml" }
+    readonly property bool netNativeOn: netNative.status === Loader.Ready && netNative.item.netOk
+    readonly property bool btNativeOn: netNative.status === Loader.Ready && netNative.item.btOk
+    Binding { target: root; property: "wifiHas";   when: root.netNativeOn; value: netNative.item ? netNative.item.wifiHas : false; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "wifiOn";    when: root.netNativeOn; value: netNative.item ? netNative.item.wifiOn : false; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "wifiList";  when: root.netNativeOn; value: netNative.item ? netNative.item.wifiList : []; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "wifiBusy";  when: root.netNativeOn; value: netNative.item ? netNative.item.wifiBusy : ""; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "wifiAskPw"; when: root.netNativeOn; value: netNative.item ? netNative.item.wifiAskPw : ""; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "wifiError"; when: root.netNativeOn; value: netNative.item ? netNative.item.wifiError : ""; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "netKind";   when: root.netNativeOn; value: netNative.item ? netNative.item.netNow.kind : ""; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "netName";   when: root.netNativeOn; value: netNative.item ? netNative.item.netNow.name : ""; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "btHas";      when: root.btNativeOn; value: netNative.item ? netNative.item.btHas : false; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "btOn";       when: root.btNativeOn; value: netNative.item ? netNative.item.btOn : false; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "btList";     when: root.btNativeOn; value: netNative.item ? netNative.item.btList : []; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "btScanning"; when: root.btNativeOn; value: netNative.item ? netNative.item.btScanning : false; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "btBusy";     when: root.btNativeOn; value: netNative.item ? netNative.item.btBusy : ""; restoreMode: Binding.RestoreNone }
+    // the password prompt, closed without joining
+    function wifiCancelPw() {
+        if (netNativeOn) netNative.item.wifiAskPw = ""
+        wifiAskPw = ""
+    }
+
+    // ---- Wi-Fi (NetworkManager, through nmcli: the fallback) --------------
     // Lists are plain values.  Connecting runs nmcli with its arguments
     // as a list, never through a shell, so a network name or password
     // can't be mistaken for a command.
@@ -1271,6 +1396,7 @@ ShellRoot {
     property string wifiAskPw: ""        // the network that needs a password
     property string wifiError: ""
     function refreshWifi(rescan) {
+        if (netNativeOn) { netNative.item.refreshWifi(rescan); return }
         wifiScan.command = ["sh", "-c",
             "nmcli -t -f TYPE device | grep -qx wifi && echo HAS; " +
             "echo \"RADIO $(nmcli radio wifi)\"; " +
@@ -1341,10 +1467,12 @@ ShellRoot {
         return out
     }
     function wifiToggle() {
+        if (netNativeOn) { netNative.item.wifiToggle(); return }
         wifiAct.command = ["nmcli", "radio", "wifi", wifiOn ? "off" : "on"]
         wifiAct.running = true
     }
     function wifiConnect(ssid, pw) {
+        if (netNativeOn) { netNative.item.wifiConnect(ssid, pw); return }
         wifiBusy = ssid
         wifiError = ""
         wifiAct.command = pw ? ["nmcli", "device", "wifi", "connect", ssid, "password", pw]
@@ -1352,17 +1480,19 @@ ShellRoot {
         wifiAct.running = true
     }
     function wifiDisconnect(ssid) {
+        if (netNativeOn) { netNative.item.wifiDisconnect(ssid); return }
         wifiAct.command = ["nmcli", "connection", "down", "id", ssid]
         wifiAct.running = true
     }
 
-    // ---- Bluetooth (bluetoothctl) -----------------------------------------
+    // ---- Bluetooth (through bluetoothctl: the fallback) ----------------------
     property bool btHas: false
     property bool btOn: false
     property var btList: []              // { mac, name, paired, connected }
     property bool btScanning: false
     property string btBusy: ""
     function refreshBt() {
+        if (btNativeOn) return                    // live: nothing to refresh
         btRead.command = ["sh", "-c",
             "bluetoothctl list 2>/dev/null | grep -q Controller && echo HAS; " +
             "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && echo ON; " +
@@ -1412,15 +1542,18 @@ ShellRoot {
         onTriggered: root.refreshBt()
     }
     function btToggle() {
+        if (btNativeOn) { netNative.item.btToggle(); return }
         btAct.command = ["bluetoothctl", "power", btOn ? "off" : "on"]
         btAct.running = true
     }
     function btScan() {
+        if (btNativeOn) { netNative.item.btScan(); return }
         if (btScanning) return
         btScanning = true
         btScanProc.running = true
     }
     function btConnect(mac, paired) {
+        if (btNativeOn) { netNative.item.btConnect(mac, paired); return }
         if (!/^[0-9A-F:]{17}$/i.test(mac)) return
         btBusy = mac
         btAct.command = paired ? ["bluetoothctl", "connect", mac]
@@ -1428,6 +1561,7 @@ ShellRoot {
         btAct.running = true
     }
     function btDisconnect(mac) {
+        if (btNativeOn) { netNative.item.btDisconnect(mac); return }
         if (!/^[0-9A-F:]{17}$/i.test(mac)) return
         btBusy = mac
         btAct.command = ["bluetoothctl", "disconnect", mac]
@@ -1809,7 +1943,7 @@ ShellRoot {
     property var launcherGeom: null
     onLauncherShownChanged: if (launcherShown) {
         cardShown = false; quickShown = false; sysShown = false
-        clipProc.running = true          // fresh clipboard history for ;
+        root.readClipboard()          // fresh clipboard history for ;
     }
     // how often each app has been opened from the launcher, for ranking
     readonly property var launchCounts: cfg.launchCounts ?? ({})
@@ -2179,16 +2313,18 @@ ShellRoot {
     property bool clipShown: false
     onClipShownChanged: if (clipShown) {
         launcherShown = false
-        clipProc.running = true
+        root.readClipboard()
     }
     // "[[ binary data 55 KiB png 1920x1080 ]]" -> { ext: "png", size: "1920x1080" }
     function clipImageInfo(preview) {
         const m = (preview || "").match(/^\[\[ binary data (.+?) (png|jpe?g|bmp|webp|gif)(?: (\d+x\d+))? \]\]$/i)
         return m ? { ext: m[2].toLowerCase(), size: m[3] || "", bytes: m[1] } : null
     }
-    readonly property string clipThumbDir: Quickshell.env("HOME") + "/.cache/ether/clip"
+    readonly property string clipThumbDir: clipNativeOn ? nativeLoader.item.clipDir
+                                                         : Quickshell.env("HOME") + "/.cache/ether/clip"
     property int clipThumbVer: 0
     function makeClipThumbs() {
+        if (clipNativeOn) { clipThumbVer++; return }    // they're files already
         const args = []
         for (const c of clipItems.slice(0, 60)) {
             const info = clipImageInfo(c.preview)
@@ -2445,6 +2581,7 @@ ShellRoot {
 
     Process { id: switchProc }
     Process { id: wallApply }
+    Process { id: wallShow }
 
     // list the wallpaper folder whenever the Wallpaper page opens, so
     // newly added images show up without restarting the shell
@@ -2482,6 +2619,11 @@ ShellRoot {
         }
         function open(): void { root.settingsPage = 3; root.settingsShown = true }
         function random(): void { root.randomWallpaper() }
+        // setwall hands wallpapers over here, so they're measured and themed
+        // exactly like one picked in the selector
+        function set(path: string): void { root.applyWallpaper(path) }
+        // re-measure and re-theme the current wallpaper
+        function reapply(): void { if (root.currentWall) root.applyWallpaper(root.currentWall) }
     }
 
     // ---- each wallpaper's colours, for the swatches in the selector ----
@@ -2490,8 +2632,13 @@ ShellRoot {
     // contrast, colour source and mode; cached in
     // ~/.cache/ether/palettes.json, so they're only worked out once.
     // wallPalettes: { path: [accent, secondary, tertiary, container, background] }
-    readonly property string paletteKey: themeScheme + "|" + themeContrast.toFixed(2) + "|"
-                                         + themePrefer + "|" + (isLight ? "light" : "dark")
+    // "auto" stays "auto" here: each wallpaper's swatches are worked out with
+    // its own automatic choices (below), so they don't change with the
+    // current wallpaper (which made every swatch take the current one's look)
+    readonly property string paletteKey:
+        (cfg.themeScheme === "auto" ? "auto" : themeScheme) + "|" + themeContrast.toFixed(2) + "|"
+        + themePrefer + "|" + (cfg.themeMode === "auto" ? "auto" : (isLight ? "light" : "dark"))
+        + (cfg.accentStyle === "soft" ? "|soft" : "|vivid2")
     property var paletteCache: ({})      // { key: { path: [...] } }
     readonly property var wallPalettes: paletteCache[paletteKey] || ({})
     property var paletteQueue: []
@@ -2514,24 +2661,83 @@ ShellRoot {
         if (!paletteQueue.length) return
         const path = paletteQueue[0]
         paletteQueue = paletteQueue.slice(1)
+        // automatic choices: measure this wallpaper first, for its own light
+        // or dark and its own style
+        if ((cfg.themeScheme === "auto" || cfg.themeMode === "auto" || themePrefer === "smart") && nativeOk && nativeLoader.item) {
+            paletteProbeWait.path = path
+            paletteProbeWait.restart()
+            nativeLoader.item.probe(path)
+            return
+        }
+        runPalette(path, themeScheme, isLight ? "light" : "dark")
+    }
+    // the plugin has measured a wallpaper for its swatches (NativeStats.qml)
+    function paletteProbed(path, lightness, scheme, seed, second, why, third) {
+        if (!paletteProbeWait.running || paletteProbeWait.path !== path) return
+        paletteProbeWait.stop()
+        runPalette(path,
+                   cfg.themeScheme === "auto" ? (scheme || "scheme-tonal-spot") : themeScheme,
+                   cfg.themeMode === "auto" ? (lightness > 60 ? "light" : "dark") : (isLight ? "light" : "dark"),
+                   themePrefer === "smart" ? seed : "", themePrefer === "smart" ? second : "", why,
+                   themePrefer === "smart" ? third : "")
+    }
+    // a measurement that never arrives doesn't stall the queue
+    Timer {
+        id: paletteProbeWait
+        property string path: ""
+        interval: 3000
+        onTriggered: root.runPalette(path, root.cfg.themeScheme === "auto" ? "scheme-tonal-spot" : root.themeScheme,
+                                     root.cfg.themeMode === "auto" ? "dark" : (root.isLight ? "light" : "dark"))
+    }
+    function runPalette(path, scheme, mode, seed, second, why, third) {
         paletteProc.path = path
+        paletteProc.second = second || ""
+        paletteProc.third = third || ""
+        paletteProc.seed = seed || ""
+        paletteProc.why = why || ""
+        paletteProc.scheme = scheme
         paletteProc.key = paletteKey
-        paletteProc.command = ["matugen", "image", path, "--dry-run", "-j", "hex", "-q",
-                               "--type", themeScheme, "--contrast", themeContrast.toFixed(2),
-                               "--prefer", themePrefer, "--mode", isLight ? "light" : "dark"]
+        paletteProc.mode = mode
+        // the smart colour: build from it; otherwise matugen picks from the image
+        const from = seed ? ["color", "hex", seed] : ["image", path]
+        const pick = seed ? [] : (themePrefer === "dominant" || themePrefer === "smart")
+                                 ? ["--source-color-index", "0"] : ["--prefer", themePrefer]
+        paletteProc.command = ["matugen"].concat(from).concat(["--dry-run", "-j", "hex", "-q",
+                               "--type", scheme, "--contrast", themeContrast.toFixed(2)]).concat(pick)
+                                .concat(["--mode", mode])
         paletteProc.running = true
     }
     Process {
         id: paletteProc
         property string path: ""
         property string key: ""
+        property string mode: "dark"
+        property string second: ""
+        property string third: ""
+        property string scheme: ""
+        property string seed: ""
+        property string why: ""
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
                     const c = JSON.parse(text).colors
-                    const m = paletteProc.key.endsWith("light") ? "light" : "dark"
+                    const m = paletteProc.mode
                     const pick = k => (c[k] && c[k][m] ? c[k][m].color : "")
                     const colours = ["primary", "secondary", "tertiary", "primary_container", "surface"].map(pick)
+                    // the third dot as the shell will show it (thirdAccent), then
+                    // the first: the vivid accent, from this wallpaper's own colour
+                    if (colours.every(x => x)) {
+                        colours[2] = root.thirdAccent(colours[0], colours[2], paletteProc.second, paletteProc.scheme).toString()
+                        if (root.cfg.accentStyle !== "soft" && paletteProc.seed !== ""
+                                && paletteProc.scheme !== "scheme-monochrome" && paletteProc.scheme !== "scheme-neutral"
+                                && paletteProc.why !== "no strong colour")
+                        {
+                            colours[0] = root.readableAccent(paletteProc.seed, colours[4]).toString()
+                            // the picture's own second and third colours, as the theme will have them
+                            if (paletteProc.second) colours[1] = root.readableAccent(paletteProc.second, colours[4]).toString()
+                            if (paletteProc.third) colours[2] = root.readableAccent(paletteProc.third, colours[4]).toString()
+                        }
+                    }
                     if (colours.every(x => x)) {
                         const all = Object.assign({}, root.paletteCache)
                         all[paletteProc.key] = Object.assign({}, all[paletteProc.key] || {})
@@ -2561,34 +2767,222 @@ ShellRoot {
     }
     Process { id: paletteWrite }
 
+    // the wallpaper picked while a theme was still being applied: done next
+    property string wallPending: ""
+    Connections {
+        target: wallApply
+        function onRunningChanged() {
+            if (!wallApply.running && root.wallPending !== "") {
+                const p = root.wallPending
+                root.wallPending = ""
+                root.applyWallpaperNow(p, true)      // already on screen: theme it
+            }
+        }
+    }
     function applyWallpaper(path) {
-        if (!path || wallApply.running) return
+        if (!path) return
+        // still theming the one before: show this one now, theme it next
+        // (the last one picked always wins, rather than clicks being lost)
+        if (wallApply.running || wallWait.running) {
+            wallPending = path
+            root.currentWall = path
+            wallShow.command = [Quickshell.env("HOME") + "/.local/bin/setwall", "--show-only", path]
+            wallShow.running = true
+            if (wallWait.running) { wallWait.stop(); wallPending = ""; applyWallpaperNow(path, true) }
+            return
+        }
+        applyWallpaperNow(path)
+    }
+    function applyWallpaperNow(path, shown) {
         root.currentWall = path
-        // automatic light or dark: measure the new wallpaper first (a
-        // moment), so it's themed in the right mode from the start
-        if (cfg.themeMode === "auto" && nativeOk) { wallWait.path = path; wallWait.restart(); return }
+        publishLoginSoon()
+        // show it straight away; the colours follow (they fade in)
+        if (!shown) {
+            wallShow.command = [Quickshell.env("HOME") + "/.local/bin/setwall", "--show-only", path]
+            wallShow.running = true
+        }
+        // the smart colour and automatic style need the wallpaper measured.
+        // Already measured (the plugin remembers wallpapers it has seen, and
+        // answers at once, before we'd even start waiting): theme it now.
+        // Otherwise wait for the measurement (wallMeasured), a moment at most.
+        const needsMeasure = (cfg.themeMode === "auto" || cfg.themeScheme === "auto" || themePrefer === "smart") && nativeOk
+        if (needsMeasure && wallMeasuredFor !== path) { wallWait.path = path; wallWait.restart(); return }
+        wallWait.stop()
         runSetwall(path)
     }
     // setwall, with the theme settings written first (the mode may just
     // have changed with the wallpaper)
-    function runSetwall(path) {
-        wallApply.command = ["sh", "-c",
+    // the theme settings, then setwall --theme-only: one command for both a
+    // new wallpaper (runSetwall) and a changed setting (flushTheme), so both
+    // use the smart colour and neither replays the wallpaper's transition
+    function setwallCommand(path) {
+        // measured: the plugin's reading is for this wallpaper.  Otherwise
+        // (it's late), no smart colour or automatic style from another
+        // wallpaper: this one is themed from its own image, and again,
+        // properly, when its measurement arrives (wallMeasured)
+        const measured = wallMeasuredFor === path
+        return ["sh", "-c",
             'f="$HOME/.config/matugen/shell-theme"; ' +
-            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\n" "$1" "$2" "$3" "$4" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
-            'exec "$HOME/.local/bin/setwall" "$5"',
-            "sh", themeScheme, themeContrast.toFixed(2), themePrefer, isLight ? "light" : "dark", path]
+            // the smart colour's wallpaper, as a fingerprint (setwall runs this
+            // file as shell code, so no raw path goes in it)
+            'k=$(printf "%s" "$5" | md5sum | cut -c1-32); ' +
+            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\nSEED=%s\\nSEED_FOR=%s\\nVIVID=%s\\nSECOND=%s\\nTHIRD=%s\\n" "$1" "$2" "$3" "$4" "$6" "$k" "$7" "$8" "$9" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
+            'exec "$HOME/.local/bin/setwall" --theme-only "$5"',
+            "sh", measured ? themeScheme : (cfg.themeScheme === "auto" ? "scheme-tonal-spot" : themeScheme),
+            themeContrast.toFixed(2), themePrefer, isLight ? "light" : "dark", path,
+            measured && smartOn ? wallSeed : "", measured && vividOn ? "1" : "0",
+            measured && vividOn ? wallSecond : "", measured && vividOn ? wallThird : ""]
+    }
+    function runSetwall(path) {
+        lastThemed = path
+        lastThemedMeasured = wallMeasuredFor === path
+        wallApply.command = setwallCommand(path)
         wallApply.running = true
+        themeWatchdog.restart()
+    }
+    // a theme job that never finishes mustn't hold every later one up: after
+    // 30 seconds it's stopped, and the queue moves on
+    Timer {
+        id: themeWatchdog
+        interval: 30000
+        onTriggered: {
+            if (wallApply.running) { console.log("theme: a job took over 30 s; stopped it"); wallApply.running = false }
+            if (themeProc.running) { console.log("theme: a settings job took over 30 s; stopped it"); themeProc.running = false }
+        }
     }
     // the plugin has measured the wallpaper (NativeStats.qml calls this)
-    function wallMeasured(lightness) {
+    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) {
         wallLightness = lightness
-        if (wallWait.running) { wallWait.stop(); runSetwall(wallWait.path) }
+        wallScheme = scheme || ""
+        wallColourfulness = colourfulness
+        wallSeed = seed || ""
+        wallSecond = second || ""
+        wallThird = third || ""
+        wallWhy = why || ""
+        wallMeasuredFor = source || ""
+        // the wallpaper waiting for this: theme it now
+        if (wallWait.running && wallWait.path === wallMeasuredFor) {
+            wallWait.stop(); runSetwall(wallWait.path)
+            if (cfg.widgetsAuto === true) arrangeLater.restart()
+        }
+        // it came too late, and the wallpaper was themed from the image
+        // itself meanwhile: theme it again, properly, now (after the running
+        // job, if there is one)
+        else if (wallMeasuredFor === currentWall && lastThemed === currentWall && !lastThemedMeasured
+                 && (themePrefer === "smart" || cfg.themeScheme === "auto" || cfg.themeMode === "auto")) {
+            if (wallApply.running) wallPending = currentWall
+            else runSetwall(currentWall)
+        }
+    }
+    // which wallpaper the measurement above (wallSeed, wallScheme,
+    // wallLightness...) belongs to: only ever used for that one
+    property string wallMeasuredFor: ""
+    property string lastThemed: ""
+    property bool lastThemedMeasured: false
+
+    // ---- widgets that keep clear of the wallpaper's subject ----
+    // With cfg.widgetsAuto on, a new wallpaper moves the main screen's widgets
+    // to its calmest places (skies, walls, soft blur; not faces, buildings or
+    // foliage), most important first, clear of each other, the bar and the
+    // dock.  Only to places that are genuinely calm: on a wallpaper that's
+    // busy everywhere, they stay where they are.
+    property var widgetSizes: ({})            // { id: [w, h] }, reported by the widgets
+    function noteWidgetSize(id, w, h) {
+        if (!id || w <= 0 || h <= 0) return
+        const cur = widgetSizes[id]
+        if (cur && cur[0] === w && cur[1] === h) return
+        const s = Object.assign({}, widgetSizes); s[id] = [w, h]; widgetSizes = s
+    }
+    readonly property var widgetOrder: ["clock", "weather", "calendar", "media", "system", "note"]
+    Timer { id: arrangeLater; interval: 400; onTriggered: root.arrangeWidgets() }
+    // returns how many widgets moved, or -1 when it can't (no plugin, not measured yet)
+    function arrangeWidgets() {
+        if (!nativeOk || !nativeLoader.item) return -1
+        const mine = widgets.filter(w => (w.screen || mainScreen) === mainScreen)
+            .slice().sort((a, b) => widgetOrder.indexOf(a.type) - widgetOrder.indexOf(b.type))
+        if (!mine.length) return 0
+        const sizes = mine.map(w => widgetSizes[w.id] || [360, 200])
+        const spots = nativeLoader.item.calmSpots(sizes, Math.round(mainScreenW), Math.round(mainScreenH),
+                                                  Math.round(barBottom + 24), dockEnabled ? 120 : 32, 48)
+        if (!spots || !spots.length) return -1
+        const moves = {}
+        let n = 0
+        mine.forEach((w, i) => {
+            const s = spots[i]
+            if (s && s.busy <= 8 && (Math.abs(s.x - w.x) > 4 || Math.abs(s.y - w.y) > 4)) { moves[w.id] = s; n++ }
+        })
+        if (n) setting("widgets", widgets.map(w => moves[w.id] ? Object.assign({}, w, { x: moves[w.id].x, y: moves[w.id].y }) : w))
+        return n
     }
     // measured or not, don't wait longer than this
-    Timer { id: wallWait; property string path: ""; interval: 1500; onTriggered: root.runSetwall(path) }
+    Timer { id: wallWait; property string path: ""; interval: 2500; onTriggered: root.runSetwall(path) }
     // (Choosing Auto in Settings re-themes through the usual setting change;
     // a new wallpaper through wallWait above.  The first measurement at
     // startup changes nothing: the theme on disk already matches it.)
+    // ---- the login screen's background ----
+    // Its own, shown before anyone signs in, so never your desktop's: Ether
+    // Nightfall unless one is chosen here.  setwall copies it, with its
+    // colours, into the login screen's folder (/var/lib/ether-greeter once
+    // the login screen is installed; before that, where its preview looks).
+    property string loginDir: Quickshell.env("HOME") + "/.cache/ether/greeter"
+    Process {
+        running: true
+        command: ["test", "-w", "/var/lib/ether-greeter"]
+        onExited: code => { if (code === 0) root.loginDir = "/var/lib/ether-greeter" }
+    }
+    readonly property string loginDefault: Quickshell.env("HOME") + "/.config/ether-greeter/background.jpg"
+    // "Your wallpaper" (the default): the login screen shows the wallpaper and
+    // colours of whoever signed in last.  Each time this desktop's look
+    // changes, it's shared: the wallpaper and the theme's colours, copied into
+    // the login screen's folder.  "Its own" (a chosen picture) stops that.
+    readonly property bool loginFollows: cfg.loginFollow !== false
+    function publishLoginSoon() { if (loginFollows) loginPublish.restart() }
+    Timer {
+        id: loginPublish
+        interval: 1500                           // after the theme has settled
+        onTriggered: {
+            if (!root.loginFollows || !root.currentWall) return
+            loginShare.command = ["sh", "-c",
+                'd=$1; mkdir -p "$d" || exit 1; ' +
+                'cp "$2" "$d/background.tmp" && mv -f "$d/background.tmp" "$d/background" && ' +
+                'cp "$3" "$d/colors.tmp" && mv -f "$d/colors.tmp" "$d/colors.json" && ' +
+                // which monitor gets the sign-in card
+                'printf "{\\"mainScreen\\": \\"%s\\"}" "$4" > "$d/settings.tmp" && mv -f "$d/settings.tmp" "$d/settings.json" && ' +
+                'chmod 644 "$d/background" "$d/colors.json" "$d/settings.json"',
+                "sh", root.loginDir, root.currentWall, Quickshell.env("HOME") + "/.config/quickshell/colors.json",
+                root.mainScreen]
+            loginShare.running = true
+        }
+    }
+    Process { id: loginShare }
+    function setLoginFollow(on) {
+        setting("loginFollow", on)
+        if (on) loginPublish.restart()
+        else setLoginBackground(cfg.loginBackground || loginDefault)
+    }
+    property bool loginBusy: false
+    property string loginError: ""
+    function setLoginBackground(path) {
+        loginBusy = true
+        loginError = ""
+        loginProc.command = [Quickshell.env("HOME") + "/.local/bin/setwall", "--login-background", path, loginDir]
+        loginProc.running = true
+        setting("loginBackground", path === loginDefault ? "" : path)
+        if (cfg.loginFollow !== false) setting("loginFollow", false)     // a picture of its own
+    }
+    Process {
+        id: loginProc
+        onExited: code => {
+            root.loginBusy = false
+            if (code !== 0) root.loginError = "Couldn't set it: is the login screen's folder writable?"
+        }
+    }
+    Process { id: loginPreview }
+    function previewLogin() {
+        loginPreview.command = ["sh", "-c", "ETHER_GREETER_PREVIEW=1 setsid -f qs -p \"$HOME/.config/ether-greeter/greeter.qml\" >/dev/null 2>&1"]
+        loginPreview.running = true
+    }
+
     function randomWallpaper() {
         const pool = root.wallpapers.filter(p => p !== root.currentWall)
         if (pool.length) applyWallpaper(pool[Math.floor(Math.random() * pool.length)])
@@ -2641,6 +3035,7 @@ ShellRoot {
                 try {
                     root.pal = JSON.parse(t)
                     if (!root.colourFade) fadeOn.start()
+                    root.publishLoginSoon()          // the login screen shows the new look too
                 } catch (e) {
                     console.log("palette parse failed:", e)
                 }
@@ -2679,7 +3074,7 @@ ShellRoot {
         // matugen: colour style and contrast, used by setwall
         themeScheme:   "scheme-tonal-spot",
         themeContrast: 0,
-        themePrefer:   "saturation",
+        themePrefer:   "smart",        // Ether Shell's own pick: the subject, skin set aside (native plugin)
         themeMode:     "dark",
         nightLight:    false,
 
@@ -2776,7 +3171,7 @@ ShellRoot {
                 || key === "idleSleepMin")
             idleDebounce.restart()
         if (key === "*" || key === "themeScheme" || key === "themeContrast"
-                || key === "themePrefer" || key === "themeMode")
+                || key === "themePrefer" || key === "themeMode" || key === "accentStyle")
             themeDebounce.restart()
     }
 
@@ -2812,9 +3207,35 @@ ShellRoot {
         }
     }
 
+    // ---- the native route: the plugin talks to the monitors directly ----
+    // Much faster than a ddcutil run per change (about 50 ms, the protocol's
+    // own pace), so the slider follows a drag.  A monitor it doesn't work
+    // for (no access to its bus, no answer) is marked, and uses ddcutil from
+    // then on, with the value you asked for sent again.
+    property var ddcBad: ({})           // { bus: true }
+    function ddcNative(bus) { return nativeOk && nativeLoader.item !== null && !ddcBad[bus] }
+    function monOfBus(bus) { return Object.keys(monBus).find(n => monBus[n] === bus) }
+    function ddcGotBrightness(bus, percent) {
+        const name = monOfBus(bus)
+        if (name === undefined) return
+        const b = Object.assign({}, bright); b[name] = percent; bright = b
+    }
+    function ddcFailed(bus) {
+        const bad = Object.assign({}, ddcBad); bad[bus] = true; ddcBad = bad
+        const name = monOfBus(bus)
+        if (name === undefined) return
+        console.log("brightness: the direct route doesn't work for " + name + " (bus " + bus + "); using ddcutil for it")
+        // what you'd asked for, sent the slow way; then read it back
+        if (bright[name] !== undefined) { const p = Object.assign({}, brightPending); p[name] = bright[name]; brightPending = p; brightDebounce.restart() }
+        else readBrightness()
+    }
+
     function readBrightness() {
-        if (!brightOk || ddcRead.running) return
-        const cmds = Object.keys(monBus).map(n =>
+        if (!brightOk) return
+        const slow = Object.keys(monBus).filter(n => !ddcNative(monBus[n]))
+        for (const n of Object.keys(monBus)) if (ddcNative(monBus[n])) nativeLoader.item.ddcGet(monBus[n])
+        if (!slow.length || ddcRead.running) return
+        const cmds = slow.map(n =>
             'printf "%s " ' + n + '; ddcutil --bus ' + monBus[n] + ' getvcp 10 --brief 2>/dev/null || echo')
         ddcRead.command = ["sh", "-c", cmds.join("; ")]
         ddcRead.running = true
@@ -2839,6 +3260,8 @@ ShellRoot {
         if (monBus[name] === undefined) return
         v = Math.max(0, Math.min(100, Math.round(v)))
         const b = Object.assign({}, bright); b[name] = v; bright = b
+        // direct: straight to the plugin, which sends only the newest value
+        if (ddcNative(monBus[name])) { nativeLoader.item.ddcSet(monBus[name], v); return }
         const p = Object.assign({}, brightPending); p[name] = v; brightPending = p
         brightDebounce.restart()
     }
@@ -3169,13 +3592,33 @@ ShellRoot {
         "scheme-rainbow", "scheme-neutral", "scheme-monochrome",
         "scheme-smart"
     ]
+    // "auto": Ether Shell picks the style for each wallpaper (monochrome,
+    // neutral, fidelity or tonal spot, from how colourful it is and how much
+    // of its colour is one hue; measured by the native plugin)
     readonly property string themeScheme:
-        themeSchemes.indexOf(cfg.themeScheme) >= 0 ? cfg.themeScheme : "scheme-tonal-spot"
-    readonly property var themePrefers: [
+        cfg.themeScheme === "auto" ? (wallScheme || "scheme-tonal-spot")
+        : themeSchemes.indexOf(cfg.themeScheme) >= 0 ? cfg.themeScheme : "scheme-tonal-spot"
+    property string wallScheme: ""
+    // Ether Shell's own choice of colour (the colour source "smart", the
+    // default): the plugin's pick, the picture's second colour family if it
+    // has one, and what the pick is (the subject, the backdrop...)
+    // ---- file search (the launcher asks, the native plugin answers) ----
+    property string fileQuery: ""
+    property int fileLimit: 8
+    readonly property var fileResults: nativeLoader.item ? nativeLoader.item.fileResults : []
+    readonly property string fileResultsFor: nativeLoader.item ? nativeLoader.item.fileResultsFor : ""
+    readonly property int fileCount: nativeLoader.item ? nativeLoader.item.fileCount : 0
+    property string wallSeed: ""
+    property string wallSecond: ""
+    property string wallThird: ""
+    property string wallWhy: ""
+    readonly property bool smartOn: themePrefer === "smart" && nativeOk
+    property real wallColourfulness: -1
+    readonly property var themePrefers: [ "smart", "dominant", 
         "saturation", "less-saturation", "darkness", "lightness", "value"
     ]
     readonly property string themePrefer:
-        themePrefers.indexOf(cfg.themePrefer) >= 0 ? cfg.themePrefer : "saturation"
+        themePrefers.indexOf(cfg.themePrefer) >= 0 ? cfg.themePrefer : "smart"
     readonly property real themeContrast:
         Math.max(-1, Math.min(1, Number(cfg.themeContrast) || 0))
     property bool themeBusy: false
@@ -3197,14 +3640,10 @@ ShellRoot {
         if (!themePending) return
         themePending = false
         themeBusy = true
-        themeProc.command = ["sh", "-c",
-            'f="$HOME/.config/matugen/shell-theme"; ' +
-            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\n" "$1" "$2" "$3" "$4" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
-            'img=$(cat "$HOME/.cache/wallpaper" 2>/dev/null); ' +
-            '[ -f "$img" ] && "$HOME/.local/bin/setwall" "$img"; true',
-            "sh", themeScheme, themeContrast.toFixed(2), themePrefer,
-            isLight ? "light" : "dark"]
+        if (!currentWall) { themeBusy = false; return }
+        themeProc.command = setwallCommand(currentWall)
         themeProc.running = true
+        themeWatchdog.restart()
     }
     Process {
         id: themeProc

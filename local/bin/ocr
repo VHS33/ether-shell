@@ -1,0 +1,35 @@
+#!/bin/sh
+# ocr — select part of the screen, and the text in it is copied.
+# SUPER + SHIFT + T, or "Copy text from the screen" in the launcher (>).
+#
+# Text from anywhere: a video, an image, a game, an app that won't let you
+# select it.  The area is captured at twice the size (small text reads more
+# reliably), read by Tesseract, and copied; a notification shows what.
+# Other languages: install tesseract-data-<lang> and set OCR_LANG, e.g.
+# OCR_LANG=eng+deu.
+
+lang="${OCR_LANG:-eng}"
+say() { notify-send -a "Ether Shell" -i edit-copy "$1" "$2" 2>/dev/null; }
+
+if ! command -v tesseract >/dev/null 2>&1; then
+    say "Copy text from the screen" "Needs Tesseract: sudo pacman -S tesseract tesseract-data-eng"
+    exit 1
+fi
+
+region=$(slurp 2>/dev/null) || exit 0          # Esc cancels
+[ -n "$region" ] || exit 0
+
+tmp=$(mktemp --suffix=.png) || exit 1
+trap 'rm -f "$tmp"' EXIT
+grim -g "$region" -s 2 "$tmp" 2>/dev/null || grim -g "$region" "$tmp" || exit 1
+
+# the text, without trailing spaces or blank lines at either end
+text=$(tesseract "$tmp" - -l "$lang" --psm 6 2>/dev/null \
+       | sed -e 's/[[:space:]]*$//' | sed -e '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+
+if [ -z "$(printf '%s' "$text" | tr -d '[:space:]')" ]; then
+    say "No text found" "Nothing readable in that area."
+    exit 0
+fi
+printf '%s' "$text" | wl-copy
+say "Text copied" "$(printf '%s' "$text" | tr '\n' ' ' | cut -c1-140)"

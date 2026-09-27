@@ -137,7 +137,9 @@ PACKAGES=(
     # WebP (and other) images for the wallpaper selector and clipboard thumbnails
     qt6-imageformats
     # theming
-    matugen awww adw-gtk-theme papirus-icon-theme glib2 plasma-integration
+    matugen awww adw-gtk-theme papirus-icon-theme breeze-icons glib2 plasma-integration
+    # UWSM: the systemd-managed session ("Hyprland (uwsm-managed)" at login)
+    uwsm
     # fonts: Inter for words, Material Symbols for icons, JetBrains Mono for
     # the terminal, Noto as a fallback
     noto-fonts ttf-jetbrains-mono-nerd inter-font ttf-material-symbols-variable
@@ -149,6 +151,8 @@ PACKAGES=(
     pipewire wireplumber pipewire-pulse libpulse playerctl cava
     # screenshots and clipboard
     grim slurp wl-clipboard cliphist
+    # copying text from the screen (SUPER + SHIFT + T)
+    tesseract tesseract-data-eng
     # brightness
     ddcutil brightnessctl
     # system
@@ -157,8 +161,9 @@ PACKAGES=(
     bluez bluez-utils
     # the sound a finished timer plays
     sound-theme-freedesktop
-    # building the native plugin (Ether.Native)
-    cmake base-devel
+    # building the native plugin (Ether.Native); wayland for its clipboard
+    # (wayland-scanner and the headers), pipewire's library for the visualiser
+    cmake base-devel wayland libpipewire
 )
 
 if [ "$PKGS" = 1 ]; then
@@ -245,12 +250,37 @@ place() {  # place <source> <destination>
 }
 
 step "Installing configs"
+# A Quickshell service of its own (from another setup) would start a second
+# copy of the shell in every UWSM session, where the graphical session target
+# runs: two bars, everything twice.  Ether Shell starts itself, so one like
+# that is moved aside (renamed .off, not deleted) and its link removed.
+qsu="$HOME/.config/systemd/user"
+if [ -f "$qsu/quickshell.service" ]; then
+    info "Moving aside a quickshell.service from another setup (it would start the shell twice): $qsu/quickshell.service.off"
+    if [ "$DRY" = 0 ]; then
+        systemctl --user disable --now quickshell.service >/dev/null 2>&1 || true
+        mv "$qsu/quickshell.service" "$qsu/quickshell.service.off"
+        find "$qsu" -name quickshell.service -type l -delete 2>/dev/null
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+    fi
+fi
+# your kitty shell (fish, zsh...) set in an existing kitty.conf: kept, in
+# user.conf, which the new kitty.conf reads last and updates never touch
+kc="$HOME/.config/kitty/kitty.conf"
+if [ -f "$kc" ] && [ ! -e "$HOME/.config/kitty/user.conf" ] && grep -qE '^[[:space:]]*shell[[:space:]]' "$kc"; then
+    info "Keeping your kitty shell setting (in ~/.config/kitty/user.conf)"
+    if [ "$DRY" = 0 ]; then
+        mkdir -p "$HOME/.config/kitty"
+        { echo "# your own kitty settings: read last, never touched by updates"
+          grep -E '^[[:space:]]*shell[[:space:]]' "$kc"; } > "$HOME/.config/kitty/user.conf"
+    fi
+fi
 while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/config/}"
     # written by the Settings panel: only a starting point, never
     # overwritten on a re-install so nobody's choices get reset
     case "$rel" in
-        hypr/hyprlock-settings.conf|hypr/hypridle.conf|kitty/shell-settings.conf)
+        hypr/hyprlock-settings.conf|hypr/hypridle.conf|kitty/shell-settings.conf|uwsm/env|uwsm/env-hyprland)
             [ -e "$HOME/.config/$rel" ] && continue ;;
     esac
     place "$f" "$HOME/.config/$rel"
@@ -260,7 +290,8 @@ while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/local/}"
     place "$f" "$HOME/.local/$rel"
 done < <(find "$HERE/local" -type f -print0)
-run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell"
+run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
+    "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.config/ether-greeter/start"
 
 if [ "$backed" -gt 0 ]; then
     info "Replaced $backed existing file(s); the old versions are in $BACKUP"
@@ -327,7 +358,7 @@ if ! systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
 fi
 
 # folders matugen writes themes into, so it needn't create them itself
-run mkdir -p "$HOME/.config/fish/conf.d" "$HOME/.config/btop/themes"
+run mkdir -p "$HOME/.cache/ether" "$HOME/.config/btop/themes"
 
 # btop: use the wallpaper's colours (the theme matugen writes)
 bt="$HOME/.config/btop/btop.conf"

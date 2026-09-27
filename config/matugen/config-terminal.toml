@@ -1,0 +1,57 @@
+# ~/.config/matugen/config-terminal.toml  (Ether Shell)
+# The second pass of every theme change: the colours that have to keep their
+# meaning (red for errors, green for success...), for the terminal and the
+# apps that use them.  setwall runs it straight after the main pass, from
+# the same colour, always in the tonal spot style: other styles don't handle
+# these colours (monochrome turns them all white, content turns the bright
+# ones black), whatever style the rest of the theme uses.
+
+[config]
+
+# The terminal's colours: real red, green, yellow, blue, magenta and cyan,
+# each gently turned towards the wallpaper's hue ("blend", Material's
+# harmonising) so they belong with it but keep their meaning.  matugen
+# gives each the full set of roles (red, on_red, red_container,
+# on_red_container, ...), toned for dark or light, readable on the
+# background (checked: at least 6:1 in light mode, 10:1 in dark).
+[config.custom_colors]
+red     = { color = "#e5484d", blend = true }
+green   = { color = "#46a758", blend = true }
+yellow  = { color = "#e8c547", blend = true }
+blue    = { color = "#3e8ef7", blend = true }
+magenta = { color = "#c451c9", blend = true }
+cyan    = { color = "#2bb5b4", blend = true }
+
+# (No 
+
+# the terminal's 16 colours (kitty includes ansi.conf after colors.conf)
+[templates.kitty-ansi]
+input_path  = "~/.config/matugen/templates/kitty-ansi.conf"
+output_path = "~/.config/kitty/ansi.conf"
+post_hook   = "pkill -USR1 -x kitty"
+
+# fish's command-line colours, and btop's
+[templates.fish]
+input_path  = "~/.config/matugen/templates/fish-colors.fish"
+output_path = "~/.cache/ether/fish-colors.fish"
+# every open fish session updates at once (universal variables).  The old
+# startup file from earlier versions is removed: its per-session copies
+# would hide the live ones.
+post_hook   = "sh -c 'rm -f \"$HOME/.config/fish/conf.d/ether-colors.fish\"; command -v fish >/dev/null && fish -c \"source $HOME/.cache/ether/fish-colors.fish\"; true'"
+
+[templates.btop]
+input_path  = "~/.config/matugen/templates/btop.theme"
+output_path = "~/.config/btop/themes/ether.theme"
+
+# your starship prompt, in the wallpaper's colours (fish is pointed at it)
+[templates.starship]
+input_path  = "~/.config/matugen/templates/starship.toml"
+output_path = "~/.config/starship/ether.toml"
+
+# Discord, through a client mod (Vencord, Vesktop, Equibop or BetterDiscord):
+# the theme goes into whichever of their theme folders exist, and they
+# reload it live.  Nothing is created for mods that aren't installed.
+[templates.discord]
+input_path  = "~/.config/matugen/templates/discord.theme.css"
+output_path = "~/.cache/ether/discord/ether.theme.css"
+post_hook   = "sh -c 'for d in \"$HOME/.config/Vencord/themes\" \"$HOME/.config/vesktop/themes\" \"$HOME/.config/equibop/themes\" \"$HOME/.config/BetterDiscord/themes\"; do [ -d \"$d\" ] && cp \"$HOME/.cache/ether/discord/ether.theme.css\" \"$d/\"; done; true'"

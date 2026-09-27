@@ -1,0 +1,6 @@
+# ~/.config/uwsm/env  (Ether Shell)
+# The environment for every graphical session UWSM manages.  (Under UWSM,
+# variables belong here, not in hyprland.lua: here, every app and service in
+# the session gets them.)
+export XCURSOR_SIZE=24
+export QT_QPA_PLATFORMTHEME=kde

@@ -1,0 +1,29 @@
+{
+  "bg":      "#131318",
+  "card":    "#201f25",
+  "surf":    "#2a292f",
+  "tile":    "#1c1b20",
+  "border":  "#47464f",
+  "fg":      "#e5e1e9",
+  "dim":     "#c8c5d0",
+  "faint":   "#928f99",
+  "blue":    "#c5c0ff",
+  "vivid":   "#7d76cc",
+  "onVivid": "#131318",
+  "second":  "#c8c4dc",
+  "third":   "#ebb8cf",
+  "green":   "#ebb8cf",
+  "peach":   "#c8c4dc",
+  "mauve":   "#c5c0ff",
+  "teal":    "#ebb8cf",
+  "red":     "#ffb4ab",
+  "yellow":  "#c8c4dc",
+
+  "onAccent": "#2e2960",
+  "mauveL":   "#444078",
+  "tealL":    "#613b4e",
+  "yellowL":  "#474459",
+
+  "primaryC":   "#444078",
+  "onPrimaryC": "#e4dfff"
+}

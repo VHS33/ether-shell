@@ -1,8 +1,95 @@
 #!/bin/sh
-# setwall [image]   — set the wallpaper and retheme everything from it.
-# With no argument, picks one from ~/Pictures/wallpapers via rofi.
+# setwall [image]               show the wallpaper, then retheme everything from it
+# setwall --show-only [image]   just show it (the shell does this the moment you pick)
+# setwall --theme-only [image]  just retheme from it (the shell does this after)
+# With no image, picks one from ~/Pictures/wallpapers via rofi.
+#
+# The wallpaper is shown first and the colours follow (they fade in), so
+# picking one responds straight away: working out the colours first made
+# every change wait a second or two before anything happened.
 
 WALLDIR="$HOME/Pictures/wallpapers"
+
+show=1; theme=1
+case "$1" in
+    --show-only)  theme=0; shift ;;
+    --theme-only) show=0; shift ;;
+esac
+
+# a colour, lightened (darkened on a light theme) only as far as it takes to
+# read at 4.5:1 on the new background, and the text colour that reads on it
+#   readable COLOUR BACKGROUND TEXT   ->   "#rrggbb #textcolour"
+readable() {
+    awk -v seed="$1" -v bg="$2" -v fg="$3" '
+function hexval(h, i,   c, v, k) { v = 0; for (k = 0; k < 2; k++) { c = index("0123456789abcdef", tolower(substr(h, i + k, 1))) - 1; v = v * 16 + c } return v }
+function lin(c) { c = c / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ^ 2.4 }
+function lum(r, g, b) { return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) }
+function contrast(l1, l2,   hi, lo) { hi = l1 > l2 ? l1 : l2; lo = l1 > l2 ? l2 : l1; return (hi + 0.05) / (lo + 0.05) }
+function hue2rgb(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1
+    if (t < 1/6) return p + (q - p) * 6 * t; if (t < 1/2) return q; if (t < 2/3) return p + (q - p) * (2/3 - t) * 6; return p }
+function hsl2rgb(h, s, l,   q, p) {
+    if (s == 0) { R = G = B = int(l * 255 + 0.5); return }
+    q = l < 0.5 ? l * (1 + s) : l + s - l * s; p = 2 * l - q
+    R = int(hue2rgb(p, q, h + 1/3) * 255 + 0.5); G = int(hue2rgb(p, q, h) * 255 + 0.5); B = int(hue2rgb(p, q, h - 1/3) * 255 + 0.5) }
+function rgb2hsl(r, g, b,   mx, mn, d) {
+    r /= 255; g /= 255; b /= 255
+    mx = r > g ? (r > b ? r : b) : (g > b ? g : b); mn = r < g ? (r < b ? r : b) : (g < b ? g : b)
+    L = (mx + mn) / 2
+    if (mx == mn) { H = 0; S = 0; return }
+    d = mx - mn; S = L > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+    if (mx == r) H = (g - b) / d + (g < b ? 6 : 0); else if (mx == g) H = (b - r) / d + 2; else H = (r - g) / d + 4
+    H /= 6 }
+BEGIN {
+    sr = hexval(seed, 2); sg = hexval(seed, 4); sb = hexval(seed, 6)
+    br = hexval(bg, 2); bgc = hexval(bg, 4); bb = hexval(bg, 6)
+    lb = lum(br, bgc, bb)
+    R = sr; G = sg; B = sb
+    if (contrast(lum(R, G, B), lb) < 4.5) {
+        rgb2hsl(sr, sg, sb); dark = lb < 0.18; l = L
+        for (i = 0; i < 60; i++) {
+            l = dark ? (l + 0.01 > 1 ? 1 : l + 0.01) : (l - 0.01 < 0 ? 0 : l - 0.01)
+            hsl2rgb(H, S, l)
+            if (contrast(lum(R, G, B), lb) >= 4.5) break
+        }
+    }
+    # text on it: the background'\''s colour or the text colour, whichever reads better
+    fr = hexval(fg, 2); fgc = hexval(fg, 4); fb = hexval(fg, 6)
+    la = lum(R, G, B)
+    on = contrast(la, lb) >= contrast(la, lum(fr, fgc, fb)) ? bg : fg
+    printf "#%02x%02x%02x %s\n", R, G, B, on
+}
+'
+}
+
+# setwall --login-background IMAGE DIR
+# The login screen's own background: shown before anyone signs in, so it's
+# never a user's desktop.  The picture is copied into DIR (the login screen's
+# folder) with its colours, worked out here, in DIR/colors.json.  Nothing
+# about your own desktop changes.
+if [ "$1" = --login-background ]; then
+    src=$2; dir=$3
+    [ -f "$src" ] && [ -n "$dir" ] || { echo "setwall --login-background IMAGE DIR" >&2; exit 1; }
+    mkdir -p "$dir" || exit 1
+    cp "$src" "$dir/background.tmp" && mv "$dir/background.tmp" "$dir/background" || exit 1
+    chmod 644 "$dir/background"
+    work="${XDG_RUNTIME_DIR:-/tmp}/ether-matugen-login"
+    mkdir -p "$work"
+    # its palette (dark, the picture's main colour), then the accent made
+    # readable by the same rule as everywhere else
+    printf '[config]\n\n[templates.probe]\ninput_path = "%s/probe.txt"\noutput_path = "%s/probe.out"\n' "$work" "$work" > "$work/probe.toml"
+    printf '%s\n' '{{colors.surface.default.hex}} {{colors.on_surface.default.hex}} {{colors.source_color.default.hex}} {{colors.secondary.default.hex}} {{colors.tertiary.default.hex}}' > "$work/probe.txt"
+    rm -f "$work/probe.out"
+    matugen -c "$work/probe.toml" image "$dir/background" --type scheme-tonal-spot --source-color-index 0 --mode dark >/dev/null 2>&1
+    read -r surf onsurf src_c sec ter < "$work/probe.out" || exit 1
+    # shellcheck disable=SC2046
+    set -- $(readable "$src_c" "$surf" "$onsurf")
+    vivid=${1:-$src_c}; onvivid=${2:-$surf}
+    printf '[config]\n\n[config.custom_colors]\nvivid = { color = "%s", blend = false }\non_vivid = { color = "%s", blend = false }\nsecond = { color = "%s", blend = false }\nthird = { color = "%s", blend = false }\n\n[templates.login]\ninput_path = "%s/.config/matugen/templates/quickshell-colors.json"\noutput_path = "%s/colors.json"\n' \
+        "$vivid" "$onvivid" "$sec" "$ter" "$HOME" "$dir" > "$work/login.toml"
+    matugen -c "$work/login.toml" image "$dir/background" --type scheme-tonal-spot --source-color-index 0 --mode dark >/dev/null 2>&1 || exit 1
+    chmod 644 "$dir/colors.json"
+    exit 0
+fi
 
 if [ -n "$1" ]; then
     img="$1"
@@ -16,12 +103,29 @@ fi
 [ -z "$img" ] && exit 0
 [ -f "$img" ] || { notify-send "setwall" "no such file: $img"; exit 1; }
 
+# With the shell running, hand the wallpaper to it: it measures the image,
+# picks the colour and style (Smart, Auto) and themes it, exactly as when
+# one is clicked in the selector.  Run by itself, setwall can only reuse the
+# shell's last choices, which belong to the last wallpaper it measured.
+# (The shell calls back with --show-only and --theme-only, which don't.)
+if [ "$show" = 1 ] && [ "$theme" = 1 ] && command -v qs >/dev/null 2>&1; then
+    case "$img" in /*) ;; *) img="$PWD/$img" ;; esac
+    qs ipc call wallpaper set "$img" >/dev/null 2>&1 && exit 0
+fi
+
 # remember it so the session can restore on login
 mkdir -p "$HOME/.cache"
 printf '%s' "$img" > "$HOME/.cache/wallpaper"
 
-# the daemon has to be up before the first image
-pgrep -x awww-daemon >/dev/null 2>&1 || { awww-daemon & sleep 0.5; }
+if [ "$show" = 1 ]; then
+    # the daemon has to be up before the first image
+    pgrep -x awww-daemon >/dev/null 2>&1 || { awww-daemon & sleep 0.5; }
+    # the transition at the monitors' own refresh rate (240 on a 240 Hz
+    # screen), so it's smooth rather than stepping
+    fps=$(hyprctl monitors 2>/dev/null | grep -oE '@[0-9]+' | tr -d @ | sort -n | tail -1)
+    awww img "$img" --transition-type grow --transition-fps "${fps:-60}" --transition-duration 0.4
+fi
+[ "$theme" = 1 ] || exit 0
 
 # colour style, contrast and colour source chosen in the quickshell
 # Settings panel (Appearance > Theme).  A missing file means these.
@@ -29,20 +133,104 @@ pgrep -x awww-daemon >/dev/null 2>&1 || { awww-daemon & sleep 0.5; }
 # use, and fails outright when there's no terminal (rofi, the panel).
 TYPE=scheme-tonal-spot
 CONTRAST=0
-PREFER=saturation
+PREFER=smart
 MODE=dark
+SEED=
+SEED_FOR=
+VIVID=0
+SECOND=
+THIRD=
 [ -f "$HOME/.config/matugen/shell-theme" ] && . "$HOME/.config/matugen/shell-theme"
 [ "$MODE" = light ] || MODE=dark
 
-matugen image "$img" --type "$TYPE" --contrast "$CONTRAST" --prefer "$PREFER" --mode "$MODE"
+# the lock screen's wallpaper, in a file of its own: matugen only knows the
+# image when it reads one, and the smart colour below doesn't
+mkdir -p "$HOME/.config/hypr"
+printf '$wallpaper = %s\n' "$img" > "$HOME/.config/hypr/hyprlock-wallpaper.conf"
+
+# The colour the theme is built from.
+#   smart (the default)  Ether Shell's own pick, worked out by its native
+#                        plugin and passed in as SEED: the subject over the
+#                        backdrop, skin set aside, borders ignored
+#   dominant             the colour covering most of the wallpaper, by
+#                        Material's own scoring (also smart's fallback)
+#   the others           by a quality (most vivid, darkest...), which can
+#                        land on a small detail
+# the smart colour belongs to one wallpaper: only used for that one
+smart=0
+if [ "$PREFER" = smart ] && [ "$SEED_FOR" = "$(printf '%s' "$img" | md5sum | cut -c1-32)" ] \
+        && printf '%s' "$SEED" | grep -qE '^#[0-9a-fA-F]{6}$'; then
+    smart=1
+fi
+case "$PREFER" in smart|dominant) pick="--source-color-index 0" ;; *) pick="--prefer $PREFER" ;; esac
+
+# matugen with a config and a style, from the smart colour or the image
+theme() {
+    cfg=$1; style=$2
+    if [ "$smart" = 1 ]; then
+        matugen -c "$cfg" color hex "$SEED" --type "$style" --contrast "$CONTRAST" --mode "$MODE"
+    else
+        # shellcheck disable=SC2086
+        matugen -c "$cfg" image "$img" --type "$style" --contrast "$CONTRAST" $pick --mode "$MODE"
+    fi
+}
+
+# ---- the accent ----
+# "Vivid" (VIVID=1, from Settings > Theme > Accent): the wallpaper's own
+# colour, lightened (darkened on a light theme) only as far as it takes to
+# read at 4.5:1 on the new background, with the text colour that reads best
+# on it.  The same rule as the shell's own, so the bar and every app agree.
+# Otherwise Material's softer accent.  Every template uses vivid_value and
+# on_vivid_value for its accents.
+work="${XDG_RUNTIME_DIR:-/tmp}/ether-matugen"
+mkdir -p "$work"
+# a quick look at the new palette: its background, text and accent
+printf '[config]\n\n[templates.probe]\ninput_path = "%s/probe.txt"\noutput_path = "%s/probe.out"\n' "$work" "$work" > "$work/probe.toml"
+printf '%s\n' '{{colors.surface.default.hex}} {{colors.on_surface.default.hex}} {{colors.primary.default.hex}} {{colors.on_primary.default.hex}} {{colors.secondary.default.hex}} {{colors.tertiary.default.hex}}' > "$work/probe.txt"
+rm -f "$work/probe.out"
+theme "$work/probe.toml" "$TYPE" > /dev/null 2>&1
+surf=; onsurf=; prim=; onprim=; sec=; ter=
+[ -f "$work/probe.out" ] && read -r surf onsurf prim onprim sec ter < "$work/probe.out"
+vivid=$prim; onvivid=$onprim; second=$sec; third=$ter
+if [ "${VIVID:-0}" = 1 ] && [ "$smart" = 1 ] && [ -n "$surf" ]; then
+    # shellcheck disable=SC2046
+    set -- $(readable "$SEED" "$surf" "$onsurf")
+    [ -n "$1" ] && vivid=$1 && onvivid=$2
+    # the picture's own second and third colours (Material's otherwise)
+    if printf '%s' "$SECOND" | grep -qE '^#[0-9a-fA-F]{6}$'; then second=$(readable "$SECOND" "$surf" "$onsurf" | cut -d' ' -f1); fi
+    if printf '%s' "$THIRD" | grep -qE '^#[0-9a-fA-F]{6}$'; then third=$(readable "$THIRD" "$surf" "$onsurf" | cut -d' ' -f1); fi
+fi
+[ -n "$second" ] || second=$vivid
+[ -n "$third" ] || third=$vivid
+[ -n "$vivid" ] || { vivid="#8aadf4"; onvivid="#1e1e2e"; }       # never without one
+accent="vivid = { color = \"$vivid\", blend = false }
+on_vivid = { color = \"$onvivid\", blend = false }
+second = { color = \"$second\", blend = false }
+third = { color = \"$third\", blend = false }"
+# both configs, with the accent added
+{ cat "$HOME/.config/matugen/config.toml"; printf '\n[config.custom_colors]\n%s\n' "$accent"; } > "$work/main.toml"
+awk -v add="$accent" '{ print } /^\[config\.custom_colors\]/ { print add }' \
+    "$HOME/.config/matugen/config-terminal.toml" > "$work/terminal.toml"
+
+# The theme, in the chosen style.  Then the terminal's colours (red, green,
+# yellow, blue, magenta, cyan) and the apps that use them, from the same
+# colour but always in the tonal spot style: other styles don't handle them
+# (monochrome turns them all white, content turns the bright ones black).
+theme "$work/main.toml" "$TYPE"
+theme "$work/terminal.toml" scheme-tonal-spot
 
 # GTK apps pick light or dark from these, not from the colours alone
 if [ "$MODE" = light ]; then
     gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
+    # open GTK windows re-read their colours only when the theme's name
+    # changes, so step through the other variant to make them recolour now
+    gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3'
+    gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3-dark'
     gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3'
     gsettings set org.gnome.desktop.interface icon-theme   'Papirus-Light'
 else
     gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+    gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3'
     gsettings set org.gnome.desktop.interface gtk-theme    'adw-gtk3-dark'
     gsettings set org.gnome.desktop.interface icon-theme   'Papirus-Dark'
 fi
@@ -52,6 +240,19 @@ fi
 # come after matugen has written every file: from a template post_hook
 # it could fire before kdeglobals was rewritten, and apps reloaded the
 # old colours.
+#
+# KDE apps' icons: Breeze, dark or light to match.  Its folders take the
+# accent colour above (Papirus folders have fixed colours: recolouring them
+# needs root).  matugen writes kdeglobals from scratch, so this is added
+# after it each time.  GTK apps keep Papirus.
+kg="$HOME/.config/kdeglobals"
+if [ -f "$kg" ] && ! grep -q '^\[Icons\]' "$kg"; then
+    if [ "$MODE" = light ]; then kicons=breeze; else kicons=breeze-dark; fi
+    printf '\n[Icons]\nTheme=%s\n' "$kicons" >> "$kg"
+fi
+# colours changed (0), and icons (4): folders recolour in open windows too
 dbus-send --session --type=signal /KGlobalSettings \
     org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null
+dbus-send --session --type=signal /KGlobalSettings \
+    org.kde.KGlobalSettings.notifyChange int32:4 int32:0 2>/dev/null
 true

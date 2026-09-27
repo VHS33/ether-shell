@@ -28,9 +28,9 @@ style = "bold tertiary"
 style = "yellow"
 
 [palettes.ether]
-primary = "{{colors.primary.default.hex}}"
-secondary = "{{colors.secondary.default.hex}}"
-tertiary = "{{colors.tertiary.default.hex}}"
+primary = "{{colors.vivid_value.default.hex}}"
+secondary = "{{colors.second_value.default.hex}}"
+tertiary = "{{colors.third_value.default.hex}}"
 red = "{{colors.red.default.hex}}"
 green = "{{colors.green.default.hex}}"
 yellow = "{{colors.yellow.default.hex}}"

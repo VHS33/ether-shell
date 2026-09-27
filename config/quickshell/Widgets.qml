@@ -117,8 +117,14 @@ Variants {
 
                 width: body.item ? body.item.implicitWidth : 0
                 height: body.item ? body.item.implicitHeight : 0
+                // the size, for automatic placement
+                onWidthChanged: app.noteWidgetSize(modelData.id, width, height)
+                onHeightChanged: app.noteWidgetSize(modelData.id, width, height)
                 x: Math.max(0, Math.min(winW.width - width, modelData.x))
                 y: Math.max(0, Math.min(winW.height - height, modelData.y))
+                // moved by automatic placement: glide there (not while dragging)
+                Behavior on x { enabled: !wd.dragging; NumberAnimation { duration: app.animSlow; easing.type: Easing.InOutCubic } }
+                Behavior on y { enabled: !wd.dragging; NumberAnimation { duration: app.animSlow; easing.type: Easing.InOutCubic } }
                 z: dragging ? 5 : 1
 
                 Loader {

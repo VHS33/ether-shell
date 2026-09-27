@@ -56,4 +56,13 @@ if pgrep -x quickshell >/dev/null 2>&1; then
 fi
 
 log="${XDG_RUNTIME_DIR:-/tmp}/ether-shell.log"
-setsid quickshell >"$log" 2>&1 &
+# under UWSM, as a unit of its own (it keeps this script's environment, the
+# NVIDIA setting above included); otherwise as it always has
+# (Hyprland under UWSM runs in a unit named wayland-wm@...: its cgroup shows
+#  it, instantly, where "uwsm check" would start Python)
+hypr=$(pgrep -xo Hyprland)
+if command -v uwsm >/dev/null 2>&1 && [ -n "$hypr" ] && grep -q 'wayland-wm@' "/proc/$hypr/cgroup" 2>/dev/null; then
+    setsid uwsm app -s b -- quickshell >"$log" 2>&1 &
+else
+    setsid quickshell >"$log" 2>&1 &
+fi

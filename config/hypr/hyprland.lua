@@ -81,6 +81,32 @@ end
 local function cmd(v, default)
     return (type(v) == "string" and v ~= "") and v or default
 end
+-- UWSM: started through it (the "Hyprland (uwsm-managed)" session), apps run
+-- as their own systemd units: contained, stopped cleanly at log out, each
+-- with its own memory and CPU accounting.  Under plain Hyprland everything
+-- starts as it always has.
+-- Checked by reading two files, never by running a program: Hyprland waits
+-- for its config, so anything run here holds up the login and every reload.
+-- Under UWSM, Hyprland runs in a unit named wayland-wm@..., which its own
+-- /proc/self/cgroup shows.
+local function readable(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local c = f:read("*a"); f:close()
+    return c
+end
+local function onPath(name)
+    for dir in (os.getenv("PATH") or "/usr/local/bin:/usr/bin"):gmatch("[^:]+") do
+        if readable(dir .. "/" .. name) then return true end
+    end
+    return false
+end
+local okU, UWSM = pcall(function() return (readable("/proc/self/cgroup") or ""):find("wayland%-wm@") ~= nil end)
+UWSM = okU and UWSM
+local LAUNCH = ""
+if UWSM then LAUNCH = onPath("uwsm-app") and "uwsm-app -- " or "uwsm app -- " end
+local function app(c) return LAUNCH .. c end
+
 local terminal    = cmd(S.terminal, "kitty")
 local fileManager = cmd(S.file_manager, "dolphin")
 -- SUPER + R: rofi, kept as a fallback launcher
@@ -97,16 +123,16 @@ local menu        = "sh -c 'pkill rofi || rofi -show drun -theme ~/.config/rofi/
 -- Or execute your favorite apps at launch like this:
 --
 hl.on("hyprland.start", function()
-    hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
+    hl.exec_cmd(app("/usr/lib/polkit-kde-authentication-agent-1"))
     -- through its start-up script, which keeps it on NVIDIA's driver alone
     -- when that's installed (about 100 MB less)
     hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/ether-shell")
     hl.exec_cmd(os.getenv("HOME") .. "/.local/bin/restore-wall")
-    hl.exec_cmd("hypridle")
+    hl.exec_cmd(app("hypridle"))
     -- clipboard history: text, and images (the clipboard panel shows them
     -- as thumbnails)
-    hl.exec_cmd("wl-paste --type text --watch cliphist store")
-    hl.exec_cmd("wl-paste --type image --watch cliphist store")
+    -- (the clipboard history: Ether Shell keeps it itself, natively, and
+    --  starts wl-paste and cliphist watchers only if it can't)
 end)
 
 
@@ -115,6 +141,8 @@ end)
 -------------------------------
 
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/
+-- (Under UWSM these come from ~/.config/uwsm/env and env-hyprland instead,
+--  which is where UWSM expects them; here they serve the plain session.)
 
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
@@ -404,9 +432,9 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 -- MORE BINDS I GUESS, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
 
 -- ---- apps -----------------------------------------------------
-hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal),
+hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(app(terminal)),
         { description = "Terminal" })
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager),
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(app(fileManager)),
         { description = "File manager" })
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu),
         { description = "App menu" })
@@ -493,6 +521,8 @@ hl.bind(mainMod .. " + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/sho
         { description = "Screenshot region" })
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/shot full"),
         { description = "Screenshot screen" })
+hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/ocr"),
+        { description = "Copy text from the screen" })
 -- the wallpaper selector (the rofi list if the shell isn't running)
 hl.bind(mainMod .. " + H", hl.dsp.exec_cmd(
     "qs ipc call wallpaper toggle || " .. os.getenv("HOME") .. "/.local/bin/setwall"),

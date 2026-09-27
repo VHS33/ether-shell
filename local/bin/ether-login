@@ -1,0 +1,100 @@
+#!/bin/sh
+# ether-login: Ether Shell's login screen as the one your computer starts
+# with (replacing SDDM or whatever you had), or back again.
+#
+#   sudo ether-login install   set it up; it takes over from the next boot
+#   sudo ether-login undo      back to the login manager you had before
+#   ether-login status         which one is in use
+#
+# If the login screen ever can't start, a plain text login appears instead
+# (greetd's agreety), so nobody is locked out; a text console (Ctrl+Alt+F2)
+# works as always too.
+
+R="${ETHER_ROOT:-}"                      # (for testing: a pretend root)
+etc="$R/etc/ether-greeter"
+share="$R/var/lib/ether-greeter"
+cache="$R/var/cache/ether-greeter"
+gconf="$R/etc/greetd/config.toml"
+dmlink="$R/etc/systemd/system/display-manager.service"
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'ether-login: %s\n' "$*" >&2; exit 1; }
+current_dm() { basename "$(readlink "$dmlink" 2>/dev/null)" 2>/dev/null; }
+
+case "${1:-}" in
+status)
+    dm=$(current_dm)
+    say "Login manager at the next boot: ${dm:-none}"
+    [ "$dm" = greetd.service ] && [ -f "$etc/start" ] && say "(Ether Shell's login screen)"
+    exit 0 ;;
+install|undo) ;;
+*) say "usage: sudo ether-login install | undo    or    ether-login status"; exit 1 ;;
+esac
+
+[ "$(id -u)" = 0 ] || die "run it with sudo: sudo ether-login $1"
+
+if [ "$1" = undo ]; then
+    prev=$(cat "$etc/previous-dm" 2>/dev/null)
+    [ -n "$prev" ] || prev=sddm.service
+    systemctl disable greetd.service >/dev/null 2>&1
+    systemctl enable "$prev" || die "couldn't enable $prev"
+    [ -f "$gconf.before-ether" ] && mv -f "$gconf.before-ether" "$gconf"
+    say "Done: $prev is back from the next boot.  Restart to use it."
+    say "(The login screen's files stay in $etc; remove them if you like.)"
+    exit 0
+fi
+
+# ---- install ----
+user=${SUDO_USER:-}
+[ -n "$user" ] && [ "$user" != root ] || die "run it with sudo from your own account (it needs to know who you are)"
+home=$(getent passwd "$user" | cut -d: -f6)
+src="$home/.config/ether-greeter"
+for f in greeter.qml GreeterView.qml background.jpg colors.json hyprland.lua start; do
+    [ -f "$src/$f" ] || die "missing $src/$f: install Ether Shell's login screen files first"
+done
+
+say "Installing greetd and its text login (the fallback)..."
+pacman -S --needed --noconfirm greetd greetd-agreety || die "couldn't install greetd"
+id greeter >/dev/null 2>&1 || die "greetd's 'greeter' user wasn't created"
+
+say "Putting the login screen in place..."
+install -d -m 755 "$etc"
+for f in greeter.qml GreeterView.qml background.jpg colors.json hyprland.lua; do
+    install -m 644 "$src/$f" "$etc/$f"
+done
+install -m 755 "$src/start" "$etc/start"
+# yours, so your desktop keeps it showing your wallpaper and colours
+install -d -m 755 -o "$user" -g "$(id -gn "$user")" "$share"
+if [ -d "$home/.cache/ether/greeter" ]; then
+    for f in background colors.json settings.json; do
+        [ -f "$home/.cache/ether/greeter/$f" ] || continue
+        install -m 644 -o "$user" -g "$(id -gn "$user")" "$home/.cache/ether/greeter/$f" "$share/$f"
+    done
+fi
+# the login screen's own (its caches, the session you last chose)
+install -d -m 755 -o greeter -g greeter "$cache" "$cache/cache"
+
+say "Setting up greetd..."
+install -d -m 755 "$(dirname "$gconf")"
+[ -f "$gconf" ] && [ ! -f "$gconf.before-ether" ] && cp "$gconf" "$gconf.before-ether"
+cat > "$gconf" << CONF
+# /etc/greetd/config.toml  (Ether Shell's login screen; the one before this
+# is config.toml.before-ether, and "sudo ether-login undo" brings it back)
+[terminal]
+vt = 1
+
+[default_session]
+command = "/etc/ether-greeter/start"
+user = "greeter"
+CONF
+
+prev=$(current_dm)
+if [ -n "$prev" ] && [ "$prev" != greetd.service ]; then
+    printf '%s\n' "$prev" > "$etc/previous-dm"
+    systemctl disable "$prev" || die "couldn't disable $prev"
+fi
+systemctl enable greetd.service || die "couldn't enable greetd"
+
+say ""
+say "Done.  From the next boot, Ether Shell's login screen replaces ${prev:-your login manager}."
+say "Restart when you're ready.  To go back:  sudo ether-login undo"

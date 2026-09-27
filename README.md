@@ -5,13 +5,14 @@ written from scratch. One long frosted bar across the top, whose sections
 pull open into drawers that grow out of the bar itself, with a dynamic island
 in the middle; a launcher, a clipboard, an AI chat, quick settings, lyrics, a
 desktop that notices your games, saved desktop layouts, a dock, widgets, a
-lock screen and a full settings app. Everything takes its colours from your
+lock screen, a login screen and a full settings app. Everything takes its colours from your
 wallpaper, and fades to the new ones when you change it: the shell, terminal,
 prompt, window borders, lock screen, GTK and KDE apps, and more.
 
 It's light: around 440 MB and well under 1% of one CPU core while idle, with
-the continuous work (system stats, the GPU, the visualiser, album-art
-colours) done in a small C++ plugin.
+the continuous work (system stats, the GPU, the visualiser, the clipboard,
+file search, monitor brightness, wallpaper colours) done in a small C++
+plugin.
 
 Everything is configured from the settings panel. You shouldn't need to
 open a config file to make Ether Shell yours.
@@ -42,9 +43,9 @@ finishing, a game session ending, a scene saved or restored.
 - **Quick settings** (the ☰ button, the clock, or a status icon): weather with an
   hourly forecast, this month's calendar, a timer and stopwatch, the
   player, tiles for **Wi-Fi** and **Bluetooth** (with pickers that open
-  inside the drawer), do not disturb, night light, **game mode** (blur,
+  inside the drawer, and battery levels for Bluetooth devices), do not disturb, night light, **game mode** (blur,
   shadows and animations off) and **keep awake**, thick sliders for
-  volume, microphone and brightness, output switching, and notifications
+  volume, microphone and brightness (monitor brightness changes as you drag), output switching, and notifications
   **grouped by app** with a history that survives restarts.
 - **System** (click the stats): live graphs for CPU, memory, GPU and GPU
   temperature, the busiest processes, and this week's playtime.
@@ -54,8 +55,19 @@ ranked by how often you use them, maths (`=`, or just type a sum), emoji
 (`:`), clipboard history (`;`), commands (`>`), scenes (`@`), timers
 (`timer 5m`) and web search.
 
+**Files, as you type.** The launcher finds your files too: `/` for files
+only, or just type and the best matches appear under your apps. Fuzzy
+(`q3rep` finds `Q3 report.pdf`), several words at once, recent files first,
+kept up to date as files change. Enter opens, Alt + Enter shows it in its
+folder. App search forgives a typo (`fierfox`).
+
+**Copy text from the screen** (SUPER + SHIFT + T). Select any area (a video,
+an image, a game, an app that won't let you select) and its text is copied.
+
 **The clipboard** (SUPER + V). A panel down the right side: search, text or
-images (copied pictures show as thumbnails), Enter to copy back.
+images (copied pictures show as thumbnails), Enter to copy back. What you
+copy stays on the clipboard after you close the app you copied it from, and
+copies a password manager marks secret are never kept.
 
 **The assistant** (SUPER + A). A chat panel down the left side of the
 screen, using **Claude, Gemini or ChatGPT** with your own API key, set up
@@ -72,12 +84,19 @@ rate and direct scanout for fullscreen games are in Settings.
 monitor) under a name, and restore it later: apps that are open are moved
 back, apps that aren't are started. Nothing is ever closed.
 
-**Colours from your wallpaper, done properly.** Material You palettes from
-matugen, with terminal colours that keep their meaning (red is red, green is
-green) but are turned towards the wallpaper's hue and always readable. Swatches
-in the wallpaper selector show each wallpaper's colours before you pick it;
-Auto picks light or dark by how bright the wallpaper is; and while music
-plays, the media views take their colours from the album art. Also themed:
+**Colours from your wallpaper, done properly.** Ether Shell picks the colour
+that matters in a wallpaper (the red poppies, not the dark field around them;
+the subject, not a face's skin tones or a picture's border), and builds the
+palette from the wallpaper's **own** colours, so nothing in it is a colour
+the picture doesn't have. The accent is the wallpaper's real colour, not a
+washed-out version, only lightened when it wouldn't be readable, and it's the
+same everywhere: the shell, window borders, the terminal and prompt, the lock
+screen, GTK and KDE apps, even Dolphin's folders. (Prefer Material You's
+softer accents? Settings, Theme, Accent.) Terminal colours keep their meaning
+(red is red, green is green) and stay readable. Swatches in the wallpaper
+selector show each wallpaper's colours before you pick it; Auto picks light
+or dark by how bright the wallpaper is; and while music plays, the media
+views take their colours from the album art. Also themed:
 kitty, fish, starship, btop, rofi, GTK and KDE apps, Firefox (through its
 system theme, or Pywalfox) and Discord (through Vencord or Vesktop).
 
@@ -88,6 +107,11 @@ on-screen display for volume, microphone, brightness and night light; a
 workspace overview (ALT + Tab) with live previews and drag to move; a power
 menu with a countdown before anything drastic; a searchable keybind
 cheatsheet; and a lock screen with a large clock and what's playing.
+
+**The login screen** (optional). A sign-in screen in the same style, instead
+of SDDM: your wallpaper, blurred, with the clock and a sign-in card on your
+main monitor. It shows the look of whoever signed in last, or a background of
+its own (Settings, Lock screen). See [The login screen](#the-login-screen).
 
 **Settings** has 23 pages: appearance, glass and blur, theme (Material You
 styles, light or dark), wallpaper, bar, windows, dock, notifications, idle,
@@ -136,7 +160,10 @@ The installer:
   `~/Pictures/wallpapers`;
 - loads `i2c-dev` at boot for brightness, and stops other notification
   daemons (like mako) from taking notifications away from the shell;
-- sets up the first colour theme if you run it from inside Hyprland.
+- sets up the first colour theme if you run it from inside Hyprland;
+- keeps your own kitty settings (like `shell fish`) in
+  `~/.config/kitty/user.conf`, which updates never touch, and moves aside any
+  `quickshell.service` from another setup, which would start the shell twice.
 
 Options: `--dry-run`, `--no-packages` (configs only), `--yes` (don't ask).
 
@@ -151,6 +178,36 @@ Options: `--dry-run`, `--no-packages` (configs only), `--yes` (don't ask).
    - **Wallpaper**: pick one, or add your own images to
      `~/Pictures/wallpapers`.
 3. Press **SUPER + /** any time to see every keybind.
+
+## UWSM (optional)
+
+[UWSM](https://github.com/Vladimir-csp/uwsm) runs your session under systemd,
+as Hyprland recommends: apps each run as their own unit (contained, closed
+cleanly when you log out, with their own memory and CPU use), and services
+that start with the session get the right environment. The installer adds
+it; to use it, choose **Hyprland (uwsm-managed)** at login instead of
+Hyprland. Ether Shell notices and launches apps through it; everything also
+works as before in the plain session. Environment variables for a UWSM
+session go in `~/.config/uwsm/env` (and `env-hyprland`), not in
+`hyprland.lua`.
+
+## The login screen
+
+Optional, and a single command either way. It replaces your current login
+manager (SDDM, for example) with greetd showing Ether Shell's own login
+screen, from the next boot:
+
+```sh
+sudo ~/.local/bin/ether-login install    # set it up
+sudo ~/.local/bin/ether-login undo       # back to what you had
+~/.local/bin/ether-login status          # which one is in use
+```
+
+It signs you straight into Hyprland (with UWSM, or on its own). If the login
+screen ever can't start, a plain text login appears in its place, so you're
+never locked out; Ctrl + Alt + F2 gives a text console as always. Settings,
+Lock screen has its background (your wallpaper, or one of its own) and a
+preview.
 
 ## Keybinds
 
@@ -184,6 +241,7 @@ Options: `--dry-run`, `--no-packages` (configs only), `--yes` (don't ask).
 | SUPER + / | Keybind cheatsheet |
 | SUPER + S | Screenshot a region |
 | SUPER + SHIFT + S | Screenshot the screen |
+| SUPER + SHIFT + T | Copy text from the screen |
 | SUPER + H | Wallpaper selector |
 | SUPER + L | Lock |
 | Media and volume keys | What they say |
@@ -205,6 +263,11 @@ Screenshots go to `~/Pictures/screenshots` and the clipboard.
 | `~/.local/bin/setwall` | Sets a wallpaper and retints everything |
 | `~/.config/ether/ai/` | Your AI API keys, one file each, readable only by you |
 | `~/.local/state/ether/notifications.json` | Notification history |
+| `~/.local/share/ether-shell/clipboard/` | Clipboard history, readable only by you |
+| `~/.config/kitty/user.conf` | Your own kitty settings (your shell, font...), never overwritten |
+| `~/.config/uwsm/` | The environment for a UWSM session |
+| `~/.config/ether-greeter/` | The login screen (installed to `/etc/ether-greeter/`) |
+| `/var/lib/ether-greeter/` | The look your desktop shares with the login screen |
 
 Files that Settings writes (`shell-settings.lua`, `hypridle.conf`,
 `hyprlock-settings.conf`, kitty's `shell-settings.conf`) say so in their
@@ -242,6 +305,19 @@ then restart the shell.
 **The assistant says a model wasn't found.** Providers rename their models
 from time to time. Open the assistant, click the gear, and type a current
 model name under Model.
+
+**The login screen isn't right, or you want SDDM back.** Run
+`sudo ~/.local/bin/ether-login undo` and restart. From a text console
+(Ctrl + Alt + F2) if need be.
+
+**Two bars, or everything slow, in a UWSM session.** A `quickshell.service`
+from another setup is starting a second copy. Check with
+`pgrep -xc quickshell` (it should say 1); the installer moves such a service
+aside, or rename `~/.config/systemd/user/quickshell.service` yourself and
+run `systemctl --user daemon-reload`.
+
+**kitty starts bash instead of your shell.** Put `shell fish` (or zsh...) in
+`~/.config/kitty/user.conf`.
 
 **Something broke after an update.** Your previous configs are in
 `~/.config/ether-backup-<date>/`.

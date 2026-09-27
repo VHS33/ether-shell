@@ -6,7 +6,7 @@ hl.config({
         col = {
             active_border = {
                 colors = {
-                    "rgba({{colors.primary.default.hex_stripped}}99)",
+                    "rgba({{colors.vivid_value.default.hex_stripped}}99)",
                     "rgba({{colors.tertiary.default.hex_stripped}}99)",
                 },
                 angle = 45,

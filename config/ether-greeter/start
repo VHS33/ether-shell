@@ -1,0 +1,41 @@
+#!/bin/sh
+# /etc/ether-greeter/start  (Ether Shell)
+# What greetd runs: Hyprland showing Ether Shell's login screen.
+#
+# If it doesn't end with someone signed in (the login screen or Hyprland
+# couldn't start, or crashed), a plain text login takes its place, on the
+# same screen: nobody is ever locked out.
+run="${XDG_RUNTIME_DIR:-/tmp}"
+# greetd's user has no home of its own to keep caches in
+export XDG_CACHE_HOME=/var/cache/ether-greeter/cache
+mark="$run/ether-greeter-launched"
+rm -f "$mark"
+
+# The console underneath (still holding the boot messages) shows for a moment
+# whenever no compositor is on screen: while Hyprland starts, and between the
+# login screen closing and your desktop appearing.  Blank it, cursor hidden,
+# so that moment is plain black.
+blank() {
+    for t in /dev/tty /dev/console; do
+        [ -w "$t" ] && { printf '\033[2J\033[3J\033[H\033[?25l' > "$t"; } 2>/dev/null && return 0
+    done
+    return 0
+}
+blank
+
+if command -v start-hyprland >/dev/null 2>&1; then
+    start-hyprland -- -c /etc/ether-greeter/hyprland.lua >"$run/ether-greeter-hyprland.log" 2>&1
+else
+    Hyprland -c /etc/ether-greeter/hyprland.lua >"$run/ether-greeter-hyprland.log" 2>&1
+fi
+
+# the login screen marks a sign-in just before it closes
+[ -f "$mark" ] && { rm -f "$mark"; blank; exit 0; }
+
+# it didn't: the text login, straight into the same session (the cursor
+# back, for typing)
+printf '\033[?25h' 2>/dev/null
+if command -v uwsm >/dev/null 2>&1; then
+    exec agreety --cmd "uwsm start hyprland.desktop"
+fi
+exec agreety --cmd "start-hyprland"

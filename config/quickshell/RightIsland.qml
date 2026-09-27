@@ -432,7 +432,7 @@ Variants {
             } else {
                 revealed = 0
                 picker = ""
-                app.wifiAskPw = ""
+                app.wifiCancelPw()
                 settleT.stop()
                 settled = false
             }
@@ -1540,7 +1540,7 @@ Variants {
                             readonly property var linked: app.btList.find(d => d.connected)
                             glyph: app.btOn ? (linked ? "bluetooth_connected" : "bluetooth") : "bluetooth_disabled"
                             title: "Bluetooth"
-                            sub: !app.btOn ? "Off" : linked ? linked.name : "On"
+                            sub: !app.btOn ? "Off" : linked ? linked.name + ((linked.battery ?? -1) >= 0 ? ", " + linked.battery + "%" : "") : "On"
                             on: app.btOn
                             chevron: true
                             expanded: isr.picker === "bt"
@@ -1717,8 +1717,11 @@ Variants {
                                                 textFormat: Text.PlainText
                                             }
                                             Text {
+                                                // battery, for devices that report it (headphones, controllers)
+                                                readonly property string batt: !pr.isWifi && (pr.modelData.battery ?? -1) >= 0
+                                                                               ? pr.modelData.battery + "%" : ""
                                                 text: pr.busy ? "Connecting\u2026"
-                                                    : pr.linked ? "Connected"
+                                                    : pr.linked ? "Connected" + (batt ? ", " + batt : "")
                                                     : !pr.isWifi && pr.modelData.paired ? "Paired" : ""
                                                 visible: text !== ""
                                                 color: pr.linked ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.75)
@@ -1787,7 +1790,7 @@ Variants {
                                                 }
                                                 Keys.onReturnPressed: if (pw.text) app.wifiConnect(pr.modelData.ssid, pw.text)
                                                 Keys.onEnterPressed: if (pw.text) app.wifiConnect(pr.modelData.ssid, pw.text)
-                                                Keys.onEscapePressed: app.wifiAskPw = ""
+                                                Keys.onEscapePressed: app.wifiCancelPw()
                                             }
                                             Rectangle {
                                                 implicitWidth: joinT.implicitWidth + 24

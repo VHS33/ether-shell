@@ -113,10 +113,43 @@ Variants {
         readonly property string q: search.text
         readonly property string mode:
             q.startsWith("=") ? "calc" : q.startsWith(":") ? "emoji"
-            : q.startsWith(";") ? "clip" : q.startsWith(">") ? "cmd" : q.startsWith("@") ? "scene" : "apps"
+            : q.startsWith(";") ? "clip" : q.startsWith(">") ? "cmd" : q.startsWith("@") ? "scene"
+            : q.startsWith("/") ? "files" : "apps"
         readonly property string term: (mode === "apps" ? q : q.slice(1)).trim().toLowerCase()
         property int sel: 0
         onQChanged: sel = 0
+
+        // files: "/" searches only them; typing normally shows the best few
+        // under your apps once there are three letters
+        readonly property bool filesOn: app.nativeOk && app.cfg.fileSearch !== false
+        Binding {
+            target: app; property: "fileQuery"; restoreMode: Binding.RestoreNone
+            value: lw.filesOn && app.launcherShown && (lw.mode === "files" || (lw.mode === "apps" && lw.term.length >= 3))
+                   ? lw.term : ""
+        }
+        Binding { target: app; property: "fileLimit"; value: lw.mode === "files" ? 40 : 6; restoreMode: Binding.RestoreNone }
+        readonly property var fileGlyphs: ({ folder: "folder", image: "image", video: "movie", audio: "music_note",
+                                             pdf: "picture_as_pdf", code: "code", archive: "folder_zip",
+                                             document: "description", file: "draft" })
+        function fileRows(n) {
+            // only results for what's typed now (a newer search may still be arriving)
+            const rows = []
+            if (app.fileResultsFor !== lw.term) return rows
+            for (const f of app.fileResults.slice(0, n))
+                rows.push({ kind: "file", title: f.name, sub: f.parent, glyph: lw.fileGlyphs[f.kind] || "draft", path: f.path })
+            return rows
+        }
+
+        // one typo: a letter wrong, missing, extra or two swapped ("fierfox")
+        function oneTypo(a, b) {
+            if (Math.abs(a.length - b.length) > 1) return false
+            let i = 0
+            while (i < a.length && i < b.length && a[i] === b[i]) i++
+            if (i === a.length && i === b.length) return true
+            const rest = (x, y) => a.slice(x) === b.slice(y)
+            return rest(i + 1, i + 1) || rest(i + 1, i) || rest(i, i + 1)
+                || (a[i] === b[i + 1] && a[i + 1] === b[i] && rest(i + 2, i + 2))
+        }
 
         // maths: only numbers, operators, brackets and a few named
         // functions ever reach the evaluator
@@ -147,6 +180,7 @@ Variants {
             { title: "Change wallpaper",     glyph: "wallpaper",          act: "wallpaper" },
             { title: "Screenshot a region",  glyph: "screenshot_region",  act: "shot" },
             { title: "Screenshot the screen",glyph: "screenshot_monitor", act: "shotfull" },
+            { title: "Copy text from the screen", glyph: "document_scanner", act: "ocr" },
             { title: "Night light",          glyph: "dark_mode",          act: "night" },
             { title: "Do not disturb",       glyph: "notifications_off",  act: "dnd" },
             { title: "Keybinds",             glyph: "keyboard",           act: "cheat" },
@@ -194,6 +228,20 @@ Variants {
                                         + "  \u2022  Enter restores, Ctrl+Enter saves over it, Delete removes it" })
                 return out
             }
+            if (mode === "files") {
+                if (!lw.filesOn) {
+                    out.push({ kind: "info", title: "File search is off", glyph: "search_off",
+                               sub: app.nativeOk ? "Turn it on in Settings, Launcher" : "It needs the native plugin: re-run the installer" })
+                    return out
+                }
+                if (t === "") {
+                    out.push({ kind: "info", title: "Search your files", glyph: "search",
+                               sub: app.fileCount ? app.fileCount.toLocaleString(Qt.locale(), "f", 0) + " files and folders in your home"
+                                                  : "Indexing your home\u2026" })
+                    return out
+                }
+                return lw.fileRows(40)
+            }
             if (mode === "cmd") {
                 for (const c of lw.commands)
                     if (t === "" || c.title.toLowerCase().indexOf(t) !== -1)
@@ -233,6 +281,10 @@ Variants {
                     let i = 0
                     for (const ch of name) if (ch === t[i]) i++
                     if (i === t.length) s = 10
+                    // one typo, for four letters or more: "fierfox", "spotfy"
+                    else if (t.length >= 4 && (lw.oneTypo(t, name)
+                             || name.split(/[\s\-_.]/).some(w => lw.oneTypo(t, w) || lw.oneTypo(t, w.slice(0, t.length)))))
+                        s = 8
                 }
                 if (s === 0) continue
                 const n = counts[d.id] || 0
@@ -240,8 +292,11 @@ Variants {
                               title: d.name, sub: d.comment || d.genericName || "", icon: d.icon || "" })
             }
             scored.sort((a, b) => b.s - a.s || a.title.localeCompare(b.title))
-            for (const a of scored.slice(0, t === "" ? 24 : 40))
+            // with files to show, the top apps, then the files
+            const files = t.length >= 3 && lw.filesOn ? lw.fileRows(6) : []
+            for (const a of scored.slice(0, t === "" ? 24 : files.length ? 8 : 40))
                 out.push({ kind: "app", title: a.title, sub: a.sub, icon: a.icon, id: a.id })
+            for (const f of files) out.push(f)
             if (t !== "")
                 out.push({ kind: "web", title: "Search the web for \u201c" + q.trim() + "\u201d",
                            sub: "Opens in your browser", glyph: "travel_explore" })
@@ -254,9 +309,20 @@ Variants {
             runner.running = true
         }
 
+        // the file, selected in your file manager (Dolphin, Nautilus...), or
+        // its folder if none answers
+        function reveal(path) {
+            app.launcherShown = false
+            runner.command = ["sh", "-c",
+                'dbus-send --session --print-reply --dest=org.freedesktop.FileManager1 --type=method_call ' +
+                '/org/freedesktop/FileManager1 org.freedesktop.FileManager1.ShowItems ' +
+                'array:string:"file://$1" string:"" >/dev/null 2>&1 || xdg-open "$(dirname "$1")"',
+                "sh", path]
+            runner.running = true
+        }
         function activate(i) {
             const r = results[i]
-            if (!r) return
+            if (!r || r.kind === "info") return
             app.launcherShown = false
             if (r.kind === "app") {
                 const d = DesktopEntries.byId(r.id)
@@ -270,6 +336,9 @@ Variants {
                 app.clipCopy(r.id)
             } else if (r.kind === "timer") {
                 app.startTimer(r.value)
+            } else if (r.kind === "file") {
+                runner.command = ["xdg-open", r.path]
+                runner.running = true
             } else if (r.kind === "web") {
                 sh("xdg-open 'https://duckduckgo.com/?q=" + encodeURIComponent(q.trim()) + "'")
             } else if (r.kind === "scene") {
@@ -284,6 +353,7 @@ Variants {
                 else if (a === "wallpaper") { app.settingsPage = 3; app.settingsShown = true }
                 else if (a === "shot") sh("sleep 0.4; $HOME/.local/bin/shot")
                 else if (a === "shotfull") sh("sleep 0.4; $HOME/.local/bin/shot full")
+                else if (a === "ocr") sh("sleep 0.4; $HOME/.local/bin/ocr")
                 else if (a === "night") app.toggleNight()
                 else if (a === "dnd") app.dnd = !app.dnd
                 else if (a === "cheat") app.cheatShown = true
@@ -405,6 +475,9 @@ Variants {
                                            && (e.modifiers & Qt.ControlModifier) && lw.results[lw.sel]?.kind === "scene") {
                                     app.launcherShown = false
                                     app.sceneSave(lw.results[lw.sel].name)
+                                } else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
+                                           && (e.modifiers & Qt.AltModifier) && lw.results[lw.sel]?.kind === "file") {
+                                    lw.reveal(lw.results[lw.sel].path)
                                 } else if (e.key === Qt.Key_Delete && lw.results[lw.sel]?.kind === "scene") {
                                     app.sceneRemove(lw.results[lw.sel].name)
                                 } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
@@ -427,7 +500,8 @@ Variants {
                             { m: "emoji", label: "Emoji",      p: ":" },
                             { m: "clip",  label: "Clipboard",  p: ";" },
                             { m: "cmd",   label: "Commands",   p: ">" },
-                            { m: "scene", label: "Scenes",     p: "@" }
+                            { m: "scene", label: "Scenes",     p: "@" },
+                            { m: "files", label: "Files",      p: "/" }
                         ]
                         delegate: Rectangle {
                             id: chip
@@ -594,7 +668,9 @@ Variants {
                 // ---- hints ----
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "\u2191 \u2193 to move   \u2022   Enter to open   \u2022   Esc to close"
+                    text: lw.results[lw.sel]?.kind === "file"
+                          ? "Enter to open   \u2022   Alt + Enter to show it in its folder   \u2022   Esc to close"
+                          : "\u2191 \u2193 to move   \u2022   Enter to open   \u2022   Esc to close"
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
                     font.family: "Inter"
                     font.pixelSize: app.fs(11)

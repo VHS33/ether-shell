@@ -679,7 +679,7 @@ Variants {
         readonly property var sourceAu: source?.audio ?? null
 
         readonly property var pages: [
-            { t: "General",        d: "Text across the whole shell" },
+            { t: "General",        d: "File search, the clipboard, and text across the whole shell" },
             { t: "Glass",          d: "How far the desktop shows through" },
             { t: "Theme",          d: "How colours are drawn from the wallpaper" },
             { t: "Wallpaper",      d: "The image everything takes its colours from" },
@@ -806,7 +806,11 @@ Variants {
         function isOutDev(n) { return !!n && !!n.audio && n.isSink && !n.isStream }
         function isInDev(n)  { return !!n && !!n.audio && !n.isSink && !n.isStream }
         function isPlay(n)   { return !!n && !!n.audio && n.isSink && n.isStream }
-        function isRec(n)    { return !!n && !!n.audio && !n.isSink && n.isStream }
+        // listening to a microphone: an input stream that isn't capturing an
+        // output (the visualiser, and anything else that listens to what the
+        // speakers play, sets stream.capture.sink, and uses no microphone)
+        function isRec(n)    { return !!n && !!n.audio && !n.isSink && n.isStream
+                                      && !(n.properties && n.properties["stream.capture.sink"] === "true") }
         function count(fn)   { return Pipewire.nodes.values.filter(fn).length }
 
         // ---- volume with balance preserved ----
@@ -1294,6 +1298,48 @@ Variants {
                                         visible: win.page === 0
                                         spacing: 4
 
+                                        SectionLabel { app: rootV.app; text: "Launcher" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "File search"
+                                            desc: !app.nativeOk ? "Needs the native plugin, which isn't built: re-run the installer."
+                                                  : app.cfg.fileSearch === false
+                                                  ? "Off: the launcher only finds apps, and nothing is indexed."
+                                                  : "The launcher finds your files as you type (start with / for files only). "
+                                                    + (app.fileCount ? app.fileCount.toLocaleString(Qt.locale(), "f", 0) + " files and folders in your home, kept up to date as they change. "
+                                                                     : "Indexing your home\u2026 ")
+                                                    + "Hidden folders, caches and dependency folders are left out."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "On"]
+                                                    current: app.cfg.fileSearch === false ? 0 : 1
+                                                    onPicked: i => app.setting("fileSearch", i === 1)
+                                                }
+                                            ]
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: "Clipboard" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Keep copies when apps close"
+                                            desc: !app.clipNativeOn
+                                                  ? "Needs the native clipboard, which isn't running: re-run the installer."
+                                                  : app.cfg.clipPersist === false
+                                                  ? "Off: when you close the app you copied from, what you copied goes with it (how Wayland works on its own)."
+                                                  : "When you close the app you copied from, your copy stays on the clipboard. Copies a password manager marks secret are never kept."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "On"]
+                                                    current: app.cfg.clipPersist === false ? 0 : 1
+                                                    onPicked: i => app.setting("clipPersist", i === 1)
+                                                }
+                                            ]
+                                        }
+
                                         SectionLabel { app: rootV.app; text: "Text" }
 
                                         Card {
@@ -1512,6 +1558,13 @@ Variants {
 
                                             Repeater {
                                                 model: [
+                                                    { k: "auto",               t: "Auto",        d: app.cfg.themeScheme === "auto" && app.wallScheme
+                                                        ? "Picked for each wallpaper: this one is " + ({ "scheme-monochrome": "black and white, so monochrome",
+                                                            "scheme-neutral": "muted, so neutral", "scheme-content": "mostly one bold colour, so content, which keeps close to it",
+                                                            "scheme-fidelity": "mostly one bold colour, so fidelity",
+                                                            "scheme-tonal-spot": "colourful and varied, so tonal spot" })[app.wallScheme] + "."
+                                                        : app.nativeOk ? "Picked for each wallpaper, from how colourful it is and how much of it is one colour."
+                                                        : "Needs the native plugin, which isn't built: re-run the installer. Until then, tonal spot." },
                                                     { k: "scheme-tonal-spot",  t: "Tonal spot",  d: "Calm and balanced, with soft accents from the wallpaper's main colour." },
                                                     { k: "scheme-vibrant",     t: "Vibrant",     d: "Saturated accents that pop more than the wallpaper itself." },
                                                     { k: "scheme-expressive",  t: "Expressive",  d: "Shifts hues away from the wallpaper for a more playful contrast." },
@@ -1521,14 +1574,14 @@ Variants {
                                                     { k: "scheme-rainbow",     t: "Rainbow",     d: "Colourful accents over neutral backgrounds." },
                                                     { k: "scheme-neutral",     t: "Neutral",     d: "Nearly grey, with just a hint of the wallpaper." },
                                                     { k: "scheme-monochrome",  t: "Monochrome",  d: "Pure greys, no colour at all." },
-                                                    { k: "scheme-smart",       t: "Smart",       d: "Lets matugen pick a style to suit each wallpaper." }
+                                                    { k: "scheme-smart",       t: "matugen's choice", d: "matugen picks the style by itself. Auto, at the top, is Ether Shell's own choice, and reads the wallpaper better." }
                                                 ]
                                                 delegate: ChoiceRow {
                                                     required property var modelData
                                                     app: rootV.app
                                                     title: modelData.t
                                                     desc: modelData.d
-                                                    selected: app.themeScheme === modelData.k
+                                                    selected: (app.cfg.themeScheme === "auto" ? "auto" : app.themeScheme) === modelData.k
                                                     onChosen: app.setting("themeScheme", modelData.k)
                                                 }
                                             }
@@ -1543,7 +1596,15 @@ Variants {
 
                                             Repeater {
                                                 model: [
-                                                    { k: "saturation",      t: "Most vivid",  d: "The most colourful part of the image." },
+                                                    { k: "smart",           t: "Smart", d: !app.nativeOk
+                                                        ? "Needs the native plugin, which isn't built: re-run the installer. Until then, most of the picture."
+                                                        : app.themePrefer === "smart" && app.wallWhy
+                                                        ? "Ether Shell's own pick for this wallpaper: " + (app.wallWhy === "no strong colour"
+                                                              ? "it has no strong colour, so its own soft tint."
+                                                              : "the colour of " + app.wallWhy + (app.wallSecond ? ", with its second colour as the third accent." : "."))
+                                                        : "Ether Shell's own pick: the subject over the backdrop, skin tones set aside, borders ignored. Recommended." },
+                                                    { k: "dominant",        t: "Most of the picture", d: "The colour covering most of the wallpaper, scored as Material You does on Android. Palettes look like the wallpaper." },
+                                                    { k: "saturation",      t: "Most vivid",  d: "The most colourful part of the image, even a small detail (a light, a highlight), so different wallpapers can come out alike." },
                                                     { k: "less-saturation", t: "Most muted",  d: "A softer, greyer colour from the image." },
                                                     { k: "darkness",        t: "Darkest",     d: "Drawn from the image's deep tones." },
                                                     { k: "lightness",       t: "Lightest",    d: "Drawn from the pale parts of the image." },
@@ -1558,6 +1619,22 @@ Variants {
                                                     onChosen: app.setting("themePrefer", modelData.k)
                                                 }
                                             }
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Accent"
+                                            desc: app.cfg.accentStyle === "soft"
+                                                  ? "A soft, lighter version of the wallpaper's colour, as Material You uses on Android."
+                                                  : "The wallpaper's own colour, as it is, everywhere: the shell, window borders, the terminal, your prompt, the lock screen, and GTK and KDE apps. Lightened only when it wouldn't be readable. Needs the Smart colour source; greyscale wallpapers keep soft accents."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Vivid", "Soft"]
+                                                    current: app.cfg.accentStyle === "soft" ? 1 : 0
+                                                    onPicked: i => app.setting("accentStyle", i === 1 ? "soft" : "vivid")
+                                                }
+                                            ]
                                         }
 
                                         SectionLabel { app: rootV.app; text: "Now playing" }
@@ -3118,6 +3195,39 @@ Variants {
                                             }
                                         }
 
+                                        Card {
+                                            id: arrangeCard
+                                            app: rootV.app
+                                            property string note: ""
+                                            title: "Keep clear of the wallpaper"
+                                            desc: note !== "" ? note
+                                                  : !app.nativeOk ? "Needs the native plugin, which isn't built: re-run the installer."
+                                                  : app.cfg.widgetsAuto === true
+                                                  ? "Each new wallpaper moves your widgets to its calmest places (sky, walls, soft blur), away from faces, buildings and busy detail. On a wallpaper that's busy everywhere, they stay put."
+                                                  : "Widgets stay wherever you put them. Turn this on to have them find the calm parts of each new wallpaper."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "On"]
+                                                    current: app.cfg.widgetsAuto === true ? 1 : 0
+                                                    onPicked: i => { app.setting("widgetsAuto", i === 1); if (i === 1) app.arrangeWidgets() }
+                                                },
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Arrange now"]
+                                                    current: -1
+                                                    onPicked: {
+                                                        const n = app.arrangeWidgets()
+                                                        arrangeCard.note = n < 0 ? "Couldn't read the wallpaper yet." : n === 0
+                                                            ? "Nothing to move: they're already in the calmest places, or this wallpaper has none."
+                                                            : (n === 1 ? "Moved 1 widget." : "Moved " + n + " widgets.")
+                                                        noteClear.restart()
+                                                    }
+                                                }
+                                            ]
+                                            Timer { id: noteClear; interval: 5000; onTriggered: arrangeCard.note = "" }
+                                        }
+
                                         SectionLabel { app: rootV.app; text: "On your desktop" }
 
                                         Card {
@@ -3184,6 +3294,75 @@ Variants {
                                         width: parent.width
                                         visible: win.page === 20
                                         spacing: 4
+
+                                        SectionLabel { app: rootV.app; text: "Login screen" }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Background"
+                                            desc: app.loginBusy ? "Setting it\u2026"
+                                                  : app.loginError !== "" ? app.loginError
+                                                  : app.loginFollows
+                                                  ? "The wallpaper and colours of whoever signed in last: on your own computer, always your current look."
+                                                  : "A background of its own, whoever signed in last. Its colours come from it."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Your wallpaper", "Its own"]
+                                                    current: app.loginFollows ? 0 : 1
+                                                    onPicked: i => app.setLoginFollow(i === 0)
+                                                },
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Preview"]
+                                                    current: -1
+                                                    onPicked: app.previewLogin()
+                                                }
+                                            ]
+                                        }
+                                        // Ether Nightfall, then your wallpapers (for "Its own")
+                                        Flow {
+                                            visible: !app.loginFollows
+                                            Layout.fillWidth: true
+                                            Layout.leftMargin: 4
+                                            Layout.bottomMargin: 10
+                                            spacing: 8
+                                            Repeater {
+                                                model: [app.loginDefault].concat(app.wallpapers.slice(0, 23))
+                                                delegate: Rectangle {
+                                                    id: lthumb
+                                                    required property var modelData
+                                                    required property int index
+                                                    readonly property bool isCurrent: index === 0 ? !app.cfg.loginBackground
+                                                                                                  : app.cfg.loginBackground === modelData
+                                                    width: 132; height: 74; radius: 10
+                                                    color: app.cCard
+                                                    border.width: isCurrent ? 3 : 0
+                                                    border.color: app.cBlue
+                                                    clip: true
+                                                    Image {
+                                                        anchors.fill: parent
+                                                        anchors.margins: lthumb.isCurrent ? 3 : 0
+                                                        source: "file://" + lthumb.modelData
+                                                        sourceSize.width: 264
+                                                        fillMode: Image.PreserveAspectCrop
+                                                        asynchronous: true
+                                                    }
+                                                    Rectangle {
+                                                        visible: lthumb.index === 0
+                                                        anchors { left: parent.left; bottom: parent.bottom; margins: 6 }
+                                                        width: lbl.implicitWidth + 12; height: 18; radius: 9
+                                                        color: Qt.rgba(0, 0, 0, 0.55)
+                                                        Text { id: lbl; anchors.centerIn: parent; text: "Ether default"; color: "white"; font.family: "Inter"; font.pixelSize: app.fs(10) }
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: lthumb.isCurrent || app.loginBusy ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                                        onClicked: if (!lthumb.isCurrent && !app.loginBusy) app.setLoginBackground(lthumb.modelData)
+                                                    }
+                                                }
+                                            }
+                                        }
 
                                         Card {
                                             app: rootV.app
