@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
+import "lib/models.mjs" as Models
 
 // ============================================================
 //   NOTIFICATION POPUPS
@@ -61,7 +62,7 @@ Variants {
             spacing: 8
 
             Repeater {
-                model: app.popups
+                model: ScriptModel { values: Models.keyed(app.popups, n => n.id); objectProp: "_key" }
 
                 delegate: Item {
                     id: pop

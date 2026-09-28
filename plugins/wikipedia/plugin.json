@@ -1,0 +1,9 @@
+{
+    "id": "wikipedia",
+    "name": "Wikipedia",
+    "description": "Search Wikipedia from the launcher: type !w and a few words, then Enter to open an article. (An example plugin: how a launcher part looks things up without slowing the launcher.)",
+    "version": "1.0",
+    "author": "Ether Shell",
+    "api": 1,
+    "launcher": { "file": "Launcher.qml", "prefix": "!w", "title": "Wikipedia" }
+}

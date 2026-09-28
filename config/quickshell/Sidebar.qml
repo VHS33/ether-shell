@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
+import "lib/models.mjs" as Models
 
 // ============================================================
 //   SIDEBAR
@@ -1199,7 +1200,7 @@ Variants {
                             clip: true
                             spacing: 6
                             boundsBehavior: Flickable.StopAtBounds
-                            model: app.notifList
+                            model: ScriptModel { values: Models.keyed(app.notifList, n => n.id); objectProp: "_key" }
 
                             delegate: Rectangle {
                                 id: nItem

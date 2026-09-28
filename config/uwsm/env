@@ -3,4 +3,7 @@
 # variables belong here, not in hyprland.lua: here, every app and service in
 # the session gets them.)
 export XCURSOR_SIZE=24
+# Ether Shell's commands (ether, setwall...) by name, in every terminal and
+# the launcher, whatever the shell
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
 export QT_QPA_PLATFORMTHEME=kde

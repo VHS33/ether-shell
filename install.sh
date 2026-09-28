@@ -164,7 +164,13 @@ PACKAGES=(
     # building the native plugin (Ether.Native); wayland for its clipboard
     # (wayland-scanner and the headers), pipewire's library for the visualiser
     cmake base-devel wayland libpipewire
+    # the in-game overlay (Settings, Game overlay)
+    mangohud
 )
+# ...and its 32-bit half, for 32-bit games, from the multilib repository
+# (enabled wherever Steam is); without multilib it's left out, not hunted for
+# in the AUR
+pacman -Sl multilib >/dev/null 2>&1 && PACKAGES+=(lib32-mangohud)
 
 if [ "$PKGS" = 1 ]; then
     step "Working out which packages are needed"
@@ -290,8 +296,28 @@ while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/local/}"
     place "$f" "$HOME/.local/$rel"
 done < <(find "$HERE/local" -type f -print0)
+# ~/.local/bin on the PATH (for `ether` by name): the env file is yours once
+# it exists, so the line is added to it only if it isn't there
+ue="$HOME/.config/uwsm/env"
+if [ -f "$ue" ] && ! grep -q '.local/bin' "$ue"; then
+    info "Adding ~/.local/bin to the session's PATH (in $ue), for the ether command"
+    [ "$DRY" = 0 ] && printf '\n# Ether Shell'"'"'s commands (ether, setwall...) by name, in every terminal and the launcher\ncase ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac\n' >> "$ue"
+fi
+# the guide to writing plugins, next to them
+[ -f "$HERE/docs/PLUGINS.md" ] && run mkdir -p "$HOME/.config/ether-shell" \
+    && run cp "$HERE/docs/PLUGINS.md" "$HOME/.config/ether-shell/PLUGINS.md"
+# the example plugins (off until switched on in Settings, Plugins); plugins
+# already there are never overwritten
+if [ -d "$HERE/plugins" ]; then
+    info "Example plugins in ~/.config/ether-shell/plugins (off until you switch them on)"
+    run mkdir -p "$HOME/.config/ether-shell/plugins"
+    for pd in "$HERE"/plugins/*/; do
+        name=$(basename "$pd")
+        [ -e "$HOME/.config/ether-shell/plugins/$name" ] || run cp -r "$pd" "$HOME/.config/ether-shell/plugins/$name"
+    done
+fi
 run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
-    "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.config/ether-greeter/start"
+    "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.local/bin/ether" "$HOME/.config/ether-greeter/start"
 
 if [ "$backed" -gt 0 ]; then
     info "Replaced $backed existing file(s); the old versions are in $BACKUP"

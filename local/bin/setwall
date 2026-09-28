@@ -46,7 +46,7 @@ BEGIN {
     R = sr; G = sg; B = sb
     if (contrast(lum(R, G, B), lb) < 4.5) {
         rgb2hsl(sr, sg, sb); dark = lb < 0.18; l = L
-        for (i = 0; i < 60; i++) {
+        for (i = 0; i < 100; i++) {
             l = dark ? (l + 0.01 > 1 ? 1 : l + 0.01) : (l - 0.01 < 0 ? 0 : l - 0.01)
             hsl2rgb(H, S, l)
             if (contrast(lum(R, G, B), lb) >= 4.5) break

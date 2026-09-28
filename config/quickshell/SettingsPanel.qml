@@ -5,6 +5,10 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Pipewire
+import "lib/search.mjs" as SearchLib
+import "lib/layout.mjs" as LayoutLib
+import "lib/models.mjs" as Models
+import "lib/keybinds.mjs" as Keybinds
 
 // ============================================================
 //   SETTINGS
@@ -45,6 +49,21 @@ Variants {
         implicitHeight: col.implicitHeight + 34
         radius: 18
         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
+
+        // search finds settings by these (see win.searchIndex)
+        readonly property bool settingCard: true
+        // a moment's outline, when search brings you here
+        property bool flash: false
+        Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            color: "transparent"
+            border.width: 2
+            border.color: card.app ? card.app.cBlue : "white"
+            opacity: card.flash ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 350 } }
+        }
+        Timer { running: card.flash; interval: 1600; onTriggered: card.flash = false }
 
         ColumnLayout {
             id: col
@@ -99,6 +118,7 @@ Variants {
     // accent-coloured section heading between groups of cards
     component SectionLabel: Text {
         property var app
+        readonly property bool sectionLabel: true
         Layout.topMargin: 14
         Layout.bottomMargin: 6
         Layout.leftMargin: 18
@@ -620,14 +640,22 @@ Variants {
     LazyLoader {
         id: perScreen
         required property var modelData
-        // Built the first time it's opened, then kept for instant opening:
-        // nothing sits in memory for a panel that's never used.
+        // Built the first time it's opened, kept while it's in use, and
+        // released a while after it closes (the Timer in its window).
         property bool used: false
         active: modelData.name === app.mainScreen && (used || app.settingsShown)
         onActiveChanged: if (active) used = true
 
     PanelWindow {
         id: win
+
+        // Released 3 minutes after it closes (it's rarely open): its memory
+        // back.  Opening it again builds it afresh, a moment's work.
+        Timer {
+            interval: 180000
+            running: !app.settingsShown
+            onTriggered: Qt.callLater(() => { perScreen.used = false })
+        }
         readonly property var modelData: perScreen.modelData
         screen: modelData
         // Stays mapped and animates itself: mapping a new surface on each
@@ -670,6 +698,125 @@ Variants {
 
         // ---- state ----
         readonly property int page: app.settingsPage
+
+        // ---- Keybinds: waiting for a new shortcut ----
+        // Hyprland switches to an empty keymap meanwhile (app.captureKeys), so
+        // the keys arrive here; Escape, 10 seconds, or closing Settings stop it.
+        property string kbCapture: ""
+        property string kbError: ""
+        function startKeyCapture(id) {
+            kbError = ""
+            kbCapture = id
+            app.captureKeys(true)
+            keys.forceActiveFocus()
+            kbTimeout.restart()
+        }
+        function endKeyCapture() {
+            if (kbCapture === "") return
+            kbCapture = ""
+            kbTimeout.stop()
+            if (app.keysCapturing) app.captureKeys(false)
+        }
+        Timer { id: kbTimeout; interval: 10000; onTriggered: win.endKeyCapture() }
+        Connections {
+            target: app
+            function onKeysCapturingChanged() { if (!app.keysCapturing && win.kbCapture !== "") { win.kbCapture = ""; kbTimeout.stop() } }
+            function onSettingsShownChanged() { if (!app.settingsShown) win.endKeyCapture() }
+            function onSettingsPageChanged() { win.endKeyCapture() }
+        }
+        // a key as Hyprland names it ("" for a modifier on its own).  With
+        // SHIFT held, Qt reports the symbol; this gives back the key itself.
+        function keyName(e) {
+            const k = e.key
+            if (k >= Qt.Key_A && k <= Qt.Key_Z) return String.fromCharCode(k)
+            if (k >= Qt.Key_0 && k <= Qt.Key_9) return String.fromCharCode(k)
+            if (k >= Qt.Key_F1 && k <= Qt.Key_F24) return "F" + (k - Qt.Key_F1 + 1)
+            const named = {}
+            named[Qt.Key_Left] = "left"; named[Qt.Key_Right] = "right"; named[Qt.Key_Up] = "up"; named[Qt.Key_Down] = "down"
+            named[Qt.Key_Tab] = "Tab"; named[Qt.Key_Backtab] = "Tab"; named[Qt.Key_Return] = "Return"; named[Qt.Key_Enter] = "Return"
+            named[Qt.Key_Space] = "space"; named[Qt.Key_Home] = "Home"; named[Qt.Key_End] = "End"
+            named[Qt.Key_PageUp] = "Prior"; named[Qt.Key_PageDown] = "Next"; named[Qt.Key_Delete] = "Delete"
+            named[Qt.Key_Insert] = "Insert"; named[Qt.Key_Backspace] = "BackSpace"; named[Qt.Key_Print] = "Print"
+            named[Qt.Key_Comma] = "comma"; named[Qt.Key_Less] = "comma"; named[Qt.Key_Period] = "period"; named[Qt.Key_Greater] = "period"
+            named[Qt.Key_Slash] = "slash"; named[Qt.Key_Question] = "slash"; named[Qt.Key_Semicolon] = "semicolon"; named[Qt.Key_Colon] = "semicolon"
+            named[Qt.Key_Apostrophe] = "apostrophe"; named[Qt.Key_QuoteDbl] = "apostrophe"; named[Qt.Key_Minus] = "minus"; named[Qt.Key_Underscore] = "minus"
+            named[Qt.Key_Equal] = "equal"; named[Qt.Key_Plus] = "equal"; named[Qt.Key_QuoteLeft] = "grave"; named[Qt.Key_AsciiTilde] = "grave"
+            named[Qt.Key_BracketLeft] = "bracketleft"; named[Qt.Key_BraceLeft] = "bracketleft"
+            named[Qt.Key_BracketRight] = "bracketright"; named[Qt.Key_BraceRight] = "bracketright"
+            named[Qt.Key_Backslash] = "backslash"; named[Qt.Key_Bar] = "backslash"
+            // SHIFT + a digit arrives as its symbol (on a US layout)
+            const shifted = "!@#$%^&*()"
+            if (e.text && shifted.indexOf(e.text) >= 0) return String((shifted.indexOf(e.text) + 1) % 10)
+            return named[k] || ""
+        }
+        function takeKey(e) {
+            if (e.key === Qt.Key_Escape && !(e.modifiers & (Qt.MetaModifier | Qt.ControlModifier | Qt.AltModifier))) { endKeyCapture(); return }
+            const name = keyName(e)
+            if (name === "") return                                   // a modifier alone: wait for the key
+            const mods = []
+            if (e.modifiers & Qt.MetaModifier) mods.push("SUPER")
+            if (e.modifiers & Qt.ControlModifier) mods.push("CTRL")
+            if (e.modifiers & Qt.AltModifier) mods.push("ALT")
+            if (e.modifiers & Qt.ShiftModifier) mods.push("SHIFT")
+            const combo = Keybinds.normalise(mods.concat([name]).join(" + "))
+            if (!combo) { kbError = "That key can't be used for a shortcut"; return }
+            const p = Keybinds.problem(combo)
+            if (p) { kbError = p; return }
+            const used = Keybinds.clash(kbCapture, combo, app.keybinds)
+            if (used) { kbError = combo + " is already " + used + ": change that first, or press other keys"; return }
+            app.setKeybind(kbCapture, combo)
+            endKeyCapture()
+        }
+
+        // ---- search: every setting card on every page, by its title,
+        // description, page and section (so new settings are found too)
+        property string query: ""
+        property var results: []
+        property int resultIndex: 0
+        onQueryChanged: runSearch()
+        function searchIndex() {
+            const out = []
+            for (let i = 0; i < pagesCol.children.length; i++) {
+                const pg = pagesCol.children[i]
+                if (pg.pageNo === undefined) continue
+                let section = ""
+                const walk = it => {
+                    for (let k = 0; k < it.children.length; k++) {
+                        const c = it.children[k]
+                        if (c.sectionLabel) { section = c.text; continue }
+                        if (c.settingCard && c.title) {
+                            out.push({ title: c.title, desc: c.desc, section: section,
+                                       page: (win.pages[pg.pageNo] || {}).t || "", pageNo: pg.pageNo, item: c })
+                        }
+                        walk(c)
+                    }
+                }
+                walk(pg)
+            }
+            return out
+        }
+        function runSearch() {
+            results = query.trim() === "" ? [] : SearchLib.search(searchIndex(), query, 40)
+            resultIndex = 0
+        }
+        // open its page, scroll it into view, outline it for a moment
+        function openResult(r) {
+            if (!r) return
+            app.settingsPage = r.pageNo
+            goTo.target = r.item
+            goTo.restart()
+        }
+        Timer {
+            id: goTo
+            property var target: null
+            interval: 60                    // once the page has laid out
+            onTriggered: {
+                if (!target) return
+                const y = target.mapToItem(pagesCol, 0, 0).y - 16
+                flick.contentY = Math.max(0, Math.min(y, flick.contentHeight - flick.height))
+                target.flash = true
+            }
+        }
         property bool boost: false
         readonly property real maxVol: boost ? 1.5 : 1.0
 
@@ -688,7 +835,7 @@ Variants {
             { t: "Dock",           d: "The window dock along the bottom edge" },
             { t: "Notifications",  d: "Popups and on-screen indicators" },
             { t: "Idle",           d: "Locking, screens off and sleep when you step away" },
-            { t: "Displays",       d: "Resolution, refresh rate, scale and layout" },
+            { t: "Displays",       d: "Arrange your screens by dragging, and each one's resolution, refresh, scale and rotation" },
             { t: "Keyboard",       d: "How keys repeat when held" },
             { t: "Mouse",          d: "Pointer speed, scrolling and focus" },
             { t: "Output",         d: "Where sound plays and how loud it is" },
@@ -701,10 +848,17 @@ Variants {
             { t: "Widgets",        d: "Clocks, weather and more on the desktop, behind your windows" },
             { t: "Lock screen",    d: "What you see when the screen is locked" },
             { t: "Default apps",   d: "Which terminal, file manager and browser open" },
-            { t: "AI assistant",   d: "Which AI answers in the assistant panel, and your key for it" }
+            { t: "AI assistant",   d: "Which AI answers in the assistant panel, and your key for it" },
+            { t: "Plugins",        d: "Add-ons from other people (or you): bar items and launcher results" },
+            { t: "Keybinds",       d: "Every shortcut, and changing them" },
+            { t: "Game overlay",   d: "Frame rate, GPU and CPU on top of your games, in your theme" }
         ]
 
-        onPageChanged: flick.contentY = 0
+        // (one handler only: a second one stops the whole panel loading)
+        onPageChanged: {
+            flick.contentY = 0
+            if (page === 25) app.checkMango()          // Game overlay: is MangoHud there?
+        }
 
         // ---- displays draft ----
         // A plain-value copy of each monitor's chosen mode and scale,
@@ -745,7 +899,8 @@ Variants {
                     if (Math.abs(r.hz - m.hz) < Math.abs(best.hz - m.hz)) best = r
                 d[m.name] = { res: m.w + "x" + m.h,
                               mode: best ? best.mode : m.w + "x" + m.h + "@" + m.hz.toFixed(2),
-                              scale: m.scale }
+                              scale: m.scale, x: m.x || 0, y: m.y || 0,
+                              transform: m.transform || 0, vrr: m.vrr || 0 }
             }
             draft = d
             const saved = app.cfg.monitorsArrange
@@ -760,8 +915,41 @@ Variants {
                 const rates = mon ? rateList(mon, value) : []
                 d[name].mode = rates.length ? rates[0].mode : value + "@60"
             }
+            // a new size (resolution, scale, rotation): the others settle
+            // around the main monitor again, with no gap or overlap
+            if (field === "res" || field === "mode" || field === "scale" || field === "transform")
+                settleDraft(d)
             draft = d
         }
+        // ---- the arrangement: each monitor's logical size and position ----
+        function logicalOf(d) {
+            const p = parseMode(d.mode)
+            return p ? LayoutLib.logicalSize(p.w, p.h, d.scale, d.transform || 0) : { w: 0, h: 0 }
+        }
+        function settleDraft(d) {
+            const mons = Object.keys(d).map(n => Object.assign({ name: n, x: d[n].x || 0, y: d[n].y || 0 }, logicalOf(d[n])))
+            for (const m of LayoutLib.settle(mons, mainMon)) { d[m.name].x = m.x; d[m.name].y = m.y }
+        }
+        // the tiles for the drag area
+        function monTiles() {
+            return Object.keys(draft).map(n => {
+                const d = draft[n], p = parseMode(d.mode)
+                return Object.assign({ name: n, x: d.x || 0, y: d.y || 0, main: n === mainMon,
+                                       label: d.res.replace("x", "\u00d7"),
+                                       label2: (p ? Math.round(p.hz) + " Hz \u00b7 " : "") + Math.round(d.scale * 100) + "%" },
+                                     logicalOf(d))
+            })
+        }
+        // one dragged somewhere (already snapped): everything starts at 0,0 again
+        function moveMon(name, x, y) {
+            const d = JSON.parse(JSON.stringify(draft))
+            if (!d[name]) return
+            d[name].x = x; d[name].y = y
+            const mons = LayoutLib.normalise(Object.keys(d).map(n => ({ name: n, x: d[n].x, y: d[n].y, w: 0, h: 0 })))
+            for (const m of mons) { d[m.name].x = m.x; d[m.name].y = m.y }
+            draft = d
+        }
+        property string selMon: ""
         function draftDirty() {
             for (const m of app.monInfo) {
                 const d = draft[m.name]
@@ -769,8 +957,10 @@ Variants {
                 if (d.res !== m.w + "x" + m.h || Math.abs(d.scale - m.scale) > 0.001) return true
                 const p = parseMode(d.mode)
                 if (p && Math.abs(p.hz - m.hz) > 0.5) return true
+                if ((d.x || 0) !== (m.x || 0) || (d.y || 0) !== (m.y || 0)) return true
+                if ((d.transform || 0) !== (m.transform || 0) || (d.vrr || 0) !== (m.vrr || 0)) return true
             }
-            return arrange !== (app.cfg.monitorsArrange || "above")
+            return false
         }
         // logical size, which is what positions are measured in
         function logical(name) {
@@ -780,21 +970,13 @@ Variants {
             return { w: Math.round(p.w / d.scale), h: Math.round(p.h / d.scale) }
         }
         function applyDraft() {
-            const names = Object.keys(draft)
-            const other = names.find(n => n !== mainMon)
-            const pos = {}
-            pos[mainMon] = "0x0"
-            if (other) {
-                const a = logical(mainMon), b = logical(other)
-                if (arrange === "above")      { pos[other] = "0x0";          pos[mainMon] = "0x" + b.h }
-                else if (arrange === "below") { pos[mainMon] = "0x0";        pos[other] = "0x" + a.h }
-                else if (arrange === "left")  { pos[other] = "0x0";          pos[mainMon] = b.w + "x0" }
-                else                          { pos[mainMon] = "0x0";        pos[other] = a.w + "x0" }
-            }
             const out = {}
-            for (const n of names)
-                out[n] = { mode: draft[n].mode, position: pos[n] || "0x0", scale: draft[n].scale }
-            app.applyDisplays(out, arrange)
+            for (const n of Object.keys(draft)) {
+                const d = draft[n]
+                out[n] = { mode: d.mode, position: Math.round(d.x || 0) + "x" + Math.round(d.y || 0), scale: d.scale,
+                           transform: d.transform || 0, vrr: d.vrr || 0 }
+            }
+            app.applyDisplays(out, "custom")
         }
         Connections {
             target: app
@@ -945,7 +1127,14 @@ Variants {
                 anchors.fill: parent
                 focus: true
                 Keys.onPressed: e => {
-                    if (e.key === Qt.Key_Escape) {
+                    // choosing a new shortcut: every key goes to that
+                    if (win.kbCapture !== "") { win.takeKey(e); e.accepted = true; return }
+                    if (e.key === Qt.Key_F && (e.modifiers & Qt.ControlModifier)) {
+                        searchField.forceActiveFocus()
+                    } else if (e.text && /^[a-zA-Z\u00c0-\u024f]$/.test(e.text) && !(e.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {
+                        searchField.forceActiveFocus()
+                        searchField.text += e.text
+                    } else if (e.key === Qt.Key_Escape) {
                         app.settingsShown = false
                     } else if (e.key >= Qt.Key_1 && e.key <= Qt.Key_9) {
                         app.settingsPage = e.key - Qt.Key_1
@@ -1030,10 +1219,140 @@ Variants {
                         }
                     }
 
+                    // ---- search ----
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 6
+                        Layout.bottomMargin: 6
+                        implicitHeight: 38
+                        radius: 19
+                        color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, searchField.activeFocus ? 0.12 : 0.07)
+                        border.width: searchField.activeFocus ? 1 : 0
+                        border.color: app.cBlue
+                        Text {
+                            id: searchGlyph
+                            anchors.left: parent.left
+                            anchors.leftMargin: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "search"
+                            color: searchField.activeFocus ? app.cBlue : app.cDim
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: 18
+                        }
+                        TextInput {
+                            id: searchField
+                            anchors { left: searchGlyph.right; leftMargin: 8; right: clearBtn.left; rightMargin: 4; verticalCenter: parent.verticalCenter }
+                            color: app.cFg
+                            selectionColor: app.cBlue
+                            selectedTextColor: app.cOnAccent
+                            font.family: "Inter"
+                            font.pixelSize: app.fs(13)
+                            clip: true
+                            onTextChanged: win.query = text
+                            Keys.onPressed: e => {
+                                if (e.key === Qt.Key_Down) win.resultIndex = Math.min(win.results.length - 1, win.resultIndex + 1)
+                                else if (e.key === Qt.Key_Up) win.resultIndex = Math.max(0, win.resultIndex - 1)
+                                else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) win.openResult(win.results[win.resultIndex])
+                                else if (e.key === Qt.Key_Escape) { if (text !== "") text = ""; else keys.forceActiveFocus() }
+                                else return
+                                e.accepted = true
+                            }
+                            Text {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                visible: parent.text === ""
+                                text: "Search settings"
+                                color: app.cFaint
+                                font: parent.font
+                            }
+                        }
+                        Text {
+                            id: clearBtn
+                            anchors.right: parent.right
+                            anchors.rightMargin: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: searchField.text !== ""
+                            text: "close"
+                            color: app.cDim
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: 16
+                            MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor; onClicked: searchField.text = "" }
+                        }
+                    }
+
+                    // ---- what matches, while searching (in place of the pages) ----
+                    Flickable {
+                        id: resultsFlick
+                        visible: win.query.trim() !== ""
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentHeight: resultsCol.implicitHeight
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        ColumnLayout {
+                            id: resultsCol
+                            width: resultsFlick.width
+                            spacing: 2
+                            Text {
+                                visible: win.results.length === 0
+                                Layout.fillWidth: true
+                                Layout.margins: 12
+                                wrapMode: Text.WordWrap
+                                text: "Nothing matches \u201c" + win.query.trim() + "\u201d"
+                                color: app.cDim
+                                font.family: "Inter"
+                                font.pixelSize: app.fs(12)
+                            }
+                            Repeater {
+                                model: ScriptModel { values: Models.keyed(win.results, r => r.pageNo + ":" + r.section + ":" + r.title); objectProp: "_key" }
+                                delegate: Rectangle {
+                                    id: res
+                                    required property var modelData
+                                    required property int index
+                                    readonly property bool on: index === win.resultIndex
+                                    Layout.fillWidth: true
+                                    implicitHeight: resText.implicitHeight + 14
+                                    radius: 12
+                                    color: on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
+                                         : resHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08) : "transparent"
+                                    HoverHandler { id: resHov }
+                                    Column {
+                                        id: resText
+                                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 10 }
+                                        spacing: 1
+                                        Text {
+                                            width: parent.width
+                                            text: res.modelData.title
+                                            color: res.on ? app.cFg : app.cDim
+                                            font.family: "Inter"
+                                            font.pixelSize: app.fs(13)
+                                            font.bold: res.on
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            width: parent.width
+                                            text: res.modelData.page + (res.modelData.section ? "  \u203a  " + res.modelData.section : "")
+                                            color: app.cFaint
+                                            font.family: "Inter"
+                                            font.pixelSize: app.fs(11)
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { win.resultIndex = res.index; win.openResult(res.modelData) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // the page list scrolls on its own if it outgrows the
                     // window, so the header and Reset all never get pushed off
                     Flickable {
                         id: navFlick
+                        visible: win.query.trim() === ""
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         contentHeight: navCol.implicitHeight
@@ -1063,6 +1382,7 @@ Variants {
                                     { sec: "Devices" },
                                     { i: 9, t: "Displays",       g: "monitor" },
                                     { i: 10, t: "Keyboard",       g: "keyboard" },
+                                    { i: 24, t: "Keybinds",       g: "keyboard_command_key" },
                                     { i: 11, t: "Mouse",          g: "mouse" },
                                     { sec: "Sound" },
                                     { i: 12, t: "Output",         g: "speaker" },
@@ -1072,8 +1392,10 @@ Variants {
                                     { sec: "System" },
                                     { i: 16, t: "Weather",        g: "partly_cloudy_day" },
                                     { i: 17, t: "Calendar",       g: "calendar_month" },
+                                    { i: 25, t: "Game overlay",   g: "sports_esports" },
                                     { i: 21, t: "Default apps",   g: "apps" },
                                     { i: 22, t: "AI assistant",   g: "smart_toy" },
+                                    { i: 23, t: "Plugins",        g: "extension" },
                                     { i: 18, t: "About",          g: "info" }
                                 ]
 
@@ -1296,6 +1618,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 0
+                                        readonly property int pageNo: 0
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Launcher" }
@@ -1373,6 +1696,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 1
+                                        readonly property int pageNo: 1
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Shell" }
@@ -1524,6 +1848,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 2
+                                        readonly property int pageNo: 2
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Mode" }
@@ -1691,6 +2016,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 3
+                                        readonly property int pageNo: 3
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Current" }
@@ -1860,6 +2186,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 4
+                                        readonly property int pageNo: 4
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Clock" }
@@ -2042,6 +2369,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 5
+                                        readonly property int pageNo: 5
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Spacing" }
@@ -2282,6 +2610,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 6
+                                        readonly property int pageNo: 6
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Visibility" }
@@ -2325,14 +2654,47 @@ Variants {
 
                                         Card {
                                             app: rootV.app
-                                            title: "Auto-hide"
-                                            desc: "Slides the dock away until your pointer touches the bottom edge of the screen. Windows get the full height meanwhile."
+                                            title: "Hide the dock"
+                                            desc: app.dockHide === "windows"
+                                                  ? "Only while a window overlaps it: it stays up over an empty desktop, and steps aside for windows (and full screen). Touch the screen's edge to bring it back."
+                                                  : app.dockHide === "always"
+                                                  ? "Slides away until your pointer touches the screen's edge, where the dock sits. Windows get the space meanwhile."
+                                                  : "Always showing, with its own space that windows keep clear of."
                                             trailing: [
                                                 Seg {
                                                     app: rootV.app
-                                                    options: ["Off", "On"]
-                                                    current: app.dockAutoHide ? 1 : 0
-                                                    onPicked: i => app.setting("dockAutoHide", i === 1)
+                                                    options: ["Never", "Always", "When windows overlap"]
+                                                    current: ["never", "always", "windows"].indexOf(app.dockHide)
+                                                    onPicked: i => app.setting("dockHide", ["never", "always", "windows"][i])
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Position"
+                                            desc: app.dockEdge === "bottom" ? "Along the bottom of the screen."
+                                                  : "Down the " + app.dockEdge + " side of the screen, with its menus and previews opening beside it."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Bottom", "Left", "Right"]
+                                                    current: ["bottom", "left", "right"].indexOf(app.dockEdge)
+                                                    onPicked: i => app.setting("dockEdge", ["bottom", "left", "right"][i])
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Show on"
+                                            desc: app.dockAllScreens ? "Every screen, each with its own dock." : "Just your main screen (Settings, Displays)."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Main screen", "Every screen"]
+                                                    current: app.dockAllScreens ? 1 : 0
+                                                    onPicked: i => app.setting("dockAllScreens", i === 1)
                                                 }
                                             ]
                                         }
@@ -2378,6 +2740,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 7
+                                        readonly property int pageNo: 7
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "The bar's island" }
@@ -2477,6 +2840,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 8
+                                        readonly property int pageNo: 8
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "When you step away" }
@@ -2561,6 +2925,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 9
+                                        readonly property int pageNo: 9
                                         spacing: 4
 
                                         // the confirmation, shown after Apply
@@ -2579,6 +2944,24 @@ Variants {
                                                     onPicked: i => i === 1 ? app.keepDisplays() : app.revertDisplays()
                                                 }
                                             ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.monInfo.length > 0
+                                            title: "Arrangement"
+                                            desc: app.monInfo.length > 1
+                                                  ? "Drag the screens to where they sit on your desk. They snap together at the edges, lining up when close."
+                                                  : "Your screen. Connect another and it appears here, to drag into place."
+                                            MonitorLayout {
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: implicitHeight
+                                                app: rootV.app
+                                                monitors: win.monTiles()
+                                                selected: win.selMon
+                                                onMoved: (name, x, y) => win.moveMon(name, x, y)
+                                                onPicked: name => win.selMon = name
+                                            }
                                         }
 
                                         Repeater {
@@ -2684,6 +3067,36 @@ Variants {
                                                         current: monSec.d ? win.scales.findIndex(x => Math.abs(x - monSec.d.scale) < 0.01) : -1
                                                         onPicked: i => win.setDraft(monSec.modelData.name, "scale", win.scales[i])
                                                     }
+
+                                                    Text {
+                                                        text: "Rotation"
+                                                        color: app.cDim
+                                                        font.family: "Inter"
+                                                        font.pixelSize: app.fs(11)
+                                                        font.bold: true
+                                                        Layout.topMargin: 6
+                                                    }
+                                                    Seg {
+                                                        app: rootV.app
+                                                        options: ["Normal", "90\u00b0", "180\u00b0", "270\u00b0"]
+                                                        current: monSec.d ? (monSec.d.transform || 0) : 0
+                                                        onPicked: i => win.setDraft(monSec.modelData.name, "transform", i)
+                                                    }
+
+                                                    Text {
+                                                        text: "Variable refresh rate"
+                                                        color: app.cDim
+                                                        font.family: "Inter"
+                                                        font.pixelSize: app.fs(11)
+                                                        font.bold: true
+                                                        Layout.topMargin: 6
+                                                    }
+                                                    Seg {
+                                                        app: rootV.app
+                                                        options: ["Off", "On", "Games only"]
+                                                        current: monSec.d ? (monSec.d.vrr || 0) : 0
+                                                        onPicked: i => win.setDraft(monSec.modelData.name, "vrr", i)
+                                                    }
                                                 }
                                             }
                                         }
@@ -2717,21 +3130,6 @@ Variants {
 
                                         Card {
                                             app: rootV.app
-                                            visible: app.monInfo.length === 2
-                                            title: "Second screen"
-                                            desc: "Where the other monitor sits relative to " + win.mainMon
-                                                  + ". Positions are worked out from the resolutions and scales, so the screens always meet edge to edge."
-
-                                            Seg {
-                                                app: rootV.app
-                                                options: ["Above", "Below", "Left", "Right"]
-                                                current: ["above", "below", "left", "right"].indexOf(win.arrange)
-                                                onPicked: i => win.arrange = ["above", "below", "left", "right"][i]
-                                            }
-                                        }
-
-                                        Card {
-                                            app: rootV.app
                                             visible: app.revertLeft === 0
                                             title: win.draftDirty() ? "Ready to apply" : "No changes"
                                             desc: "Nothing changes until you apply. You then have 15 seconds to keep the new settings before they revert on their own."
@@ -2752,6 +3150,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 10
+                                        readonly property int pageNo: 10
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Key repeat" }
@@ -2846,6 +3245,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 11
+                                        readonly property int pageNo: 11
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Pointer" }
@@ -2924,6 +3324,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 16
+                                        readonly property int pageNo: 16
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Location" }
@@ -3018,6 +3419,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 17
+                                        readonly property int pageNo: 17
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Holidays" }
@@ -3058,6 +3460,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 18
+                                        readonly property int pageNo: 18
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "This machine" }
@@ -3134,6 +3537,7 @@ Variants {
                                         id: widgetsPage
                                         width: parent.width
                                         visible: win.page === 19
+                                        readonly property int pageNo: 19
                                         spacing: 4
 
                                         readonly property var screenNames: Quickshell.screens.map(s => s.name)
@@ -3243,7 +3647,9 @@ Variants {
                                                 id: wCard
                                                 required property var modelData
                                                 app: rootV.app
-                                                title: (app.widgetTypes.find(t => t.type === modelData.type) || { name: modelData.type }).name
+                                                title: (app.widgetTypes.find(t => t.type === modelData.type)
+                                                        || { name: String(modelData.type).startsWith("plugin:")
+                                                                   ? "A plugin's widget (" + String(modelData.type).slice(7) + ", switched off)" : modelData.type }).name
                                                 desc: "On " + (modelData.screen || app.mainScreen)
                                                 trailing: [
                                                     Seg {
@@ -3289,10 +3695,284 @@ Variants {
                                         }
                                     }
 
+                                    // ================= GAME OVERLAY =================
+                                    ColumnLayout {
+                                        width: parent.width
+                                        visible: win.page === 25
+                                        readonly property int pageNo: 25
+                                        spacing: 4
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Game overlay"
+                                            desc: "Frame rate, frame times, GPU and CPU load and temperatures, drawn over your games by MangoHud, in your theme's colours. Right SHIFT + F12 shows or hides it in a game."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "All Steam games", "Games I choose"]
+                                                    current: ["off", "steam", "choose"].indexOf(app.gameHud)
+                                                    onPicked: i => app.setting("gameHud", ["off", "steam", "choose"][i])
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud !== "off" && !app.mangoOk
+                                            color: Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.14)
+                                            title: "MangoHud isn't installed"
+                                            desc: "It draws the overlay. Install it (both parts, for 64 and 32-bit games): sudo pacman -S mangohud lib32-mangohud"
+                                            trailing: [
+                                                Seg { app: rootV.app; options: ["Copy the command"]; current: -1; onPicked: app.copyText("sudo pacman -S mangohud lib32-mangohud") }
+                                            ]
+                                        }
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud === "steam"
+                                            title: "Restart Steam once"
+                                            desc: "Then every game Steam starts has the overlay (Steam's own windows don't). Start Steam from the launcher or the dock; if it starts with your computer, quit it and start it again from there."
+                                        }
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud === "choose"
+                                            title: "Choosing games"
+                                            desc: "In Steam, a game's Properties, then Launch options: put mangohud %command% there. For other launchers, start the game with mangohud in front."
+                                            trailing: [
+                                                Seg { app: rootV.app; options: ["Copy"]; current: -1; onPicked: app.copyText("mangohud %command%") }
+                                            ]
+                                        }
+
+                                        SectionLabel { app: rootV.app; text: "What it shows"; visible: app.gameHud !== "off" }
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud !== "off"
+                                            title: "Layout"
+                                            desc: (app.cfg.gameHudLayout || "standard") === "fps" ? "Just the frame rate: small, out of the way."
+                                                  : app.cfg.gameHudLayout === "full" ? "Everything: clocks, power, the GPU's name, resolution and Proton's version too."
+                                                  : "Frame rate and frame times, GPU and CPU load and temperatures, video and main memory."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Frame rate", "Standard", "Everything"]
+                                                    current: Math.max(0, ["fps", "standard", "full"].indexOf(app.cfg.gameHudLayout || "standard"))
+                                                    onPicked: i => app.setting("gameHudLayout", ["fps", "standard", "full"][i])
+                                                }
+                                            ]
+                                        }
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud !== "off"
+                                            title: "Where"
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Top left", "Top centre", "Top right", "Bottom left", "Bottom right"]
+                                                    current: Math.max(0, ["top-left", "top-center", "top-right", "bottom-left", "bottom-right"].indexOf(app.cfg.gameHudPos || "top-left"))
+                                                    onPicked: i => app.setting("gameHudPos", ["top-left", "top-center", "top-right", "bottom-left", "bottom-right"][i])
+                                                }
+                                            ]
+                                        }
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud !== "off"
+                                            title: "Size"
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Small", "Normal", "Large"]
+                                                    current: Math.max(0, ["small", "normal", "large"].indexOf(app.cfg.gameHudSize || "normal"))
+                                                    onPicked: i => app.setting("gameHudSize", ["small", "normal", "large"][i])
+                                                }
+                                            ]
+                                        }
+                                        Card {
+                                            app: rootV.app
+                                            visible: app.gameHud !== "off"
+                                            title: "When a game starts"
+                                            desc: app.cfg.gameHudHidden === true ? "Hidden until you press right SHIFT + F12." : "Showing; right SHIFT + F12 hides it."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Showing", "Hidden"]
+                                                    current: app.cfg.gameHudHidden === true ? 1 : 0
+                                                    onPicked: i => app.setting("gameHudHidden", i === 1)
+                                                }
+                                            ]
+                                        }
+                                    }
+
+                                    // ================= KEYBINDS =================
+                                    ColumnLayout {
+                                        width: parent.width
+                                        visible: win.page === 24
+                                        readonly property int pageNo: 24
+                                        spacing: 4
+                                        readonly property var now: Keybinds.effective(app.keybinds)
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Your shortcuts"
+                                            desc: "Click a shortcut, then press the keys you want it to be; Escape cancels. The workspace keys (SUPER + 1 to 0) and media keys stay as they are."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    visible: Object.keys(app.keybinds).length > 0
+                                                    options: ["Reset all"]
+                                                    current: -1
+                                                    onPicked: app.resetKeybinds()
+                                                }
+                                            ]
+                                        }
+
+                                        Repeater {
+                                            model: ["Apps", "Windows", "Ether Shell", "Screenshots"]
+                                            delegate: ColumnLayout {
+                                                id: kgroup
+                                                required property string modelData
+                                                Layout.fillWidth: true
+                                                spacing: 4
+                                                SectionLabel { app: rootV.app; text: kgroup.modelData }
+                                                Repeater {
+                                                    model: Keybinds.CATALOG.filter(c => c.group === kgroup.modelData)
+                                                    delegate: Card {
+                                                        id: kc
+                                                        required property var modelData
+                                                        readonly property string combo: kgroup.parent.now[modelData.id] || modelData.def
+                                                        readonly property bool changed: combo !== modelData.def
+                                                        readonly property bool capturing: win.kbCapture === modelData.id
+                                                        app: rootV.app
+                                                        title: modelData.label
+                                                        desc: capturing ? (win.kbError !== "" ? win.kbError : "Press the keys you want\u2026 (Escape cancels)")
+                                                              : changed ? "Changed from " + modelData.def : ""
+                                                        trailing: [
+                                                            // back to its default
+                                                            Rectangle {
+                                                                visible: kc.changed && !kc.capturing
+                                                                implicitWidth: 32; implicitHeight: 32; radius: 16
+                                                                color: rsHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
+                                                                HoverHandler { id: rsHov }
+                                                                Text {
+                                                                    anchors.centerIn: parent
+                                                                    text: "restart_alt"
+                                                                    color: app.cDim
+                                                                    font.family: "Material Symbols Rounded"
+                                                                    font.pixelSize: 18
+                                                                }
+                                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: app.resetKeybind(kc.modelData.id) }
+                                                            },
+                                                            // the keys: click to change them
+                                                            Rectangle {
+                                                                implicitWidth: Math.max(80, chip.implicitWidth + 28)
+                                                                implicitHeight: 32
+                                                                radius: 16
+                                                                color: kc.capturing ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
+                                                                     : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.14)
+                                                                     : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                                                border.width: kc.capturing ? 1 : 0
+                                                                border.color: win.kbError !== "" ? app.cRed : app.cBlue
+                                                                HoverHandler { id: chipHov }
+                                                                Text {
+                                                                    id: chip
+                                                                    anchors.centerIn: parent
+                                                                    text: kc.capturing ? "\u2026" : kc.combo
+                                                                    color: kc.changed ? app.cBlue : app.cFg
+                                                                    font.family: app.font
+                                                                    font.pixelSize: app.fs(12)
+                                                                }
+                                                                MouseArea {
+                                                                    anchors.fill: parent
+                                                                    cursorShape: Qt.PointingHandCursor
+                                                                    onClicked: kc.capturing ? win.endKeyCapture() : win.startKeyCapture(kc.modelData.id)
+                                                                }
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // ================= PLUGINS =================
+                                    ColumnLayout {
+                                        width: parent.width
+                                        visible: win.page === 23
+                                        readonly property int pageNo: 23
+                                        spacing: 4
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Your plugins"
+                                            desc: "Each plugin is a folder in ~/.config/ether-shell/plugins. They're off until you switch them on here. After adding or changing one, press Check plugins. Plugins are code, so only add ones from people you trust."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Open folder", "Check plugins"]
+                                                    current: -1
+                                                    onPicked: i => i === 0 ? app.openPluginsFolder() : app.reloadPlugins()
+                                                }
+                                            ]
+                                        }
+
+                                        Text {
+                                            visible: app.plugins.length === 0
+                                            Layout.fillWidth: true
+                                            Layout.margins: 12
+                                            wrapMode: Text.WordWrap
+                                            text: "No plugins yet. Put a plugin's folder in ~/.config/ether-shell/plugins, then press Check plugins."
+                                            color: app.cDim
+                                            font.family: "Inter"
+                                            font.pixelSize: app.fs(13)
+                                        }
+
+                                        Repeater {
+                                            model: app.plugins
+                                            delegate: Card {
+                                                id: pcard
+                                                required property var modelData
+                                                readonly property string failed: app.pluginErrors[modelData.id] || ""
+                                                app: rootV.app
+                                                title: modelData.name + (modelData.version ? "  " + modelData.version : "")
+                                                desc: !modelData.ok
+                                                      ? "Can't be used: " + modelData.errors.join("; ") + "."
+                                                      : failed !== ""
+                                                      ? "Set aside, it didn't load: " + failed
+                                                      : (modelData.description || "No description.")
+                                                        + (modelData.author ? "  By " + modelData.author + "." : "")
+                                                        + (modelData.bar ? "  Adds a bar item on the " + modelData.bar.side + "." : "")
+                                                        + (modelData.launcher ? "  Adds launcher results" + (modelData.launcher.prefix ? " (type " + modelData.launcher.prefix + " first)" : "") + "." : "")
+                                                trailing: [
+                                                    Seg {
+                                                        app: rootV.app
+                                                        visible: pcard.modelData.ok
+                                                        options: ["Off", "On"]
+                                                        current: app.pluginEnabled(pcard.modelData.id) ? 1 : 0
+                                                        onPicked: i => app.setPluginEnabled(pcard.modelData.id, i === 1)
+                                                    }
+                                                ]
+                                                // its own settings, while it's on
+                                                Loader {
+                                                    Layout.fillWidth: true
+                                                    active: pcard.modelData.ok && pcard.modelData.settings !== null
+                                                            && app.pluginEnabled(pcard.modelData.id) && pcard.failed === ""
+                                                    visible: active
+                                                    sourceComponent: PluginHost {
+                                                        app: rootV.app
+                                                        pluginId: pcard.modelData.id
+                                                        dir: pcard.modelData.dir
+                                                        file: pcard.modelData.settings.file
+                                                        part: "settings"
+                                                        fill: true
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     // ================= LOCK SCREEN =================
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 20
+                                        readonly property int pageNo: 20
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Login screen" }
@@ -3499,6 +4179,7 @@ Variants {
                                         id: aiPage
                                         width: parent.width
                                         visible: win.page === 22
+                                        readonly property int pageNo: 22
                                         spacing: 4
                                         readonly property string p: app.aiProvider
                                         readonly property var info: app.aiProviders[p]
@@ -3654,6 +4335,7 @@ Variants {
                                         id: appsPage
                                         width: parent.width
                                         visible: win.page === 21
+                                        readonly property int pageNo: 21
                                         spacing: 4
 
                                         // installed apps as plain values, read from their
@@ -3753,6 +4435,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 12
+                                        readonly property int pageNo: 12
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Level" }
@@ -3868,6 +4551,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 13
+                                        readonly property int pageNo: 13
                                         spacing: 4
 
                                         Card {
@@ -3893,6 +4577,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 14
+                                        readonly property int pageNo: 14
                                         spacing: 4
 
                                         SectionLabel { app: rootV.app; text: "Level" }
@@ -3950,6 +4635,7 @@ Variants {
                                     ColumnLayout {
                                         width: parent.width
                                         visible: win.page === 15
+                                        readonly property int pageNo: 15
                                         spacing: 4
 
                                         Card {

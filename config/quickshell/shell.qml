@@ -9,6 +9,11 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
 import Quickshell.Services.Notifications
 import Quickshell.Hyprland
+import "lib/colour.mjs" as Colour
+import "lib/plugins.mjs" as Plugins
+import "lib/models.mjs" as Models
+import "lib/keybinds.mjs" as Keybinds
+import "lib/overlay.mjs" as Overlay
 
 ShellRoot {
     id: root
@@ -54,31 +59,15 @@ ShellRoot {
     readonly property bool vividOn: cfg.accentStyle !== "soft" && smartOn && wallSeed !== ""
                                     && wallWhy !== "no strong colour"
                                     && themeScheme !== "scheme-monochrome" && themeScheme !== "scheme-neutral"
-    function relLum(c) {
-        const f = x => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)
-        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
-    }
-    function contrast(a, b) {
-        const la = relLum(Qt.color(a)), lb = relLum(Qt.color(b))
-        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
-    }
-    // the colour, lightened or darkened only as far as needed to read on bg
-    function readableAccent(colour, bg) {
-        const c = Qt.color(colour), b = Qt.color(bg)
-        if (contrast(c, b) >= 4.5) return c
-        const darkBg = relLum(b) < 0.18
-        const h = c.hslHue < 0 ? 0 : c.hslHue, s = c.hslSaturation
-        let l = c.hslLightness
-        for (let i = 0; i < 60; i++) {
-            l = darkBg ? Math.min(1, l + 0.01) : Math.max(0, l - 0.01)
-            const t = Qt.hsla(h, s, l, 1)
-            if (contrast(t, b) >= 4.5) return t
-        }
-        return Qt.hsla(h, s, l, 1)
-    }
-    // dark or light text on the accent, whichever reads better
+    // The colour rules live in lib/colour.mjs: shared with the tests, and the
+    // same calculation as setwall's awk, so the shell and every app agree.
+    // These keep the names the rest of the shell uses.
+    function hexOf(c) { return Qt.color(c).toString() }
+    function contrast(a, b) { return Colour.contrast(hexOf(a), hexOf(b)) }
+    function readableAccent(colour, bg) { return Qt.color(Colour.readableAccent(hexOf(colour), hexOf(bg))) }
     function textOn(accent, darkText, lightText) {
-        return contrast(accent, darkText) >= contrast(accent, lightText) ? darkText : lightText
+        return Colour.contrast(hexOf(accent), hexOf(darkText)) >= Colour.contrast(hexOf(accent), hexOf(lightText))
+               ? darkText : lightText
     }
     // setwall works the accent out for every app (vivid or soft, by the same
     // rule) and writes it as pal.vivid; before a theme with it has been made,
@@ -93,16 +82,7 @@ ShellRoot {
     // Monochrome and neutral keep theirs (their greys are the point).
     readonly property color palGreen:  pal.green  ?? "#a6e3a1"
     function thirdAccent(primary, tertiary, second, scheme) {
-        if (!smartOn || scheme === "scheme-monochrome" || scheme === "scheme-neutral") return tertiary
-        const t = Qt.color(tertiary), p = Qt.color(primary)
-        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
-        if (second) {
-            const s2 = Qt.color(second)
-            if (s2.hslHue >= 0) return Qt.hsla(s2.hslHue, clamp(s2.hslSaturation, 0.3, 0.62), t.hslLightness, 1)
-        }
-        if (p.hslHue < 0) return tertiary
-        return Qt.hsla((p.hslHue + 28 / 360) % 1, clamp(Math.min(p.hslSaturation, t.hslSaturation + 0.15), 0.25, 0.6),
-                       t.hslLightness, 1)
+        return Qt.color(Colour.thirdAccent(hexOf(primary), hexOf(tertiary), second ? hexOf(second) : "", scheme, smartOn))
     }
     // second and third accents: with the vivid accent, the picture's own
     // second and third colours (setwall makes them readable); Material's
@@ -504,9 +484,83 @@ ShellRoot {
         const v = Number(cfg.dockIcon)
         return cfg.dockIcon !== undefined && isFinite(v) ? Math.max(20, Math.min(44, Math.round(v))) : 26
     }
-    readonly property bool dockAutoHide: cfg.dockAutoHide === true
+    // when the dock hides: "never", "always" (until the pointer reaches the
+    // screen's edge), or "windows" (only while a window overlaps it).  The
+    // older on/off setting carries over.
+    readonly property string dockHide: ["never", "always", "windows"].indexOf(cfg.dockHide) >= 0 ? cfg.dockHide
+                                       : (cfg.dockAutoHide === true ? "always" : "never")
+    // it can hide (so it doesn't keep windows out of its space)
+    readonly property bool dockAutoHide: dockHide !== "never"
+    // on every screen, or just the main one
+    readonly property bool dockAllScreens: cfg.dockAllScreens === true
+
+    // ---- "windows": does a window overlap the dock? ----
+    // rect: the dock's area, in the same logical pixels Hyprland uses.  Any
+    // window on the screen's current workspace that overlaps it counts; a
+    // fullscreen one always does.
+    function dockCovered(screenName, rect) {
+        let ws = -999
+        for (const m of Hyprland.monitors.values)
+            if (m.name === screenName) ws = m.activeWorkspace ? m.activeWorkspace.id : -999
+        for (const t of Hyprland.toplevels.values) {
+            const o = t?.lastIpcObject
+            if (!o || !o.at || !o.size || (o.workspace?.id ?? -1000) !== ws) continue
+            if (o.fullscreen && o.fullscreen !== 0) return true
+            const x = o.at[0], y = o.at[1], w = o.size[0], h = o.size[1]
+            if (x < rect.x + rect.w && rect.x < x + w && y < rect.y + rect.h && rect.y < y + h) return true
+        }
+        return false
+    }
+    // window details (where each is) kept fresh while that mode is on: after
+    // window events, and every 1.5 s for floating windows being dragged
+    // (Hyprland doesn't announce those).  A request over its socket, not a
+    // program started.
+    Connections {
+        target: Hyprland
+        enabled: root.dockHide === "windows" && root.dockEnabled
+        function onRawEvent(event) {
+            if (["openwindow", "closewindow", "movewindow", "movewindowv2", "changefloatingmode", "fullscreen",
+                 "workspace", "workspacev2", "activewindow", "activewindowv2", "focusedmon"].indexOf(event.name) >= 0)
+                dockRefresh.restart()
+        }
+    }
+    Timer { id: dockRefresh; interval: 120; onTriggered: Hyprland.refreshToplevels() }
+    Timer {
+        interval: 1500
+        repeat: true
+        running: root.dockHide === "windows" && root.dockEnabled
+        onTriggered: Hyprland.refreshToplevels()
+    }
+
+    // ---- badges: notifications waiting, by dock item ----
+    // matched by the app's desktop file where it gives one, else by name
+    readonly property var dockBadges: {
+        const out = {}
+        const items = dockItems
+        for (const n of notifList) {
+            const desk = normId(n.desktop || "").toLowerCase()
+            const name = String(n.app || "").toLowerCase()
+            for (const it of items) {
+                const id = String(it.id || "").toLowerCase()
+                // "com.spotify.Client" and "spotify" are the same app: one
+                // name is a part of the other (parts of four letters or
+                // more, so short fragments don't match by chance)
+                const part = (a, b) => b.length >= 4 && a.split(".").indexOf(b) >= 0
+                const byDesk = desk && id && (desk === id || part(desk, id) || part(id, desk))
+                const byName = name && (name === String(it.name).toLowerCase() || name === String(it.cls).toLowerCase())
+                if (byDesk || byName) {
+                    out[it.key] = (out[it.key] || 0) + 1
+                    break
+                }
+            }
+        }
+        return out
+    }
+    // which edge of the screen the dock sits on: "bottom", "left" or "right"
+    readonly property string dockEdge: ["bottom", "left", "right"].indexOf(cfg.dockEdge) >= 0 ? cfg.dockEdge : "bottom"
     // space the dock takes at the bottom, for things that sit above it
-    readonly property int dockSpace: (dockEnabled && !dockAutoHide) ? dockIcon + 28 + gap : 0
+    // (none when it's down a side)
+    readonly property int dockSpace: (dockEnabled && !dockAutoHide && dockEdge === "bottom") ? dockIcon + 28 + gap : 0
     // desktop entry ids, without ".desktop"
     readonly property var dockPinned: Array.isArray(cfg.dockPinned) ? cfg.dockPinned : []
 
@@ -545,7 +599,7 @@ ShellRoot {
             if (!e) continue
             const it = { key: "pin:" + id, id: id, cls: "", name: String(e.name || id),
                          icon: Quickshell.iconPath(e.icon, true) || Quickshell.iconPath("application-x-executable"),
-                         pinned: true, running: false, addrs: [], titles: [], act: 0, here: 0, n: 0 }
+                         pinned: true, running: false, addrs: [], act: 0, here: 0, n: 0 }
             byPin[id] = it
             items.push(it)
         }
@@ -554,13 +608,13 @@ ShellRoot {
             const id = e ? root.normId(e.id) : ""
             const pin = id !== "" ? byPin[id] : undefined
             if (pin) {
-                pin.cls = g.cls; pin.running = true; pin.addrs = g.addrs; pin.titles = g.titles
+                pin.cls = g.cls; pin.running = true; pin.addrs = g.addrs
                 pin.act = g.act; pin.here = g.here; pin.n = g.n
             } else {
                 items.push({ key: "win:" + g.cls, id: id, cls: g.cls,
                              name: e ? String(e.name || g.cls) : g.cls,
                              icon: root.iconFor(g.cls), pinned: false, running: true,
-                             addrs: g.addrs, titles: g.titles, act: g.act, here: g.here, n: g.n })
+                             addrs: g.addrs, act: g.act, here: g.here, n: g.n })
             }
         }
         return items
@@ -619,7 +673,21 @@ ShellRoot {
     // cfg.widgets: [{ id, type, screen, x, y, text? }], plain values.
     // Arrange mode lifts them above windows so they can be dragged.
     property bool widgetEdit: false
-    readonly property var widgetTypes: [
+    // the built-in ones, then those from plugins that are on (type
+    // "plugin:<its id>", drawn in the same kind of card, see Widgets.qml)
+    readonly property var widgetTypes: builtinWidgetTypes.concat(
+        plugins.filter(p => p.ok && p.widget && pluginEnabled(p.id) && !pluginErrors[p.id])
+               .map(p => ({ type: "plugin:" + p.id, name: p.widget.name, desc: p.widget.description || p.description, plugin: true })))
+    // a plugin widget's plugin, if it's on and working (null otherwise: its
+    // widgets simply aren't shown, and come back when it's switched on)
+    function pluginWidgetInfo(type) {
+        const t = String(type || "")
+        if (!t.startsWith("plugin:")) return null
+        const id = t.slice(7)
+        const p = plugins.find(x => x.id === id)
+        return p && p.ok && p.widget && pluginEnabled(id) && !pluginErrors[id] ? { id: id, dir: p.dir, file: p.widget.file } : null
+    }
+    readonly property var builtinWidgetTypes: [
         { type: "clock",    name: "Clock",    desc: "The time and date, large" },
         { type: "weather",  name: "Weather",  desc: "Conditions for your location" },
         { type: "calendar", name: "Calendar", desc: "This month, with holidays and today" },
@@ -666,6 +734,141 @@ ShellRoot {
     // Watches the sink rather than the keybinds, so it shows for any
     // source of volume change.  The first reading after startup is
     // ignored, or the OSD would flash every time quickshell restarts.
+    // ---- plugins ------------------------------------------------------
+    // Each plugin is a folder in ~/.config/ether-shell/plugins with a
+    // plugin.json (read and checked strictly by lib/plugins.mjs).  They're
+    // off until switched on in Settings, Plugins.  A plugin that fails to
+    // load is set aside for now, with its error shown there; the rest of the
+    // shell carries on.  Plugins get their toolkit as PluginApi.qml.
+    readonly property string pluginsDir: Quickshell.env("HOME") + "/.config/ether-shell/plugins"
+    property var plugins: []
+    property var pluginErrors: ({})
+    readonly property var pluginsOn: Array.isArray(cfg.pluginsEnabled) ? cfg.pluginsEnabled : []
+    function pluginEnabled(id) { return pluginsOn.indexOf(id) >= 0 }
+    function setPluginEnabled(id, on) {
+        const l = pluginsOn.filter(x => x !== id)
+        if (on) l.push(id)
+        const e = Object.assign({}, pluginErrors); delete e[id]; pluginErrors = e     // a fresh try
+        setting("pluginsEnabled", l)
+    }
+    function pluginBarItems(side) {
+        return plugins.filter(p => p.ok && p.bar && p.bar.side === side && pluginEnabled(p.id) && !pluginErrors[p.id])
+                      .map(p => ({ id: p.id, dir: p.dir, file: p.bar.file }))
+    }
+    // ---- plugins' launcher parts: loaded once each, kept ready while
+    // they're on, and told what's typed (Launcher.qml) ----
+    function pluginLaunchers() {
+        return plugins.filter(p => p.ok && p.launcher && pluginEnabled(p.id) && !pluginErrors[p.id])
+                      .map(p => ({ id: p.id, dir: p.dir, file: p.launcher.file, prefix: p.launcher.prefix, title: p.launcher.title }))
+    }
+    property var pluginProviders: ({})              // id -> the loaded launcher part
+    function setProvider(id, obj) {
+        const o = Object.assign({}, pluginProviders)
+        if (obj) o[id] = obj; else delete o[id]
+        pluginProviders = o
+    }
+    Instantiator {
+        model: ScriptModel { values: Models.keyed(root.pluginLaunchers(), p => p.id); objectProp: "_key" }
+        delegate: QtObject {
+            id: holder
+            required property var modelData
+            property QtObject api: PluginApi { app: root; pluginId: holder.modelData.id; dir: holder.modelData.dir }
+            property QtObject obj: null
+            Component.onCompleted: {
+                const c = Qt.createComponent("file://" + modelData.dir + "/" + modelData.file)
+                if (c.status !== Component.Ready) {
+                    root.pluginFailed(modelData.id, c.status === Component.Error ? c.errorString() : "its launcher part didn't load")
+                    return
+                }
+                obj = c.createObject(holder, { ether: api })
+                if (!obj) { root.pluginFailed(modelData.id, "its launcher part couldn't be created"); return }
+                root.setProvider(modelData.id, obj)
+            }
+            Component.onDestruction: {
+                root.setProvider(modelData.id, null)
+                if (obj) obj.destroy()
+            }
+        }
+    }
+
+    function pluginFailed(id, message) {
+        const e = Object.assign({}, pluginErrors)
+        e[id] = String(message).trim().slice(0, 600)
+        pluginErrors = e
+        console.log("plugin " + id + " set aside: " + e[id])
+    }
+    function pluginSetting(id, key, value) {
+        const all = JSON.parse(JSON.stringify(cfg.pluginSettings || {}))
+        all[id] = all[id] || {}
+        all[id][String(key)] = value
+        setting("pluginSettings", all)
+    }
+    // a command a plugin runs: a list of plain strings, never a shell line
+    function pluginRun(id, command) {
+        if (!Plugins.validCommand(command)) { console.log("plugin " + id + ": not a command: " + JSON.stringify(command)); return }
+        Quickshell.execDetached({ command: command })
+    }
+    // ...and one whose output it wants (at most 16 at a time)
+    property int pluginReads: 0
+    function pluginRead(id, command, callback) {
+        if (!Plugins.validCommand(command) || typeof callback !== "function") { console.log("plugin " + id + ": not a command: " + JSON.stringify(command)); return }
+        if (pluginReads >= 16) { console.log("plugin " + id + ": too many commands at once"); return }
+        pluginReads++
+        pluginReader.createObject(root, { command: command, callback: callback, pluginId: id }).running = true
+    }
+    Component {
+        id: pluginReader
+        Process {
+            id: pr
+            property var callback
+            property string pluginId
+            property int code: 0
+            onExited: code => pr.code = code
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    try { pr.callback(text, pr.code) }
+                    catch (e) { console.log("plugin " + pr.pluginId + ": " + e) }
+                    root.pluginReads = Math.max(0, root.pluginReads - 1)
+                    pr.destroy()
+                }
+            }
+        }
+    }
+    function scanPlugins() { pluginScan.running = true }
+    // Settings, Plugins, "Check plugins": the folder read again, and any
+    // plugin set aside after an error given another try
+    function reloadPlugins() { pluginErrors = ({}); scanPlugins() }
+    Process { id: pluginFolder }
+    function openPluginsFolder() {
+        pluginFolder.command = ["sh", "-c", 'mkdir -p "$1" && exec xdg-open "$1"', "sh", pluginsDir]
+        pluginFolder.running = true
+    }
+    Process {
+        id: pluginScan
+        running: true
+        command: ["sh", "-c", 'for d in "$1"/*/; do [ -f "$d/plugin.json" ] || continue; ' +
+                              'printf "\\036%s\\037" "$(basename "$d")"; head -c 65536 "$d/plugin.json"; done', "sh", root.pluginsDir]
+        stdout: StdioCollector { onStreamFinished: root.plugins = Plugins.parseScan(text, root.pluginsDir) }
+    }
+    IpcHandler {
+        target: "plugins"
+        // look for plugins again (and give set-aside ones another try)
+        function reload(): void { root.reloadPlugins() }
+        // `ether plugin list`: a line per plugin, as the Plugins page sees
+        // them: id|state|name|what it adds, or why it can't be used
+        // (state: on, off, set-aside, unusable)
+        function list(): string {
+            return root.plugins.map(p => {
+                const state = !p.ok ? "unusable" : root.pluginErrors[p.id] ? "set-aside" : root.pluginEnabled(p.id) ? "on" : "off"
+                const adds = [p.bar ? "bar item (" + p.bar.side + ")" : "",
+                              p.launcher ? "launcher" + (p.launcher.prefix ? " (" + p.launcher.prefix + ")" : "") : "",
+                              p.widget ? "widget" : "", p.settings ? "settings" : ""].filter(x => x).join(", ")
+                const why = !p.ok ? p.errors.join("; ") : root.pluginErrors[p.id] ? String(root.pluginErrors[p.id]).split("\n")[0] : adds
+                return [p.id, state, p.name, why].map(x => String(x).replace(/[|\n]/g, " ")).join("|")
+            }).join("\n")
+        }
+    }
+
     // ---- clipboard history -------------------------------------------
     // Entries are { id, preview } plain strings.  Natively (the plugin talks
     // to the compositor's clipboard; see NativeStats.qml) the history keeps
@@ -1189,6 +1392,11 @@ ShellRoot {
 
     // Hyprland publishes its client list natively, so the dock no longer
     // needs the KWin script and journal tail it used on Plasma.
+    //
+    // No window titles in here: they change all the time (a browser tab, the
+    // next song, a terminal command), and each change used to rebuild the
+    // whole dock, every icon recreated.  The menu and tooltips read them
+    // when they're shown (windowsOf).
     readonly property var dockGroups: {
         const out = []
         const idx = {}
@@ -1214,7 +1422,6 @@ ShellRoot {
                 out.push({
                     cls: cls,
                     addrs: [t.lastIpcObject?.address ?? ""],
-                    titles: [t.title ?? ""],
                     act: t === active ? 1 : 0,
                     here: onThis ? 1 : 0,
                     n: 1
@@ -1222,7 +1429,6 @@ ShellRoot {
             } else {
                 const g = out[idx[k]]
                 g.addrs.push(t.lastIpcObject?.address ?? "")
-                g.titles.push(t.title ?? "")
                 g.n += 1
                 if (t === active) g.act = 1
                 if (onThis) g.here = 1
@@ -1231,12 +1437,91 @@ ShellRoot {
         return out
     }
 
+    // an app's windows, read when they're shown (the dock's menu and
+    // tooltips): [{ addr, title, ws, active }]
+    function windowsOf(addrs) {
+        const out = []
+        const active = Hyprland.activeToplevel
+        for (const t of Hyprland.toplevels.values) {
+            const a = t?.lastIpcObject?.address ?? ""
+            if (!a || addrs.indexOf(a) < 0) continue
+            out.push({ addr: a, title: String(t.title || ""), ws: t.lastIpcObject?.workspace?.name ?? "", active: t === active })
+        }
+        return out
+    }
+    // an app's windows themselves, for live previews (the dock, on hover)
+    function toplevelsOf(addrs) {
+        const out = []
+        for (const t of Hyprland.toplevels.values) {
+            const a = t?.lastIpcObject?.address ?? ""
+            if (a && addrs.indexOf(a) >= 0) out.push(t)
+        }
+        return out
+    }
+    // a pinned app moved to another place in the dock (or a running one
+    // pinned right there), `index` counting the pinned apps as they are now
+    function movePin(item, index) {
+        const id = item.id || root.normId(root.entryFor(item.cls)?.id)
+        if (!id) return false
+        const list = root.dockPinned.slice()
+        const from = list.indexOf(id)
+        if (from >= 0) {
+            list.splice(from, 1)
+            if (from < index) index--
+        }
+        list.splice(Math.max(0, Math.min(index, list.length)), 0, id)
+        if (JSON.stringify(list) !== JSON.stringify(root.dockPinned)) setting("dockPinned", list)
+        return true
+    }
+    function focusWindow(addr) {
+        if (addr) Hyprland.dispatch("hl.dsp.focus({ window = \"address:" + addr + "\" })")
+    }
+    // asks the app to close it (so it can save first), like SUPER + Q
+    function closeWindow(addr) {
+        if (addr) Hyprland.dispatch("hl.dsp.window.close({ window = \"address:" + addr + "\" })")
+    }
+    // one of an app's own actions (its desktop file's: "New private
+    // window" and so on), started the way apps are
+    function launchAction(id, index) {
+        const e = DesktopEntries.byId(id)
+        const a = e && e.actions ? e.actions[index] : null
+        if (!a) return
+        try {
+            const cmd = a.command ? Array.from(a.command) : []
+            if (!cmd.length) { a.execute(); return }
+            Quickshell.execDetached({ command: root.appLauncher.concat(cmd),
+                                      workingDirectory: e.workingDirectory || Quickshell.env("HOME"),
+                                      environment: root.appEnv })
+        } catch (err) { a.execute() }
+    }
+    // an app started from the dock: its icon pulses until a window appears
+    // (or 15 seconds pass)
+    property var dockStarting: ({})
+    function dockLaunch(id) {
+        const s = Object.assign({}, dockStarting); s[id] = Date.now(); dockStarting = s
+        startingTimeout.restart()
+        launchApp(id)
+    }
+    function dockStarted(id) {
+        if (dockStarting[id] === undefined) return
+        const s = Object.assign({}, dockStarting); delete s[id]; dockStarting = s
+    }
+    Timer {
+        id: startingTimeout
+        interval: 15000
+        onTriggered: root.dockStarting = ({})
+    }
+    // a started app has a window now
+    onDockItemsChanged: {
+        for (const it of dockItems) if (it.running && it.id && dockStarting[it.id] !== undefined) dockStarted(it.id)
+    }
+
     property var cycleIdx: ({})
 
-    function cycleGroup(cls, addrs) {
+    function cycleGroup(cls, addrs, back) {
         const k = (cls || "?").toLowerCase()
         const cur = root.cycleIdx[k] === undefined ? -1 : root.cycleIdx[k]
-        const next = (cur + 1) % addrs.length
+        const next = back ? (cur < 0 ? addrs.length - 1 : (cur - 1 + addrs.length) % addrs.length) : (cur + 1) % addrs.length
         const m = root.cycleIdx
         m[k] = next
         root.cycleIdx = m
@@ -2416,7 +2701,10 @@ ShellRoot {
         // four times a second while lyrics are following along
         interval: root.cardShown && root.lyricsState === "synced" && root.lyricsOn ? 250
                 : (root.cardShown || root.sidebarShown) ? 500 : 1000
+        // paused, the position doesn't move: only while playing (or while a
+        // media view is open, to follow a seek)
         running: root.player !== null
+                 && (root.player.playbackState === MprisPlaybackState.Playing || root.cardShown || root.sidebarShown)
         repeat: true; triggeredOnStart: true
         onTriggered: root.player?.positionChanged()
     }
@@ -3189,22 +3477,74 @@ ShellRoot {
         return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0
     }
 
+    // `ddcutil detect` probes every bus (a few seconds), and the answer is
+    // nearly always the same on the same machine.  So it's saved with each
+    // monitor's fingerprint (its EDID's checksum) and each bus's name, and at
+    // start-up those are checked instead (a few small files, milliseconds).
+    // The same monitors on the same buses: the saved answer.  Anything
+    // different (a monitor swapped, added or removed; buses renumbered):
+    // ddcutil detect, as before, and its answer saved for next time.
+    //   ~/.cache/ether/ddc-map: connector|bus|edid md5|bus name, a line each
+    readonly property string ddcMapFile: Quickshell.env("HOME") + "/.cache/ether/ddc-map"
     Process {
         id: ddcDetect
         running: true
-        command: ["sh", "-c", "ddcutil detect 2>/dev/null"]
+        command: ["sh", "-c", root.ddcCheckScript, "sh", root.ddcMapFile]
         stdout: StdioCollector {
             onStreamFinished: {
                 const map = {}
-                for (const block of text.split(/\n(?=Display \d)/)) {
-                    const bus = /I2C bus:\s*\/dev\/i2c-(\d+)/.exec(block)
-                    const con = /DRM_connector:\s*card\d+-(\S+)/.exec(block)
-                    if (bus && con) map[con[1]] = parseInt(bus[1])
+                if (text.startsWith("SAVED\n")) {
+                    for (const line of text.split("\n").slice(1)) {
+                        const f = line.split("|")
+                        if (f.length >= 2 && /^\d+$/.test(f[1])) map[f[0]] = parseInt(f[1])
+                    }
+                } else {
+                    for (const block of text.split(/\n(?=Display \d)/)) {
+                        const bus = /I2C bus:\s*\/dev\/i2c-(\d+)/.exec(block)
+                        const con = /DRM_connector:\s*card\d+-(\S+)/.exec(block)
+                        if (bus && con) map[con[1]] = parseInt(bus[1])
+                    }
+                    root.saveDdcMap(map)
                 }
                 root.monBus = map
                 root.readBrightness()
             }
         }
+    }
+    // (SYS: for testing, a pretend /sys)
+    readonly property string ddcCheckScript:
+        'f=$1; sys=${ETHER_SYSFS:-/sys}; ' +
+        // each monitor that's connected now, and its EDID checksum
+        'now=""; for st in "$sys"/class/drm/card*-*/status; do ' +
+        '  [ "$(cat "$st" 2>/dev/null)" = connected ] || continue; d=${st%/status}; c=${d##*/}; c=${c#card*-}; ' +
+        '  now="$now$c|$(md5sum < "$d/edid" 2>/dev/null | cut -c1-32)\n"; done; ' +
+        'if [ -s "$f" ]; then ok=1; saved=""; ' +
+        '  while IFS="|" read -r con bus edid name; do ' +
+        '    [ -n "$con" ] || continue; saved="$saved$con|$edid\n"; ' +
+        '    [ "$bus" = - ] || [ "$(cat "$sys/bus/i2c/devices/i2c-$bus/name" 2>/dev/null)" = "$name" ] || ok=0; ' +
+        '  done < "$f"; ' +
+        // the same monitors, with the same fingerprints, and the same buses
+        '  a=$(printf "$now" | sort); b=$(printf "$saved" | sort); ' +
+        '  if [ "$ok" = 1 ] && [ -n "$a" ] && [ "$a" = "$b" ]; then echo SAVED; cat "$f"; exit 0; fi; ' +
+        'fi; ddcutil detect 2>/dev/null'
+    // the answer, saved with each monitor's fingerprint and its bus's name
+    Process { id: ddcSave }
+    function saveDdcMap(map) {
+        const pairs = Object.keys(map).map(c => c + ":" + map[c])
+        if (!pairs.length) return                       // nothing found: ask again next time
+        ddcSave.command = ["sh", "-c",
+            // every connected monitor: its bus, or "-" for one without
+            // brightness control (a laptop's own screen), so it doesn't look
+            // like a change at every start
+            'f=$1; shift; sys=${ETHER_SYSFS:-/sys}; mkdir -p "$(dirname "$f")"; : > "$f.tmp"; ' +
+            'for st in "$sys"/class/drm/card*-*/status; do ' +
+            '  [ "$(cat "$st" 2>/dev/null)" = connected ] || continue; d=${st%/status}; c=${d##*/}; c=${c#card*-}; ' +
+            '  b=-; for p in "$@"; do [ "${p%%:*}" = "$c" ] && b=${p##*:}; done; ' +
+            '  e=$(md5sum < "$d/edid" 2>/dev/null | cut -c1-32); ' +
+            '  n=""; [ "$b" = - ] || n=$(cat "$sys/bus/i2c/devices/i2c-$b/name" 2>/dev/null); ' +
+            '  printf "%s|%s|%s|%s\n" "$c" "$b" "$e" "$n" >> "$f.tmp"; done; mv "$f.tmp" "$f"',
+            "sh", ddcMapFile].concat(pairs)
+        ddcSave.running = true
     }
 
     // ---- the native route: the plugin talks to the monitors directly ----
@@ -3326,6 +3666,13 @@ ShellRoot {
                         h:     m.height,
                         hz:    m.refreshRate,
                         scale: m.scale,
+                        x:     m.x,
+                        y:     m.y,
+                        transform: (m.transform || 0) % 4,
+                        // Hyprland reports whether it's on right now; the
+                        // setting (on, off, games only) is what was saved
+                        vrr:   (root.cfg.monitors && root.cfg.monitors[m.name] && typeof root.cfg.monitors[m.name].vrr === "number")
+                               ? root.cfg.monitors[m.name].vrr : (m.vrr ? 1 : 0),
                         modes: (m.availableModes || []).map(x => String(x))
                     }))
                 } catch (e) {
@@ -3674,8 +4021,100 @@ ShellRoot {
         monitors: "monitors",
         mainScreen: "main_output", secondScreen: "second_output",
         wsMain: "main_workspaces", wsSecond: "second_workspaces",
-        appTerminalCmd: "terminal", appFilesCmd: "file_manager"
+        appTerminalCmd: "terminal", appFilesCmd: "file_manager",
+        keybinds: "keybinds"
     })
+
+    // ---- the in-game overlay (Settings, Game overlay) ----
+    // MangoHud, drawn inside games: its MangoHud.conf is written from the
+    // settings and the theme (lib/overlay.mjs), again whenever either
+    // changes.  A MangoHud.conf of your own is set aside once, as
+    // MangoHud.conf.before-ether, and put back when the overlay is off.
+    // "All Steam games": a copy of Steam's launcher entry, in
+    // ~/.local/share/applications, starting it with MANGOHUD=1 (MangoHud
+    // leaves Steam's own windows alone).  An entry of your own is left be.
+    readonly property string gameHud: ["off", "steam", "choose"].indexOf(cfg.gameHud) >= 0 ? cfg.gameHud : "off"
+    property bool mangoOk: false
+    Process {
+        id: mangoCheck
+        running: true
+        command: ["sh", "-c", "ls /usr/share/vulkan/implicit_layer.d/*[Mm]ango[Hh]ud*.json >/dev/null 2>&1 && echo yes"]
+        stdout: StdioCollector { onStreamFinished: root.mangoOk = text.trim() === "yes" }
+    }
+    function checkMango() { mangoCheck.running = true }
+    readonly property string mangoConf: gameHud === "off" ? "" : Overlay.mangoConfig({
+        layout: cfg.gameHudLayout, position: cfg.gameHudPos, size: cfg.gameHudSize, hidden: cfg.gameHudHidden === true,
+        colours: { bg: String(cBg), fg: String(cFg), accent: String(cBlue), second: String(cPeach),
+                   third: String(cGreen), red: String(cRed), yellow: String(cYellow) } })
+    onMangoConfChanged: mangoLater.restart()
+    onGameHudChanged: steamLater.restart()
+    Timer { id: mangoLater; interval: 400; onTriggered: { mangoWrite.command = ["sh", "-c", root.mangoScript, "sh", root.mangoConf]; mangoWrite.running = true } }
+    Timer { id: steamLater; interval: 400; onTriggered: { steamWrite.command = ["sh", "-c", root.steamScript, "sh", root.gameHud]; steamWrite.running = true } }
+    Process { id: mangoWrite }
+    Process { id: steamWrite }
+    readonly property string mangoScript:
+        'd="${ETHER_MANGO_DIR:-$HOME/.config/MangoHud}"; f="$d/MangoHud.conf"; ours="Written by Ether Shell"; ' +
+        // off: ours goes, and yours comes back
+        'if [ -z "$1" ]; then ' +
+        '  if [ -f "$f" ] && head -1 "$f" | grep -q "$ours"; then rm -f "$f"; [ -f "$f.before-ether" ] && mv "$f.before-ether" "$f"; fi; exit 0; ' +
+        'fi; mkdir -p "$d"; ' +
+        // yours, kept (once)
+        'if [ -f "$f" ] && ! head -1 "$f" | grep -q "$ours" && [ ! -e "$f.before-ether" ]; then mv "$f" "$f.before-ether"; fi; ' +
+        'printf "%s" "$1" > "$f.tmp"; ' +
+        // the shell's own font, if it can be found
+        'font=$(fc-match -f "%{file}" "Inter:weight=500" 2>/dev/null); ' +
+        'case "$font" in *Inter*.ttf|*Inter*.otf|*Inter*.TTF|*Inter*.OTF) printf "font_file=%s\n" "$font" >> "$f.tmp" ;; esac; ' +
+        'mv "$f.tmp" "$f"'
+    readonly property string steamScript:
+        'o="${ETHER_APPS_DIR:-$HOME/.local/share/applications}/steam.desktop"; src="${ETHER_STEAM_ENTRY:-/usr/share/applications/steam.desktop}"; ' +
+        'if [ "$1" = steam ]; then ' +
+        '  [ -f "$src" ] || exit 0; ' +
+        // one of your own: left be
+        '  if [ -f "$o" ] && ! grep -q "^X-Ether-Overlay=true" "$o"; then exit 0; fi; ' +
+        '  mkdir -p "$(dirname "$o")"; ' +
+        // (no backslashes: they'd be eaten on the way to sed)
+        '  [ "$(head -1 "$src")" = "[Desktop Entry]" ] || exit 0; ' +
+        '  { echo "[Desktop Entry]"; echo "X-Ether-Overlay=true"; ' +
+        '    tail -n +2 "$src" | sed -e "s|^Exec=env MANGOHUD=1 |Exec=|" -e "s|^Exec=|Exec=env MANGOHUD=1 |"; ' +
+        '  } > "$o.tmp" && mv "$o.tmp" "$o"; ' +
+        'else ' +
+        '  if [ -f "$o" ] && grep -q "^X-Ether-Overlay=true" "$o"; then rm -f "$o"; fi; ' +
+        'fi'
+    // copying a command for you to paste (Settings, Game overlay)
+    function copyText(t) { Quickshell.execDetached(["wl-copy", "--", String(t)]) }
+
+    // ---- keybinds (Settings, Keybinds) ----
+    // Only changes are saved, by each shortcut's name (lib/keybinds.mjs);
+    // Hyprland reads them from shell-settings.lua (key() in hyprland.lua).
+    readonly property var keybinds: cfg.keybinds && typeof cfg.keybinds === "object" ? cfg.keybinds : ({})
+    function setKeybind(id, combo) {
+        const o = Object.assign({}, keybinds)
+        const n = Keybinds.normalise(combo)
+        const c = Keybinds.CATALOG.find(x => x.id === id)
+        if (!c || !n) return
+        if (n === c.def) delete o[id]; else o[id] = n
+        setting("keybinds", o)
+    }
+    function resetKeybind(id) {
+        const o = Object.assign({}, keybinds); delete o[id]
+        if (Object.keys(o).length) setting("keybinds", o); else resetSetting("keybinds")
+    }
+    function resetKeybinds() { resetSetting("keybinds") }
+    // While Settings waits for a new shortcut, Hyprland uses its empty keymap
+    // ("ether-keys"), so the keys reach Settings.  keysCapturing turns false
+    // if something else switches it back (Escape, in that keymap).
+    property bool keysCapturing: false
+    function captureKeys(on) {
+        keysCapturing = on
+        Hyprland.dispatch(on ? 'hl.dsp.submap("ether-keys")' : 'hl.dsp.submap("reset")')
+    }
+    Connections {
+        target: Hyprland
+        enabled: root.keysCapturing
+        function onRawEvent(event) {
+            if (event.name === "submap" && String(event.data || "") !== "ether-keys") root.keysCapturing = false
+        }
+    }
 
     // plain values to Lua: booleans, finite numbers, simple strings and
     // tables of them (the monitors table); anything else is dropped

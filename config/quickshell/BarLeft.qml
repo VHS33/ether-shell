@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import "lib/models.mjs" as Models
 
 // ============================================================
 //   LEFT PILL
@@ -149,7 +150,7 @@ Variants {
                     }
 
                     Repeater {
-                        model: app.workspacesFor(app.mainScreen)
+                        model: ScriptModel { values: Models.keyed(app.workspacesFor(app.mainScreen), w => w.id); objectProp: "_key" }
 
                         delegate: Item {
                             id: ws

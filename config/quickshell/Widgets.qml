@@ -132,7 +132,7 @@ Variants {
                     sourceComponent: ({
                         clock: clockC, weather: weatherC, calendar: calendarC,
                         system: systemC, media: mediaC, note: noteC
-                    })[wd.modelData.type] ?? null
+                    })[wd.modelData.type] ?? (String(wd.modelData.type).startsWith("plugin:") ? pluginC : null)
                     property var entry: wd.modelData
                 }
 
@@ -592,6 +592,35 @@ Variants {
         }
 
         // note: its entry carries the text
+        Component {
+            id: pluginC
+            // a plugin's widget: in the same card as the built-in ones, the
+            // plugin drawing only what's inside; nothing at all while its
+            // plugin is off (or couldn't load it)
+            Rectangle {
+                id: pcard
+                readonly property var info: app.pluginWidgetInfo(parent ? parent.entry?.type : "")
+                visible: phl.item !== null && phl.item.inner !== null
+                implicitWidth: visible ? phl.item.implicitWidth + 36 : 0
+                implicitHeight: visible ? phl.item.implicitHeight + 36 : 0
+                radius: 24
+                color: app.cCard
+                border.width: 1
+                border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
+                Loader {
+                    id: phl
+                    anchors.centerIn: parent
+                    active: pcard.info !== null
+                    sourceComponent: PluginHost {
+                        app: rootV.app
+                        pluginId: pcard.info.id
+                        dir: pcard.info.dir
+                        file: pcard.info.file
+                        part: "desktop widget"
+                    }
+                }
+            }
+        }
         Component {
             id: noteC
             Rectangle {

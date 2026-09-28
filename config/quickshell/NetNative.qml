@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Networking
 import Quickshell.Bluetooth
 
@@ -105,7 +106,7 @@ QtObject {
     }
     // a network that fails says why: no password, or a wrong one, asks for it
     property Instantiator failWatch: Instantiator {
-        model: nn.wifiDevices.length ? nn.wifiDevices[0].networks.values : []
+        model: ScriptModel { values: nn.wifiDevices.length ? Array.from(nn.wifiDevices[0].networks.values) : [] }
         delegate: Connections {
             required property var modelData
             target: modelData

@@ -4,6 +4,9 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
+import "lib/text.mjs" as TextLib
+import "lib/plugins.mjs" as Plugins
+import "lib/models.mjs" as Models
 
 // ============================================================
 //   LAUNCHER  (tap SUPER)
@@ -111,13 +114,51 @@ Variants {
 
         // ---- searching ----
         readonly property string q: search.text
+        // a plugin's own prefix (Settings, Plugins): just its results
+        readonly property var launchers: app.pluginLaunchers()
+        readonly property var pluginHit: Plugins.prefixFor(q, launchers)
         readonly property string mode:
+            pluginHit ? "plugin" :
             q.startsWith("=") ? "calc" : q.startsWith(":") ? "emoji"
             : q.startsWith(";") ? "clip" : q.startsWith(">") ? "cmd" : q.startsWith("@") ? "scene"
             : q.startsWith("/") ? "files" : "apps"
         readonly property string term: (mode === "apps" ? q : q.slice(1)).trim().toLowerCase()
         property int sel: 0
-        onQChanged: sel = 0
+        // (a moment later: what's typed changes first, and what it means (the
+        // mode, which plugin, the term) only after; told straight away,
+        // plugins got the previous search, one step behind)
+        onQChanged: { sel = 0; Qt.callLater(feedPlugins) }
+        // tell each plugin what's typed: the one whose prefix it is, or those
+        // without a prefix while you search apps (from two letters); the rest
+        // get nothing, and nothing while the launcher is closed
+        function feedPlugins() {
+            const open = app.launcherShown
+            for (const l of launchers) {
+                const p = app.pluginProviders[l.id]
+                if (!p || p.query === undefined) continue
+                const want = !open ? ""
+                    : pluginHit ? (pluginHit.id === l.id ? pluginHit.term : "")
+                    : (!l.prefix && mode === "apps" && term.length >= 2) ? q.trim() : ""
+                if (p.query !== want) {
+                    try { p.query = want } catch (e) { console.log("plugin " + l.id + ": " + e) }
+                }
+            }
+        }
+        Connections { target: app; function onLauncherShownChanged() { Qt.callLater(lw.feedPlugins) } function onPluginProvidersChanged() { Qt.callLater(lw.feedPlugins) } }
+        // a plugin's results, checked (lib/plugins.mjs), as launcher rows
+        function pluginRows(l, max) {
+            const p = app.pluginProviders[l.id]
+            const rs = p && Array.isArray(p.results) ? p.results : []
+            const out = []
+            for (const r of rs) {
+                const c = Plugins.cleanResult(r)
+                if (!c) continue
+                out.push({ kind: "plugin", pid: l.id, res: c, title: c.title,
+                           sub: (c.subtitle ? c.subtitle + "  \u2022  " : "") + l.title, glyph: c.icon || "extension" })
+                if (out.length >= max) break
+            }
+            return out
+        }
 
         // files: "/" searches only them; typing normally shows the best few
         // under your apps once there are three letters
@@ -141,34 +182,11 @@ Variants {
         }
 
         // one typo: a letter wrong, missing, extra or two swapped ("fierfox")
-        function oneTypo(a, b) {
-            if (Math.abs(a.length - b.length) > 1) return false
-            let i = 0
-            while (i < a.length && i < b.length && a[i] === b[i]) i++
-            if (i === a.length && i === b.length) return true
-            const rest = (x, y) => a.slice(x) === b.slice(y)
-            return rest(i + 1, i + 1) || rest(i + 1, i) || rest(i, i + 1)
-                || (a[i] === b[i + 1] && a[i + 1] === b[i] && rest(i + 2, i + 2))
-        }
+        function oneTypo(a, b) { return TextLib.oneTypo(a, b) }      // lib/text.mjs
 
         // maths: only numbers, operators, brackets and a few named
         // functions ever reach the evaluator
-        function calc(expr) {
-            let e = expr.trim().toLowerCase().replace(/\s+/g, "")
-            if (!e.length) return null
-            if (!/^[0-9+\-*/%^().,a-z]*$/.test(e)) return null
-            const fns = { sqrt: "Math.sqrt", sin: "Math.sin", cos: "Math.cos", tan: "Math.tan",
-                          log: "Math.log10", ln: "Math.log", abs: "Math.abs", round: "Math.round",
-                          floor: "Math.floor", ceil: "Math.ceil", pi: "Math.PI", e: "Math.E" }
-            const words = e.match(/[a-z]+/g) || []
-            for (const w of words) if (!(w in fns)) return null
-            e = e.replace(/[a-z]+/g, w => fns[w]).replace(/\^/g, "**").replace(/,/g, ".")
-            try {
-                const v = Function('"use strict"; return (' + e + ')')()
-                if (typeof v !== "number" || !isFinite(v)) return null
-                return Number.isInteger(v) ? String(v) : String(parseFloat(v.toPrecision(12)))
-            } catch (err) { return null }
-        }
+        function calc(expr) { return TextLib.calc(expr) }      // lib/text.mjs
         readonly property bool looksLikeMaths: /^[0-9.(\s]/.test(q) && /[0-9]\s*[-+*/^%]\s*[0-9(]/.test(q)
 
         readonly property var commands: [
@@ -189,6 +207,14 @@ Variants {
 
         readonly property var results: {
             const t = term, out = []
+            if (mode === "plugin") {
+                const l = launchers.find(x => x.id === pluginHit.id)
+                const rows = l ? pluginRows(l, 40) : []
+                if (rows.length) return rows
+                return [{ kind: "info", glyph: "extension",
+                          title: pluginHit.term === "" ? "Type to search " + (l ? l.title : "") : "Nothing from " + (l ? l.title : "") + " yet",
+                          sub: l ? "A plugin (Settings, Plugins)" : "" }]
+            }
             if (mode === "calc") {
                 const v = calc(t)
                 out.push({ kind: "calc", title: v !== null ? v : (t.length ? "\u2026" : "Type a sum"),
@@ -297,6 +323,9 @@ Variants {
             for (const a of scored.slice(0, t === "" ? 24 : files.length ? 8 : 40))
                 out.push({ kind: "app", title: a.title, sub: a.sub, icon: a.icon, id: a.id })
             for (const f of files) out.push(f)
+            // plugins without a prefix: a few each, labelled with their name
+            if (t.length >= 2)
+                for (const l of launchers) if (!l.prefix) for (const r of pluginRows(l, 4)) out.push(r)
             if (t !== "")
                 out.push({ kind: "web", title: "Search the web for \u201c" + q.trim() + "\u201d",
                            sub: "Opens in your browser", glyph: "travel_explore" })
@@ -345,6 +374,15 @@ Variants {
                 app.sceneRestore(r.name)
             } else if (r.kind === "scenesave") {
                 app.sceneSave(r.name)
+            } else if (r.kind === "plugin") {
+                // the plugin's own activate(), if it has one; otherwise what
+                // the result says: copy, open or run (checked already)
+                const p = app.pluginProviders[r.pid]
+                if (p && typeof p.activate === "function") {
+                    try { p.activate(r.res.data) } catch (e) { console.log("plugin " + r.pid + ": " + e) }
+                } else if (r.res.copy !== undefined) app.pluginRun(r.pid, ["wl-copy", "--", r.res.copy])
+                else if (r.res.open) app.pluginRun(r.pid, ["xdg-open", r.res.open])
+                else if (r.res.run) app.pluginRun(r.pid, r.res.run)
             } else if (r.kind === "cmd") {
                 const a = r.act
                 if (a === "lock") sh("sleep 0.3; loginctl lock-session")
@@ -435,7 +473,7 @@ Variants {
                         anchors.rightMargin: 18
                         spacing: 12
                         Text {
-                            text: lw.mode === "calc" ? "calculate" : lw.mode === "emoji" ? "mood"
+                            text: lw.mode === "plugin" ? "extension" : lw.mode === "calc" ? "calculate" : lw.mode === "emoji" ? "mood"
                                 : lw.mode === "clip" ? "content_paste" : lw.mode === "cmd" ? "terminal"
                                 : lw.mode === "scene" ? "view_quilt" : "search"
                             color: app.cBlue
@@ -556,7 +594,7 @@ Variants {
                     clip: true
                     spacing: 2
                     boundsBehavior: Flickable.StopAtBounds
-                    model: lw.results
+                    model: ScriptModel { values: Models.keyed(lw.results, r => r.kind + ":" + (r.id || r.path || r.pid || r.act || r.name || r.emoji || r.title)); objectProp: "_key" }
                     currentIndex: lw.sel
                     highlightFollowsCurrentItem: true
                     highlightMoveDuration: app.animQuick

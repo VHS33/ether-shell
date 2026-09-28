@@ -7,6 +7,7 @@ import Quickshell.Widgets
 import Quickshell.Services.SystemTray
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
+import "lib/models.mjs" as Models
 
 // ============================================================
 //   RIGHT ISLAND: QUICK SETTINGS
@@ -556,6 +557,9 @@ Variants {
                     anchors.centerIn: parent
                     spacing: 6
 
+                    // plugins' bar items for this side (Settings, Plugins)
+                    PluginBarItems { app: rootV.app; side: "right" }
+
                     // a running timer (or stopwatch), so it's visible without opening anything
                     Rectangle {
                         visible: app.timerOn || app.swOn
@@ -674,6 +678,26 @@ Variants {
                                     font.pixelSize: app.fs(12)
                                 }
                                 HoverHandler { id: netHov }
+                            }
+
+                            // ---- the game overlay (Settings, Game overlay): shows or hides
+                            // the frame rate, in a game too (MangoHud rereads its config
+                            // as soon as it changes); right-click: its settings ----
+                            Seg {
+                                app: rootV.app
+                                visible: app.gameHud !== "off"
+                                lit: app.cfg.gameHudHidden !== true
+                                onClicked: m => {
+                                    if (m.button === Qt.RightButton) { app.settingsPage = 25; app.settingsShown = true }
+                                    else app.setting("gameHudHidden", app.cfg.gameHudHidden !== true)
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "speed"
+                                    color: app.cfg.gameHudHidden !== true ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.55)
+                                    font.family: "Material Symbols Rounded"
+                                    font.pixelSize: app.fs(17)
+                                }
                             }
 
                             // ---- notifications: a bell, with a dot when there are some ----
@@ -1980,7 +2004,9 @@ Variants {
                             spacing: 6
 
                             Repeater {
-                                model: app.notifGroups
+                                // a group's key says what's in it: a group that gains a notification also
+                            // moves to the top, and ScriptModel keeps a moved item's old contents
+                            model: ScriptModel { values: Models.keyed(app.notifGroups, g => g.app + "~" + g.items.length + "~" + (g.items[0] ? g.items[0].id : "")); objectProp: "_key" }
                                 delegate: Rectangle {
                                     id: grp
                                     required property var modelData

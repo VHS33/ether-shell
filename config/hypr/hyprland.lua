@@ -43,7 +43,10 @@ local function int(v, default, lo, hi)
 end
 
 -- Monitors.  The panel's Displays page writes S.monitors as
---   { ["DP-1"] = { mode = "3840x2160@239.99", position = "0x1440", scale = 1.25 } }
+--   { ["DP-1"] = { mode = "3840x2160@239.99", position = "0x1440", scale = 1.25,
+--                  transform = 0, vrr = 1 } }
+-- (transform: 0 as it is, 1 90 degrees, 2 180, 3 270; vrr: 0 off, 1 on,
+--  2 only for fullscreen apps such as games)
 -- and reverts on its own unless the change is confirmed.  Anything
 -- missing or malformed falls back to the defaults given here.
 local M = type(S.monitors) == "table" and S.monitors or {}
@@ -54,13 +57,18 @@ local function monitor(output, def)
                  and m.mode or def.mode
     local pos  = (type(m.position) == "string" and m.position:match("^%-?%d+x%-?%d+$"))
                  and m.position or def.position
-    hl.monitor({
+    local rule = {
         output   = output,
         mode     = mode,
         position = pos,
         scale    = (type(m.scale) == "number" and m.scale >= 0.5 and m.scale <= 3)
                    and m.scale or def.scale,
-    })
+    }
+    -- only when set on the Displays page; otherwise Hyprland's own
+    if type(m.transform) == "number" and m.transform >= 0 and m.transform <= 3
+            and m.transform == math.floor(m.transform) then rule.transform = m.transform end
+    if type(m.vrr) == "number" and (m.vrr == 0 or m.vrr == 1 or m.vrr == 2) then rule.vrr = m.vrr end
+    hl.monitor(rule)
 end
 
 -- Only monitors set up on the Displays page get a rule.  Any other
@@ -429,14 +437,33 @@ hl.device({
 hl.env("QT_QPA_PLATFORMTHEME", "kde")
 local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 
+-- Keys changed in Settings, Keybinds: S.keybinds = { close = "SUPER + W" },
+-- by each shortcut's name.  Anything missing or odd keeps its default.
+-- (The names and defaults match config/quickshell/lib/keybinds.mjs; a test
+-- keeps them in step.)
+local KB = type(S.keybinds) == "table" and S.keybinds or {}
+local function key(name, default)
+    local v = KB[name]
+    if type(v) == "string" and #v <= 60 and v:match("^[%w_ +]+$") then return v end
+    return default
+end
+
+-- While Settings waits for you to press a new shortcut, Hyprland switches to
+-- this empty keymap, so the keys reach Settings instead of doing their
+-- usual thing.  Settings switches back straight after; Escape does too, and
+-- so does Settings after 10 seconds, so you're never left without keys.
+hl.define_submap("ether-keys", function()
+    hl.bind("Escape", hl.dsp.submap("reset"), { description = "Back to your keys" })
+end)
+
 -- MORE BINDS I GUESS, see https://wiki.hypr.land/Configuring/Basics/Binds/ for more
 
 -- ---- apps -----------------------------------------------------
-hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(app(terminal)),
+hl.bind(key("terminal", mainMod .. " + T"), hl.dsp.exec_cmd(app(terminal)),
         { description = "Terminal" })
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(app(fileManager)),
+hl.bind(key("files", mainMod .. " + E"), hl.dsp.exec_cmd(app(fileManager)),
         { description = "File manager" })
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu),
+hl.bind(key("app_menu", mainMod .. " + R"), hl.dsp.exec_cmd(menu),
         { description = "App menu" })
 
 -- the shell's own launcher: apps, maths, emoji, clipboard, commands
@@ -444,24 +471,24 @@ hl.bind("SUPER_L", hl.dsp.exec_cmd("qs ipc call launcher toggle"),
     { release = true, ignore_mods = true, description = "Launcher (tap SUPER)" })
 
 -- ---- windows --------------------------------------------------
-hl.bind(mainMod .. " + Q", hl.dsp.window.close(),
+hl.bind(key("close", mainMod .. " + Q"), hl.dsp.window.close(),
         { description = "Close window" })
-hl.bind(mainMod .. " + C", hl.dsp.window.close(),
+hl.bind(key("close_alt", mainMod .. " + C"), hl.dsp.window.close(),
         { description = "Close window" })
-hl.bind(mainMod .. " + SHIFT + V", hl.dsp.window.float({ action = "toggle" }),
+hl.bind(key("float", mainMod .. " + SHIFT + V"), hl.dsp.window.float({ action = "toggle" }),
         { description = "Toggle floating" })
-hl.bind(mainMod .. " + P", hl.dsp.window.pseudo(),
+hl.bind(key("pseudo", mainMod .. " + P"), hl.dsp.window.pseudo(),
         { description = "Toggle pseudotile" })
-hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"),
+hl.bind(key("split", mainMod .. " + J"), hl.dsp.layout("togglesplit"),
         { description = "Toggle split direction" })
 
-hl.bind(mainMod .. " + left",  hl.dsp.focus({ direction = "left" }),
+hl.bind(key("focus_left", mainMod .. " + left"),  hl.dsp.focus({ direction = "left" }),
         { description = "Focus left" })
-hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }),
+hl.bind(key("focus_right", mainMod .. " + right"), hl.dsp.focus({ direction = "right" }),
         { description = "Focus right" })
-hl.bind(mainMod .. " + up",    hl.dsp.focus({ direction = "up" }),
+hl.bind(key("focus_up", mainMod .. " + up"),    hl.dsp.focus({ direction = "up" }),
         { description = "Focus up" })
-hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }),
+hl.bind(key("focus_down", mainMod .. " + down"),  hl.dsp.focus({ direction = "down" }),
         { description = "Focus down" })
 
 -- Window keys.  Each one is set up through safeBind: if Hyprland ever
@@ -477,26 +504,26 @@ local function safeBind(keys, make, opts)
 end
 
 -- fullscreen, and maximised (fills the screen but keeps the bar and gaps)
-safeBind(mainMod .. " + F", function()
+safeBind(key("fullscreen", mainMod .. " + F"), function()
     return hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }) end,
     { description = "Fullscreen" })
-safeBind(mainMod .. " + SHIFT + F", function()
+safeBind(key("maximise", mainMod .. " + SHIFT + F"), function()
     return hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }) end,
     { description = "Maximise" })
 
 -- move the window, and resize it (hold to keep going)
 for _, d in ipairs({ { key = "left", x = -40, y = 0 }, { key = "right", x = 40, y = 0 },
                      { key = "up", x = 0, y = -40 },   { key = "down", x = 0, y = 40 } }) do
-    safeBind(mainMod .. " + SHIFT + " .. d.key, function()
+    safeBind(key("move_" .. d.key, mainMod .. " + SHIFT + " .. d.key), function()
         return hl.dsp.window.move({ direction = d.key }) end,
         { description = "Move window " .. d.key })
-    safeBind(mainMod .. " + CTRL + " .. d.key, function()
+    safeBind(key("resize_" .. d.key, mainMod .. " + CTRL + " .. d.key), function()
         return hl.dsp.window.resize({ x = d.x, y = d.y, relative = true }) end,
         { description = "Resize window " .. d.key, repeating = true })
 end
 
 -- back to the last workspace on this monitor
-safeBind(mainMod .. " + Tab", function()
+safeBind(key("last_workspace", mainMod .. " + Tab"), function()
     return hl.dsp.focus({ workspace = "previous_per_monitor" }) end,
     { description = "Last workspace" })
 
@@ -506,38 +533,38 @@ hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(),
         { mouse = true, description = "Resize window" })
 
 -- ---- shell ----------------------------------------------------
-hl.bind("ALT + Tab", hl.dsp.exec_cmd("qs ipc call overview toggle"),
+hl.bind(key("overview", "ALT + Tab"), hl.dsp.exec_cmd("qs ipc call overview toggle"),
         { description = "Workspace overview" })
 -- the clipboard panel, down the right side
-hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"),
+hl.bind(key("clipboard", mainMod .. " + V"), hl.dsp.exec_cmd("qs ipc call clipboard toggle"),
         { description = "Clipboard history" })
-hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call ai toggle"),
+hl.bind(key("ai", mainMod .. " + A"), hl.dsp.exec_cmd("qs ipc call ai toggle"),
         { description = "AI assistant" })
-hl.bind(mainMod .. " + slash", hl.dsp.exec_cmd("qs ipc call cheatsheet toggle"),
+hl.bind(key("cheatsheet", mainMod .. " + slash"), hl.dsp.exec_cmd("qs ipc call cheatsheet toggle"),
         { description = "This cheatsheet" })
 
 -- ---- system ---------------------------------------------------
-hl.bind(mainMod .. " + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/shot"),
+hl.bind(key("shot", mainMod .. " + S"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/shot"),
         { description = "Screenshot region" })
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/shot full"),
+hl.bind(key("shot_full", mainMod .. " + SHIFT + S"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/shot full"),
         { description = "Screenshot screen" })
-hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/ocr"),
+hl.bind(key("ocr", mainMod .. " + SHIFT + T"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/ocr"),
         { description = "Copy text from the screen" })
 -- the wallpaper selector (the rofi list if the shell isn't running)
-hl.bind(mainMod .. " + H", hl.dsp.exec_cmd(
+hl.bind(key("wallpaper", mainMod .. " + H"), hl.dsp.exec_cmd(
     "qs ipc call wallpaper toggle || " .. os.getenv("HOME") .. "/.local/bin/setwall"),
         { description = "Wallpaper selector" })
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"),
+hl.bind(key("lock", mainMod .. " + L"), hl.dsp.exec_cmd("hyprlock"),
         { description = "Lock screen" })
 -- Ether Shell's panels.  (There's no key that quits Hyprland outright: Log out is
 -- in the power menu, behind a countdown, so one slip can't end the session.)
-hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call quick toggle"),
+hl.bind(key("quick", mainMod .. " + N"), hl.dsp.exec_cmd("qs ipc call quick toggle"),
         { description = "Quick settings" })
-hl.bind(mainMod .. " + X", hl.dsp.exec_cmd("qs ipc call power toggle"),
+hl.bind(key("power", mainMod .. " + X"), hl.dsp.exec_cmd("qs ipc call power toggle"),
         { description = "Power menu" })
-hl.bind(mainMod .. " + comma", hl.dsp.exec_cmd("qs ipc call settings toggle"),
+hl.bind(key("settings", mainMod .. " + comma"), hl.dsp.exec_cmd("qs ipc call settings toggle"),
         { description = "Settings" })
-hl.bind(mainMod .. " + period", hl.dsp.exec_cmd("qs ipc call launcher emoji"),
+hl.bind(key("emoji", mainMod .. " + period"), hl.dsp.exec_cmd("qs ipc call launcher emoji"),
         { description = "Emoji picker" })
 
 -- ---- workspaces -----------------------------------------------

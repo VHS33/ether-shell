@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "lib/models.mjs" as Models
 
 // ============================================================
 //   AI ASSISTANT  (SUPER + A, or the sparkle at the bar's left)
@@ -28,14 +29,22 @@ Variants {
     LazyLoader {
         id: perScreen
         required property var modelData
-        // Built the first time it's opened, then kept for instant opening:
-        // nothing sits in memory for a panel that's never used.
+        // Built the first time it's opened, kept while it's in use, and
+        // released a while after it closes (the Timer in its window).
         property bool used: false
         active: modelData.name === app.mainScreen && (used || app.aiShown)
         onActiveChanged: if (active) used = true
 
     PanelWindow {
         id: aw
+
+        // Released 10 minutes after it closes (it's rarely open): its memory
+        // back.  Opening it again builds it afresh, a moment's work.
+        Timer {
+            interval: 600000
+            running: !app.aiShown
+            onTriggered: Qt.callLater(() => { perScreen.used = false })
+        }
         readonly property var modelData: perScreen.modelData
         screen: modelData
         visible: modelData.name === app.mainScreen
@@ -255,7 +264,7 @@ Variants {
                         clip: true
                         spacing: 12
                         boundsBehavior: Flickable.StopAtBounds
-                        model: app.aiMessages
+                        model: ScriptModel { values: Models.keyed(app.aiMessages, m => m.role); objectProp: "_key" }
                         delegate: Item {
                             id: msg
                             required property var modelData

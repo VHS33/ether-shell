@@ -232,7 +232,7 @@ Variants {
                     spacing: 14
 
                     Repeater {
-                        model: app.mainWorkspaces
+                        model: ScriptModel { values: app.mainWorkspaces }
 
                         delegate: Item {
                             id: tile

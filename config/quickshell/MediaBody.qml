@@ -152,7 +152,7 @@ Item {
             visible: app.playerList.length > 1
             spacing: 6
             Repeater {
-                model: app.playerList
+                model: ScriptModel { values: app.playerList; objectProp: "key" }
                 delegate: Rectangle {
                     id: pl
                     required property var modelData

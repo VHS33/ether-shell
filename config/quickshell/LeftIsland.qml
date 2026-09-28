@@ -644,6 +644,9 @@ Variants {
                         }
                     }
                 
+                    // ---- plugins' bar items for this side (Settings, Plugins) ----
+                    PluginBarItems { app: rootV.app; side: "left" }
+
                     // ---- the active window: its icon and title ----
                     // Always shown ("Desktop" with nothing focused), so it never
                     // appears and disappears.
@@ -866,7 +869,9 @@ Variants {
                             }
 
                             Repeater {
-                                model: app.topProcs
+                                // (a plain list: it re-sorts and updates its numbers at every refresh, and
+                            // ScriptModel keeps an item's old contents when it moves)
+                            model: app.topProcs
                                 delegate: RowLayout {
                                     id: pr
                                     required property var modelData

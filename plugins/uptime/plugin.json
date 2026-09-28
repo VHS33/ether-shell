@@ -1,0 +1,9 @@
+{
+    "id": "uptime",
+    "name": "Uptime",
+    "description": "How long since the computer started, on the bar. Click it for a notification. (An example plugin: a good place to start writing your own.)",
+    "version": "1.0",
+    "author": "Ether Shell",
+    "api": 1,
+    "bar": { "file": "Bar.qml", "side": "left" }
+}

@@ -418,3 +418,126 @@ pointing at `/bin/false`, so D-Bus can't auto-start another daemon.
   sign-in just before launching, and without that mark the script falls back
   to agreety (so a broken login screen never locks anyone out). Rehearsed on
   a pretend root with ETHER_ROOT.
+
+## Checks and tests
+
+`tests/run.sh` runs everything (`--quick` skips the plugin build), and
+GitHub runs it on every push (.github/workflows/checks.yml):
+
+- shellcheck on every script, qmllint on every QML file (syntax errors
+  only: it can't see Quickshell's modules, and its exit code is always 0, so
+  its messages are read), and luac on both Hyprland configs;
+- the logic tests (`node --test tests/*.test.mjs`): the shared rules live in
+  config/quickshell/lib/*.mjs, which the shell imports and Node tests. Put
+  pure logic there, not in the QML, so it can be tested;
+- `awk-parity.test.mjs` runs setwall's own awk readable() against the
+  shell's, so the two can't drift apart (they once differed by a limit);
+- tests/qml/modules.qml runs the modules in Qt's own JavaScript engine,
+  compared with Node;
+- the plugin builds with no warnings.
+
+A check whose tool is missing is skipped, not failed. Each check was
+confirmed to fail on purpose-made mistakes before it was trusted.
+- Plugins: ~/.config/ether-shell/plugins/<id>/plugin.json, read and checked
+  by lib/plugins.mjs (id = folder name, files only inside the folder, "api"
+  no newer than API_VERSION). The shell scans at start (and on
+  `qs ipc call plugins reload`); cfg.pluginsEnabled lists those switched on.
+  PluginBarItems.qml loads each bar item with Qt.createComponent, so a load
+  error is caught (pluginFailed, shown in Settings) instead of breaking the
+  bar, and passes it the toolkit (PluginApi.qml, version 1) as `ether`.
+  Commands from plugins must be argument lists (validCommand): no shell.
+- Displays: MonitorLayout.qml draws the monitors to scale (logical pixels:
+  the mode over the scale, turned by rotation) and lib/layout.mjs decides
+  where a dropped one lands: edge to edge with the nearest neighbour, never
+  overlapping, clicking into line with its start, end or centre when close.
+  A size change (resolution, scale, rotation) settles the others around the
+  main monitor again. The draft keeps x, y, transform and vrr per monitor;
+  Apply writes them into S.monitors (hyprland.lua passes transform and vrr
+  only when set), with the 15-second revert as before. No { ...object }
+  spread in lib/: Qt's engine doesn't read it (tests/qml/modules.qml loads
+  every module to catch that).
+- Launcher parts: "launcher": { file, prefix, title }. The shell loads each
+  enabled one once (an Instantiator; failures go to pluginFailed) and keeps
+  it in pluginProviders. Launcher.qml sets its `query` (a prefix search gets
+  only its plugin; others get the search while you look for apps, from two
+  letters; nothing while closed) with Qt.callLater, since what's typed
+  changes before what it means does (told at once, plugins were a step
+  behind). It shows its `results` (checked by cleanResult: a title; copy,
+  open (web, file, mail) or run) and calls its activate() if it has one.
+- The dock: dockGroups holds no window titles (they change constantly, and
+  each change used to rebuild every icon); tooltips and the menu read them
+  with windowsOf() when shown. Dock.qml feeds its Repeaters through
+  ScriptModels keyed by each item's key, so icons are kept and updated in
+  place. Right-click opens a menu (the app's windows, New window or the
+  app's own actions, pin, close), closed by HyprlandFocusGrab or Escape.
+  Windows close with hl.dsp.window.close({ window = "address:..." }).
+  Prefer ScriptModel over plain lists for any Repeater whose list changes.
+- Dock previews: hovering a running app's icon for 450 ms shows its windows
+  as live ScreencopyViews (capturing only while shown, as the overview and
+  workspace previews do); the pointer can move onto them. Dragging an icon
+  more than 10 px reorders pinned apps, or pins a running one where it's
+  dropped (app.movePin), with a marker for where it lands; a drag is never
+  also a click.
+- Dock hiding: cfg.dockHide is "never", "always" or "windows" (the old
+  dockAutoHide carries over). "windows" asks app.dockCovered() whether a
+  window on the screen's current workspace overlaps the dock's area (a
+  fullscreen one always does), from Hyprland's window details, refreshed
+  after window events and every 1.5 s while that mode is on (floating drags
+  aren't announced). cfg.dockAllScreens builds a dock per screen. Badges
+  (app.dockBadges) count notifications by desktop file (any dot-separated
+  part of four letters or more) or by app name.
+- Dock edges: cfg.dockEdge is "bottom", "left" or "right". Dock.qml works in
+  positions *along* the dock (alongPoint/middle: x at the bottom, y down a
+  side) and places popups with popX/popY (above it, or beside it, centred on
+  an icon). The window is anchored along its edge, its depth the dock plus
+  room for what opens beside it; the icons are a GridLayout (a row or a
+  column), and the hiding strip, overlap area and slide follow the edge.
+  app.dockSpace is only reserved when the dock is at the bottom.
+- Lists that update in place: Repeaters whose list changes often go through
+  ScriptModel { values: Models.keyed(list, x => ...); objectProp: "_key" }
+  (lib/models.mjs gives every item a unique key, numbering repeats; the
+  key must be unique). Tested against Quickshell's own ScriptModel, built
+  alone from its source. Two things learned there:
+  * ScriptModel keeps an item's OLD contents when it moves and changes in
+    the same update. Lists that re-sort and update (the process list) stay
+    plain lists; lists whose items can move with new contents key on those
+    contents too (notification groups: app, count, newest id).
+  * A plain list whose contents are identical isn't rebuilt: Qt compares
+    them. Rebuilds only cost when contents really change (as the dock's
+    window titles did).
+- Rarely used panels (Settings, the cheatsheet, the power menu: 3 minutes;
+  the AI panel: 10) are released a while after they close: a Timer in the
+  panel's window clears its LazyLoader's `used` flag (a Timer can't go in
+  the LazyLoader itself: that's where its content goes). The launcher,
+  sidebar, clipboard and overview stay built, to open instantly.
+- Brightness buses: ~/.cache/ether/ddc-map holds connector|bus|EDID
+  md5|bus name for every connected monitor ("-" for a bus when it has no
+  DDC). At start-up the connected monitors' EDIDs and the buses' names are
+  compared with it; only a difference runs `ddcutil detect` (and saves its
+  answer). ETHER_SYSFS points it at a pretend /sys for tests.
+- The player's position is only polled while playing, or while a media view
+  is open (to follow a seek).
+- Plugin widgets and settings: "widget": { file, name, description } adds a
+  widget type "plugin:<id>" (app.widgetTypes) drawn by Widgets.qml's pluginC
+  in the standard card, only while the plugin is on; "settings": { file }
+  shows under the plugin's card on the Plugins page. Both load through
+  PluginHost.qml (Qt.createComponent, the toolkit as `ether`, failures to
+  pluginFailed). A plugin reads its saved settings from ether.settings and
+  saves with ether.set(key, value).
+- Keybinds: lib/keybinds.mjs lists the changeable shortcuts (name, label,
+  group, default); hyprland.lua uses key("name", default) for each, reading
+  S.keybinds (only changes are saved). tests/keybinds.test.mjs keeps the two
+  in step. While Settings waits for keys, Hyprland is in the empty submap
+  "ether-keys" (Escape inside it resets; Settings resets after 10 s or on
+  closing), so the keys reach Settings instead of firing their binds.
+- Game overlay: lib/overlay.mjs writes MangoHud.conf from the settings
+  (gameHud, gameHudLayout, gameHudPos, gameHudSize, gameHudHidden) and the
+  theme, setting every measurement on or off explicitly;
+  tests/overlay.test.mjs checks each option against MangoHud's example
+  config (tests/MangoHud.conf.example). A MangoHud.conf of the user's own is
+  kept as MangoHud.conf.before-ether and put back when it's off. "All Steam
+  games" writes ~/.local/share/applications/steam.desktop (marked
+  X-Ether-Overlay=true; one of the user's own is left be) with MANGOHUD=1.
+- Shell snippets inside QML strings: no backslashes. JavaScript eats them
+  on the way (\( becomes (, \n a line break), so the shell gets something
+  else; write it without them, and test the script as extracted.

@@ -1,0 +1,448 @@
+#!/bin/sh
+# ether: Ether Shell's own command.
+#
+#   ether doctor                  check the whole setup (it only looks)
+#   ether restart                 restart the shell
+#   ether wallpaper FILE          set a wallpaper (a path, or a name from
+#                                 ~/Pictures/wallpapers), and theme from it
+#   ether wallpaper random        a random one from ~/Pictures/wallpapers
+#   ether wallpaper               open the wallpaper selector
+#   ether theme                   theme everything again from the wallpaper
+#   ether login install|undo      the login screen (asks for your password)
+#   ether login status            which login screen starts
+#   ether plugin list             your plugins, and whether they're working
+#   ether plugin new NAME [--bar --launcher --widget --settings]
+#                                 start a plugin from a template
+#   ether plugin reload           look for plugins again (Check plugins)
+#   ether help                    this list
+#
+# Each one calls what Ether Shell already has (ether-shell, setwall,
+# ether-login, the shell's own controls), so it all works the same either way.
+
+# The suggested fixes are shown as you'd type them, "~" and all.
+# shellcheck disable=SC2088
+
+R="${ETHER_ROOT:-}"            # (for testing: a pretend /etc and /var)
+P="${ETHER_PROC:-/proc}"       # (for testing: a pretend /proc)
+run="${XDG_RUNTIME_DIR:-/tmp}"
+
+if [ -t 1 ]; then g='\033[32m'; y='\033[33m'; r='\033[31m'; b='\033[1m'; n='\033[0m'; else g=; y=; r=; b=; n=; fi
+problems=0; notes=0
+ok()      { printf "  ${g}ok${n}       %s\n" "$*"; }
+note()    { notes=$((notes + 1)); printf "  ${y}note${n}     %s\n" "$*"; }
+problem() { problems=$((problems + 1)); printf "  ${r}problem${n}  %s\n" "$*"; }
+fix()     { printf "           fix: %s\n" "$*"; }
+section() { printf "\n${b}%s${n}\n" "$*"; }
+have()    { command -v "$1" >/dev/null 2>&1; }
+unit_of() { cut -d: -f3 "$P/$1/cgroup" 2>/dev/null | sed 's|.*/||'; }
+
+doctor() {
+    printf "${b}Ether Shell doctor${n} (it only looks; nothing is changed)\n"
+
+    # ---- the shell ----
+    section "Ether Shell"
+    count=$(pgrep -xc quickshell 2>/dev/null); count=${count:-0}
+    if [ "$count" = 0 ]; then
+        problem "it isn't running"
+        fix "~/.local/bin/ether-shell"
+    elif [ "$count" = 1 ]; then
+        ok "running, once ($(unit_of "$(pgrep -xo quickshell)"))"
+    else
+        problem "$count copies are running (two bars, and everything done twice):"
+        for pid in $(pgrep -x quickshell); do printf "           %s in %s\n" "$pid" "$(unit_of "$pid")"; done
+        if [ -f "$HOME/.config/systemd/user/quickshell.service" ]; then
+            fix "a quickshell.service from another setup starts the extra one: mv ~/.config/systemd/user/quickshell.service ~/.config/systemd/user/quickshell.service.off; systemctl --user daemon-reload; ~/.local/bin/ether-shell"
+        else
+            fix "~/.local/bin/ether-shell (it replaces them all with one)"
+        fi
+    fi
+    lib="$HOME/.config/quickshell/lib"
+    if [ -f "$lib/colour.mjs" ] && [ -f "$lib/text.mjs" ]; then ok "its shared logic is in place ($lib)"
+    else problem "its shared logic is missing ($lib): the shell can't load without it"
+         fix "copy config/quickshell/lib/ from Ether Shell into ~/.config/quickshell/lib/"; fi
+    log="$run/ether-shell.log"
+    if [ -f "$log" ]; then
+        errs=$(grep -E "ReferenceError|TypeError|SyntaxError|is not a type|is not installed|Cannot assign|failed to load" "$log" | grep -v "Warnings occurred" | sort -u)
+        if [ -z "$errs" ]; then ok "no errors in its log"
+        else note "its log has $(printf '%s\n' "$errs" | wc -l | tr -d ' ') kind(s) of error (usually harmless, but worth a look):"
+             printf '%s\n' "$errs" | head -4 | cut -c1-150 | sed 's/^/           /'
+             printf "           (all of it: %s)\n" "$log"; fi
+    fi
+
+    # ---- the plugin ----
+    section "The native plugin"
+    so=$(ls "$HOME"/.local/lib/ether-shell/qml/Ether/Native/*.so 2>/dev/null | head -1)
+    if [ -z "$so" ]; then
+        problem "not built: the shell falls back to slower helper programs"
+        fix "from Ether Shell's folder: ./install.sh --no-packages"
+    else
+        ok "installed"
+        if have ldd; then
+            libs=$(ldd "$so" 2>/dev/null)
+            echo "$libs" | grep -q "libpipewire" && ok "visualiser: native (PipeWire)" \
+                || note "visualiser: built without PipeWire, so it uses cava instead"
+            echo "$libs" | grep -q "libwayland-client" && ok "clipboard: native (Wayland)" \
+                || note "clipboard: built without Wayland, so it uses cliphist instead"
+        fi
+        if [ -f "$log" ] && grep -q "Ether.Native.*not installed\|module \"Ether.Native\"" "$log"; then
+            problem "the shell couldn't load it (see $log)"
+            fix "~/.local/bin/ether-shell (it points the shell at the plugin)"
+        fi
+    fi
+
+    # ---- the session ----
+    section "The session"
+    if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        note "not run from inside Hyprland, so its checks are skipped"
+    else
+        errs=$(hyprctl configerrors 2>/dev/null | grep -v '^\s*$')
+        [ -z "$errs" ] && ok "Hyprland's config has no errors" \
+            || { problem "Hyprland reports config errors:"; printf '%s\n' "$errs" | head -5 | sed 's/^/           /'; }
+        hypr=$(pgrep -xo Hyprland)
+        if [ -n "$hypr" ] && grep -q 'wayland-wm@' "$P/$hypr/cgroup" 2>/dev/null; then
+            ok "a UWSM session"
+            for p in hypridle polkit-kde-auth; do
+                pid=$(pgrep -xo "$p"); [ -n "$pid" ] || continue
+                u=$(unit_of "$pid")
+                case "$u" in app-*) ok "$p runs as its own unit" ;;
+                    *) note "$p was started outside UWSM ($u); it will be its own unit from your next login" ;; esac
+            done
+        elif have uwsm; then
+            note "a plain Hyprland session (UWSM is installed: choose \"Hyprland (uwsm-managed)\" at login to use it)"
+        else
+            ok "a plain Hyprland session"
+        fi
+    fi
+
+    # ---- theming ----
+    section "Colours"
+    wall=$(cat "$HOME/.cache/wallpaper" 2>/dev/null)
+    if [ -z "$wall" ] || [ ! -f "$wall" ]; then
+        problem "no wallpaper is set (or its file is gone: ${wall:-none recorded})"
+        fix "pick one: SUPER + H"
+    else
+        ok "wallpaper: $wall"
+        cj="$HOME/.config/quickshell/colors.json"
+        accent=$(sed -n 's/.*"vivid": *"\(#[0-9a-fA-F]*\)".*/\1/p' "$cj" 2>/dev/null | head -1)
+        if [ -z "$accent" ]; then
+            problem "the shell's colours haven't been made yet"
+            fix "qs ipc call wallpaper reapply"
+        else
+            stale=
+            grep -qi "^cursor *$accent" "$HOME/.config/kitty/colors.conf" 2>/dev/null || stale="$stale kitty"
+            grep -qi "${accent#\#}" "$HOME/.config/hypr/colors.lua" 2>/dev/null || stale="$stale window-borders"
+            if [ -z "$stale" ]; then ok "every app has the same accent ($accent)"
+            else problem "some apps have an older theme than the shell:$stale"; fix "qs ipc call wallpaper reapply"; fi
+        fi
+        st="$HOME/.config/matugen/shell-theme"
+        if grep -q '^PREFER=smart' "$st" 2>/dev/null && have md5sum; then
+            want=$(printf '%s' "$wall" | md5sum | cut -c1-32)
+            got=$(sed -n 's/^SEED_FOR=//p' "$st")
+            [ -z "$got" ] || [ "$got" = "$want" ] && ok "the colours are this wallpaper's own" \
+                || { problem "the colours were made for a different wallpaper"; fix "qs ipc call wallpaper reapply"; }
+        fi
+    fi
+
+    # ---- the terminal ----
+    section "Terminal"
+    login=$(basename "$(getent passwd "$(id -un)" | cut -d: -f7)" 2>/dev/null)
+    kshell=$(sed -n 's/^[[:space:]]*shell[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' "$HOME/.config/kitty/user.conf" 2>/dev/null | tail -1)
+    if [ -n "$kshell" ]; then ok "kitty starts $kshell (from ~/.config/kitty/user.conf)"
+    else
+        ok "kitty starts your login shell ($login)"
+        [ "$login" = bash ] && have fish && note "fish is installed but kitty starts bash: put 'shell fish' in ~/.config/kitty/user.conf if you want fish"
+    fi
+
+    # ---- the login screen ----
+    section "Login screen"
+    dm=$(basename "$(readlink "$R/etc/systemd/system/display-manager.service" 2>/dev/null)" 2>/dev/null)
+    if [ "$dm" = greetd.service ] && [ -x "$R/etc/ether-greeter/start" ]; then
+        ok "Ether Shell's login screen (greetd)"
+        if [ -f "$R/var/lib/ether-greeter/background" ]; then
+            if [ -n "$wall" ] && [ -f "$wall" ] && ! cmp -s "$wall" "$R/var/lib/ether-greeter/background"; then
+                note "it shows a different picture from your wallpaper (fine if you chose one of its own in Settings, Lock screen)"
+            else ok "it has your look"; fi
+        else
+            problem "it has nothing to show yet, so it falls back to Ether Nightfall"
+            fix "~/.local/bin/ether-shell (your desktop shares its look when it starts)"
+        fi
+        have agreety || problem "its fallback text login (greetd-agreety) isn't installed"
+    elif [ -n "$dm" ]; then
+        ok "${dm%.service} (Ether Shell's login screen isn't in use; to switch: sudo ~/.local/bin/ether-login install)"
+    else
+        note "no login manager is set up"
+    fi
+
+    # ---- boot ----
+    section "Boot"
+    if have systemd-analyze; then
+        t=$(systemd-analyze 2>/dev/null | sed -n 's/^Startup finished in .*= \(.*\)$/\1/p' | head -1)
+        [ -n "$t" ] && ok "the last boot took $t"
+    fi
+    if have journalctl; then
+        ports=$(journalctl -b -k --no-pager 2>/dev/null | sed -n 's/.*usb \([0-9][0-9.-]*\): device descriptor read.*error -110.*/\1/p' | sort -u)
+        if [ -z "$ports" ]; then ok "no USB device held up the boot"
+        else
+            for p in $ports; do
+                c=$(journalctl -b -k --no-pager 2>/dev/null | grep -c "usb $p: .*error -110\|usb $p: Device not responding")
+                problem "USB port $p has something that never answers ($c timeouts this boot), which slows the boot"
+            done
+            if ls "$R"/etc/udev/rules.d/*dead-usb-port* >/dev/null 2>&1; then
+                note "a rule switching off a dead port is installed; if it's a different port, it needs updating"
+            else fix "unplug what's on that port, or ask for a rule that switches it off"; fi
+        fi
+    fi
+
+    # ---- the game overlay, and plugins ----
+    section "Extras"
+    sj="$HOME/.config/quickshell/settings.json"
+    if grep -Eq '"gameHud" *: *"(steam|choose)"' "$sj" 2>/dev/null; then
+        if ls /usr/share/vulkan/implicit_layer.d/*[Mm]ango[Hh]ud*.json >/dev/null 2>&1; then ok "the game overlay: on, and MangoHud is installed"
+        else problem "the game overlay is on, but MangoHud isn't installed (it draws it)"
+             fix "sudo pacman -S mangohud lib32-mangohud"; fi
+    else ok "the game overlay: off (Settings, Game overlay)"; fi
+    if running && out=$(qs ipc call plugins list 2>/dev/null) && [ -n "$out" ]; then
+        n_on=$(printf '%s\n' "$out" | grep -c '|on|')
+        trouble=$(printf '%s\n' "$out" | grep -E '\|(set-aside|unusable)\|')
+        if [ -z "$trouble" ]; then ok "plugins: $n_on on, none with problems"
+        else
+            # (not through a pipe: the notes are counted here, not in a subshell)
+            while IFS='|' read -r id state _ why; do
+                [ -n "$id" ] || continue
+                note "the plugin $id $( [ "$state" = set-aside ] && echo "was set aside" || echo "can't be used"): $why"
+            done <<EOF
+$trouble
+EOF
+            fix "see Settings, Plugins (or: ether plugin list)"
+        fi
+    fi
+
+    # ---- summary ----
+    printf "\n"
+    if [ "$problems" = 0 ]; then printf "${g}All good${n}"; else printf "${r}%s problem(s)${n}" "$problems"; fi
+    [ "$notes" = 0 ] && printf ".\n" || printf ", and %s note(s).\n" "$notes"
+    [ "$problems" = 0 ]
+}
+
+bin="$HOME/.local/bin"
+walls="$HOME/Pictures/wallpapers"
+running() { pgrep -x quickshell >/dev/null 2>&1; }
+needs_shell() { running || { echo "ether: Ether Shell isn't running (start it: ether restart)" >&2; exit 1; }; }
+usage() { sed -n '4,17s/^# \{0,1\}//p' "$0"; }
+plugins="$HOME/.config/ether-shell/plugins"
+
+# ---- ether plugin new: a working plugin from a template ----
+plugin_new() {
+    id=${1:-}; [ $# -gt 0 ] && shift
+    case "$id" in
+        ""|-*) echo "ether: ether plugin new NAME [--bar] [--launcher] [--widget] [--settings]" >&2; return 1 ;;
+    esac
+    # the same rule as Ether Shell's own checker
+    if ! printf '%s' "$id" | grep -Eq '^[a-z0-9][a-z0-9-]{0,39}$'; then
+        echo "ether: a plugin's name is lower-case letters, digits and dashes (like my-plugin)" >&2; return 1
+    fi
+    dir="$plugins/$id"
+    [ -e "$dir" ] && { echo "ether: $dir is there already (nothing changed)" >&2; return 1; }
+    bar=0; launcher=0; widget=0; settings=0
+    for a in "$@"; do
+        case "$a" in
+            --bar) bar=1 ;; --launcher) launcher=1 ;; --widget) widget=1 ;; --settings) settings=1 ;;
+            *) echo "ether: unknown option: $a" >&2; return 1 ;;
+        esac
+    done
+    [ $bar = 0 ] && [ $launcher = 0 ] && [ $widget = 0 ] && bar=1          # a bar item, by default
+    # "my-plugin" -> "My plugin"
+    name=$(printf '%s' "$id" | tr '-' ' ' | sed 's/^./\U&/')
+    prefix="!$(printf '%s' "$id" | tr -d '-' | cut -c1-5)"
+    mkdir -p "$dir"
+
+    parts=""
+    [ $bar = 1 ] && parts="$parts,
+    \"bar\": { \"file\": \"Bar.qml\", \"side\": \"right\" }"
+    [ $launcher = 1 ] && parts="$parts,
+    \"launcher\": { \"file\": \"Launcher.qml\", \"prefix\": \"$prefix\", \"title\": \"$name\" }"
+    [ $widget = 1 ] && parts="$parts,
+    \"widget\": { \"file\": \"Widget.qml\", \"name\": \"$name\", \"description\": \"What $name shows\" }"
+    [ $settings = 1 ] && parts="$parts,
+    \"settings\": { \"file\": \"Settings.qml\" }"
+    cat > "$dir/plugin.json" << JSON
+{
+    "id": "$id",
+    "name": "$name",
+    "description": "What $name does, in a sentence.",
+    "version": "0.1",
+    "author": "$(id -un)",
+    "api": 1$parts
+}
+JSON
+
+    [ $bar = 1 ] && cat > "$dir/Bar.qml" << 'QML'
+import QtQuick
+
+// A bar item.  Its size is what the bar makes room for (implicitWidth and
+// implicitHeight); the click area sits beside the Row, not inside it.
+// Everything from Ether Shell comes through `ether`: see docs/PLUGINS.md.
+Item {
+    id: item
+    property var ether
+    implicitWidth: row.implicitWidth
+    implicitHeight: row.implicitHeight
+
+    Row {
+        id: row
+        spacing: 5
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "extension"                      // a Material Symbols icon name
+            color: item.ether ? item.ether.accent : "white"
+            font.family: item.ether ? item.ether.iconFont : ""
+            font.pixelSize: 16
+        }
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: (item.ether && item.ether.settings.greeting) || "Hello"
+            color: item.ether ? item.ether.fg : "white"
+            font.family: item.ether ? item.ether.font : ""
+            font.pixelSize: item.ether ? item.ether.fs(12) : 12
+        }
+    }
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: item.ether.notify("Hello", "From your new plugin")
+    }
+}
+QML
+
+    [ $launcher = 1 ] && cat > "$dir/Launcher.qml" << 'QML'
+import QtQuick
+
+// A launcher part.  The launcher sets `query` as you type (after this
+// plugin's prefix), and shows `results` whenever they're set: each is
+// { title, subtitle, icon, and copy, open or run }.  To look something up,
+// set results when the answer comes (ether.read, or XMLHttpRequest).
+Item {
+    id: l
+    property var ether
+    property string query: ""
+    property var results: query === "" ? [] : [
+        { title: "You typed “" + query + "”", subtitle: "Enter copies it", icon: "content_copy", copy: query }
+    ]
+}
+QML
+
+    [ $widget = 1 ] && cat > "$dir/Widget.qml" << 'QML'
+import QtQuick
+
+// A desktop widget.  Ether Shell puts it in a card like the built-in ones;
+// this draws only what's inside, at its own size (implicitWidth/Height).
+Column {
+    id: w
+    property var ether
+    spacing: 4
+    Text {
+        text: (w.ether && w.ether.settings.greeting) || "Hello"
+        color: w.ether ? w.ether.accent : "white"
+        font.family: w.ether ? w.ether.font : ""
+        font.pixelSize: 32
+    }
+    Text {
+        text: "from your new plugin"
+        color: w.ether ? w.ether.dim : "white"
+        font.family: w.ether ? w.ether.font : ""
+        font.pixelSize: w.ether ? w.ether.fs(12) : 12
+    }
+}
+QML
+
+    [ $settings = 1 ] && cat > "$dir/Settings.qml" << 'QML'
+import QtQuick
+
+// Its settings, shown under it in Settings, Plugins, while it's on.  Read
+// them from ether.settings; save with ether.set(key, value).
+Column {
+    id: s
+    property var ether
+    spacing: 4
+    Text {
+        text: "Greeting"
+        color: s.ether.dim
+        font.family: s.ether.font
+        font.pixelSize: s.ether.fs(11)
+        font.bold: true
+    }
+    Rectangle {
+        width: Math.min(s.width, 320); height: 36; radius: 18
+        color: Qt.rgba(s.ether.fg.r, s.ether.fg.g, s.ether.fg.b, 0.08)
+        TextInput {
+            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
+            verticalAlignment: TextInput.AlignVCenter
+            text: s.ether.settings.greeting || ""
+            color: s.ether.fg
+            font.family: s.ether.font
+            font.pixelSize: s.ether.fs(13)
+            onEditingFinished: s.ether.set("greeting", text)
+        }
+    }
+}
+QML
+
+    echo "Made $dir:"
+    ls "$dir" | sed 's/^/  /'
+    running && qs ipc call plugins reload >/dev/null 2>&1
+    echo "Switch it on in Settings, Plugins. After changing its files: ether plugin reload."
+    echo "How plugins work, and everything they can use: ~/.config/ether-shell/PLUGINS.md"
+}
+
+# ---- ether plugin list: as the Plugins page sees them ----
+plugin_list() {
+    if running; then
+        out=$(qs ipc call plugins list 2>/dev/null)
+        [ -n "$out" ] || { echo "No plugins in $plugins yet (start one: ether plugin new NAME)"; return 0; }
+        printf '%s\n' "$out" | while IFS='|' read -r id state name what; do
+            case "$state" in
+                on) mark="on        " ;; off) mark="off       " ;;
+                set-aside) mark="set aside " ;; *) mark="can't use " ;;
+            esac
+            printf '  %s %-20s %s\n' "$mark" "$id" "$what"
+        done
+    else
+        echo "Ether Shell isn't running, so which are on isn't known; the folders:"
+        for d in "$plugins"/*/; do [ -f "$d/plugin.json" ] && echo "  $(basename "$d")"; done
+    fi
+}
+
+case "${1:-}" in
+    doctor) doctor ;;
+    restart) exec "$bin/ether-shell" ;;
+    theme) needs_shell; exec qs ipc call wallpaper reapply ;;
+    wallpaper)
+        case "${2:-}" in
+            "") needs_shell; exec qs ipc call wallpaper open ;;
+            random) needs_shell; exec qs ipc call wallpaper random ;;
+            *)
+                f=$2
+                [ -f "$f" ] || [ ! -f "$walls/$f" ] || f="$walls/$f"
+                [ -f "$f" ] || { echo "ether: no such picture: $2 (looked here and in $walls)" >&2; exit 1; }
+                f=$(realpath "$f")
+                # through the shell when it's running (its smart colour, and
+                # it shows the picture at once); otherwise setwall on its own
+                if running; then exec qs ipc call wallpaper set "$f"; else exec "$bin/setwall" "$f"; fi ;;
+        esac ;;
+    login)
+        case "${2:-}" in
+            install|undo) exec sudo "$bin/ether-login" "$2" ;;
+            status) exec "$bin/ether-login" status ;;
+            *) echo "ether: ether login install | undo | status" >&2; exit 1 ;;
+        esac ;;
+    plugin)
+        case "${2:-}" in
+            new) shift 2; plugin_new "$@" ;;
+            list) plugin_list ;;
+            reload) needs_shell; qs ipc call plugins reload >/dev/null && echo "Plugins checked again." ;;
+            *) echo "ether: ether plugin list | new NAME | reload" >&2; exit 1 ;;
+        esac ;;
+    help|-h|--help) usage ;;
+    "") usage; exit 1 ;;
+    *) echo "ether: no such command: $1" >&2; usage >&2; exit 1 ;;
+esac

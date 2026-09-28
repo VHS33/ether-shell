@@ -1,0 +1,10 @@
+{
+    "id": "countdown",
+    "name": "Countdown",
+    "description": "Days until a date of your choosing, on your desktop. Set the event and its date below. (An example plugin: a desktop widget with settings of its own.)",
+    "version": "1.0",
+    "author": "Ether Shell",
+    "api": 1,
+    "widget": { "file": "Widget.qml", "name": "Countdown", "description": "Days until a date of your choosing" },
+    "settings": { "file": "Settings.qml" }
+}

@@ -100,7 +100,16 @@ views take their colours from the album art. Also themed:
 kitty, fish, starship, btop, rofi, GTK and KDE apps, Firefox (through its
 system theme, or Pywalfox) and Discord (through Vencord or Vesktop).
 
-**And:** a dock with pinned and running apps; desktop widgets (clock,
+**The dock.** Pinned apps, then running ones. Hover a running app for live
+previews of its windows; right-click for its windows, a new window, the
+app's own actions (like a private window), pinning and closing; scroll to
+go through its windows; drag icons to reorder them, or to pin a running app
+where you drop it. An app you start pulses until its window appears, and
+one with notifications waiting shows how many. It can stay up, hide, or
+hide only while a window overlaps it, along the bottom or down either side,
+on your main screen or every screen.
+
+**And:** desktop widgets (clock,
 weather, calendar, system, media, notes) that sit behind your windows;
 notification popups with the apps' own buttons and inline replies; an
 on-screen display for volume, microphone, brightness and night light; a
@@ -113,7 +122,23 @@ of SDDM: your wallpaper, blurred, with the clock and a sign-in card on your
 main monitor. It shows the look of whoever signed in last, or a background of
 its own (Settings, Lock screen). See [The login screen](#the-login-screen).
 
-**Settings** has 23 pages: appearance, glass and blur, theme (Material You
+**Plugins.** Add-ons from other people (or you), each a folder in
+`~/.config/ether-shell/plugins`, switched on in Settings, Plugins. They add
+items to the bar, in its own style and your colours, and results to the
+launcher (among the usual ones, or after a prefix of their own), and
+widgets to the desktop, with settings pages of their own; a plugin with
+a mistake is set aside with its error shown, and the rest of the shell
+carries on. Three examples come with Ether Shell (off to begin with): Uptime, on the
+bar; Wikipedia, in the launcher (type `!w` and a few words); and Countdown,
+a desktop widget counting the days to a date you set. To write your own,
+start from a template (`ether plugin new my-plugin`) and see
+[docs/PLUGINS.md](docs/PLUGINS.md).
+
+**Settings** has a search box (or just start typing): it finds any setting
+on any page, by name or description, forgives typos, and takes you straight
+to it. Every shortcut can be changed on its Keybinds page: click one and
+press the keys you want. Its Game overlay page puts frame rate, GPU and CPU
+over your games (MangoHud), in your theme's colours. It has 26 pages: appearance, glass and blur, theme (Material You
 styles, light or dark), wallpaper, bar, windows, dock, notifications, idle,
 lock screen, widgets, displays (with a safe revert), keyboard, mouse, sound,
 per-app volume, microphones, weather, calendar, default apps, the AI
@@ -163,7 +188,12 @@ The installer:
 - sets up the first colour theme if you run it from inside Hyprland;
 - keeps your own kitty settings (like `shell fish`) in
   `~/.config/kitty/user.conf`, which updates never touch, and moves aside any
-  `quickshell.service` from another setup, which would start the shell twice.
+  `quickshell.service` from another setup, which would start the shell twice;
+- installs MangoHud for the game overlay (its 32-bit half too, where the
+  multilib repository is enabled, as it is wherever Steam is), and puts
+  `~/.local/bin` on the session's PATH, so the `ether` command works by name;
+- adds the example plugins (off until you switch them on) and the guide to
+  writing your own, `~/.config/ether-shell/PLUGINS.md`.
 
 Options: `--dry-run`, `--no-packages` (configs only), `--yes` (don't ask).
 
@@ -177,7 +207,10 @@ Options: `--dry-run`, `--no-packages` (configs only), `--yes` (don't ask).
      seconds unless you press Keep.
    - **Wallpaper**: pick one, or add your own images to
      `~/Pictures/wallpapers`.
-3. Press **SUPER + /** any time to see every keybind.
+3. Press **SUPER + /** any time to see every keybind (change any of them in
+   Settings, Keybinds).
+4. Something not right? `ether doctor` checks the whole setup and says what to
+   fix.
 
 ## UWSM (optional)
 
@@ -210,6 +243,8 @@ Lock screen has its background (your wallpaper, or one of its own) and a
 preview.
 
 ## Keybinds
+
+The defaults; change any of them in **Settings, Keybinds**.
 
 | Keys | Does |
 |---|---|
@@ -275,6 +310,11 @@ first line. Change those values in Settings rather than by hand.
 
 ## Troubleshooting
 
+**Start with `~/.local/bin/ether doctor`.** It checks the whole setup (the
+shell and its plugin, your session, colours, terminal, login screen and
+boot) and says, in plain words, what's wrong and the command that fixes it.
+It only looks; nothing is changed.
+
 **No notifications appear.** Another notification daemon has the service.
 Check with
 `busctl --user status org.freedesktop.Notifications | grep Comm=`. It
@@ -326,6 +366,10 @@ run `systemctl --user daemon-reload`.
 
 See [docs/DEVELOPING.md](docs/DEVELOPING.md) for how the shell is put
 together, and the lessons that cost hours to learn.
+
+Before sending a change, run `tests/run.sh`: shell scripts, QML, the
+Hyprland configs, the logic tests and the plugin build, in one go. GitHub
+runs the same checks on every push.
 
 ## License
 
