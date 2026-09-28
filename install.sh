@@ -156,7 +156,7 @@ PACKAGES=(
     # brightness
     ddcutil brightnessctl
     # system
-    networkmanager libnotify xdg-utils curl git python coreutils util-linux procps-ng dbus
+    networkmanager libnotify xdg-utils curl git coreutils util-linux procps-ng dbus
     # Bluetooth, for quick settings (harmless without an adapter)
     bluez bluez-utils
     # the sound a finished timer plays
@@ -303,9 +303,9 @@ if [ -f "$ue" ] && ! grep -q '.local/bin' "$ue"; then
     info "Adding ~/.local/bin to the session's PATH (in $ue), for the ether command"
     [ "$DRY" = 0 ] && printf '\n# Ether Shell'"'"'s commands (ether, setwall...) by name, in every terminal and the launcher\ncase ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac\n' >> "$ue"
 fi
-# the guide to writing plugins, next to them
-[ -f "$HERE/docs/PLUGINS.md" ] && run mkdir -p "$HOME/.config/ether-shell" \
-    && run cp "$HERE/docs/PLUGINS.md" "$HOME/.config/ether-shell/PLUGINS.md"
+# the plugin guide that earlier versions put here is no longer part of
+# Ether Shell
+[ -f "$HOME/.config/ether-shell/PLUGINS.md" ] && run rm -f "$HOME/.config/ether-shell/PLUGINS.md"
 # the example plugins (off until switched on in Settings, Plugins); plugins
 # already there are never overwritten
 if [ -d "$HERE/plugins" ]; then

@@ -14,6 +14,9 @@ import "lib/plugins.mjs" as Plugins
 import "lib/models.mjs" as Models
 import "lib/keybinds.mjs" as Keybinds
 import "lib/overlay.mjs" as Overlay
+import "lib/profiles.mjs" as Profiles
+import qs.common
+import qs.services
 
 ShellRoot {
     id: root
@@ -139,14 +142,29 @@ ShellRoot {
     function scrim(a) { return withAlpha(pal.bg ?? "#1e1e2e", hexA(a)) }
     readonly property string font:   "JetBrainsMono Nerd Font"
 
-    // weather location and units come from Settings > Weather
-    // no location until one is set: a fresh install shouldn't guess
-    readonly property bool wxHasPlace: cfg.wxLat !== undefined && isFinite(Number(cfg.wxLat))
-                                       && cfg.wxLon !== undefined && isFinite(Number(cfg.wxLon))
-    readonly property real wxLat: wxHasPlace ? Number(cfg.wxLat) : 0
-    readonly property real wxLon: wxHasPlace ? Number(cfg.wxLon) : 0
-    readonly property string wxPlace: wxHasPlace ? (cfg.wxPlace || "Your location") : "No location set"
-    readonly property bool wxMetric: cfg.wxUnits === "C"
+    // ---- weather: services/Weather.qml (a singleton; newer code uses
+    //      Weather.<name> directly).  Passed on under the old names. ----
+    readonly property var wxHasPlace: Weather.wxHasPlace
+    readonly property var wxLat: Weather.wxLat
+    readonly property var wxLon: Weather.wxLon
+    readonly property var wxPlace: Weather.wxPlace
+    readonly property var wxMetric: Weather.wxMetric
+    readonly property var wxCond: Weather.wxCond
+    readonly property var wxTemp: Weather.wxTemp
+    readonly property var wxFeel: Weather.wxFeel
+    readonly property var wxHum: Weather.wxHum
+    readonly property var wxWind: Weather.wxWind
+    readonly property var wxHours: Weather.wxHours
+    readonly property var wxHi: Weather.wxHi
+    readonly property var wxLo: Weather.wxLo
+    readonly property var wxDay: Weather.wxDay
+    readonly property var wxOk: Weather.wxOk
+    readonly property var wxResults: Weather.wxResults
+    readonly property var wxSearching: Weather.wxSearching
+    function refreshWeather() { Weather.refreshWeather() }
+    function wxSymbol(c, day) { return Weather.wxSymbol(c, day) }
+    function searchPlace(q) { Weather.searchPlace(q) }
+    function setPlace(r) { Weather.setPlace(r) }
     readonly property string notesPath: Quickshell.env("HOME") + "/.config/quickshell/marked-days.txt"
 
     // ---- this machine --------------------------------------------------
@@ -342,27 +360,28 @@ ShellRoot {
         : drawerStartR + (drawerGeom.x + drawerGeom.w - drawerStartR) * drawerP - drawerCurX
     readonly property real drawerCurH: drawerGeom ? drawerGeom.h * drawerP : 0
 
-    property int cpuPct: 0
-    property int gpuPct: 0
-    property int gpuTemp: 0
-    property int gpuMemPct: 0
-    property int gpuWatts: 0
-    property bool gpuOk: false
 
-    property string netDown: "0"
-    property string netUp: "0"
-    property var lastNet: null
-
-    // "0.4 KB/s", "85 KB/s", "1.2 MB/s": always a unit per second
-    function fmtRate(bps) {
-        const k = bps / 1024
-        if (k < 10) return k.toFixed(1) + " KB/s"
-        if (k < 1000) return Math.round(k) + " KB/s"
-        return (k / 1024).toFixed(1) + " MB/s"
-    }
-
-    property int memPct: 0
-    property var lastCpu: null
+    // ---- the machine's readings: services/System.qml (a singleton; newer
+    //      code uses System.<name> directly).  Passed on under the old names. ----
+    readonly property var cpuPct: System.cpuPct
+    readonly property var gpuPct: System.gpuPct
+    readonly property var gpuTemp: System.gpuTemp
+    readonly property var gpuMemPct: System.gpuMemPct
+    readonly property var gpuWatts: System.gpuWatts
+    readonly property var gpuOk: System.gpuOk
+    readonly property var netDown: System.netDown
+    readonly property var netUp: System.netUp
+    readonly property var memPct: System.memPct
+    readonly property var cpuHist: System.cpuHist
+    readonly property var memHist: System.memHist
+    readonly property var gpuHist: System.gpuHist
+    readonly property var tempHist: System.tempHist
+    readonly property var topProcs: System.topProcs
+    readonly property var aboutInfo: System.aboutInfo
+    readonly property var uptimeText: System.uptimeText
+    function fmtRate(bps) { return System.fmtRate(bps) }
+    function refreshAbout() { System.refreshAbout() }
+    Binding { target: System; property: "watchProcesses"; value: root.sysShown }
 
     // Each monitor owns a block of five workspaces: DP-1 gets 1-5, DP-2 gets
     // 6-10.  Hyprland creates them on demand, so the bar shows all five and
@@ -929,87 +948,6 @@ ShellRoot {
         }
     }
 
-    function refreshWeather() { if (wxHasPlace) wxProc.running = true }
-
-    // ---- about -------------------------------------------------------
-    // one snapshot of the machine, taken when Settings > About opens
-    property var aboutInfo: ({})
-    Process {
-        id: aboutProc
-        command: ["sh", "-c",
-            'echo "host=$(cat /etc/hostname 2>/dev/null)"; '
-            + '. /etc/os-release 2>/dev/null; echo "os=$PRETTY_NAME"; '
-            + 'echo "kernel=$(uname -r)"; '
-            + 'echo "cpu=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed "s/^ *//")"; '
-            + 'echo "cores=$(nproc)"; '
-            + 'echo "gpu=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1)"; '
-            + 'echo "ram=$(( ($(awk \'/MemTotal/ {print $2}\' /proc/meminfo) + 524288) / 1048576 )) GB"; '
-            + 'echo "uptime=$(uptime -p | sed "s/^up //")"; '
-            + 'echo "hyprland=$(hyprctl version -j 2>/dev/null | grep -m1 \"tag\" | cut -d\\\" -f4)"; '
-            + 'echo "quickshell=$(qs --version 2>/dev/null | head -1)"; '
-            + 'echo "shell=$(basename "$SHELL")"']
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const o = {}
-                for (const line of text.split("\n")) {
-                    const i = line.indexOf("=")
-                    if (i > 0) o[line.slice(0, i)] = line.slice(i + 1).trim()
-                }
-                root.aboutInfo = o
-            }
-        }
-    }
-    function refreshAbout() { aboutProc.running = true }
-
-    // place search for Settings > Weather, through Open-Meteo's geocoder;
-    // results are plain values
-    property var wxResults: []
-    property bool wxSearching: false
-    function searchPlace(q) {
-        q = q.trim()
-        if (q === "") { wxResults = []; return }
-        wxSearching = true
-        geoProc.command = ["sh", "-c",
-            'curl -s --max-time 10 -G "https://geocoding-api.open-meteo.com/v1/search" '
-            + '--data-urlencode "name=$1" -d count=6 -d language=en -d format=json',
-            "sh", q]
-        geoProc.running = true
-    }
-    Process {
-        id: geoProc
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.wxSearching = false
-                try {
-                    const r = JSON.parse(text).results || []
-                    root.wxResults = r.map(x => ({
-                        name: x.name,
-                        where: [x.admin1, x.country].filter(v => v).join(", "),
-                        lat: x.latitude,
-                        lon: x.longitude
-                    }))
-                } catch (e) {
-                    root.wxResults = []
-                }
-            }
-        }
-    }
-    function setPlace(r) {
-        const o = Object.assign({}, cfgUser)
-        o.wxLat = r.lat
-        o.wxLon = r.lon
-        o.wxPlace = r.name + (r.where ? ", " + r.where.split(", ")[0] : "")
-        cfgUser = o
-        saveSettings()
-        wxResults = []
-        wxRefreshLater.restart()
-    }
-    // the location or units changed: fetch once the new values are in
-    Timer {
-        id: wxRefreshLater
-        interval: 300
-        onTriggered: root.refreshWeather()
-    }
 
     Process {
         id: clipProc
@@ -1247,7 +1185,6 @@ ShellRoot {
     }
     property var wallpapers: []
 
-    property string uptimeText: ""
 
     property var notifList: []
     property var popups: []
@@ -1372,19 +1309,6 @@ ShellRoot {
         }
     }
     Process { id: notifWrite }
-
-    property string wxCond: ""
-    property string wxTemp: ""
-    property string wxFeel: ""
-    property string wxHum: ""
-    property string wxWind: ""
-    // the next twelve hours ({ time, temp, cond, day, rain }, plain values),
-    // today's high and low, and whether it's daytime where you are
-    property var wxHours: []
-    property string wxHi: ""
-    property string wxLo: ""
-    property bool wxDay: true
-    property bool   wxOk: false
 
     property int monthOffset: 0
     property string selectedKey: ""
@@ -1560,6 +1484,7 @@ ShellRoot {
         lyricsLater.restart()
     }
     onQuickShownChanged: if (quickShown) {
+        BluetoothService.check()             // an adapter plugged in since?
         cardShown = false; sysShown = false; launcherShown = false
         notifUnseen = 0
         quickSettle.restart()
@@ -1650,7 +1575,15 @@ ShellRoot {
     // properties and actions, so the UI doesn't need to know which.
     Loader { id: netNative; source: "NetNative.qml" }
     readonly property bool netNativeOn: netNative.status === Loader.Ready && netNative.item.netOk
+    // Quickshell's own Bluetooth gives up for good if bluetoothd wasn't
+    // running when the shell started, so when there's an adapter it isn't
+    // seeing (the service started later, from the tile), bluetoothctl does
     readonly property bool btNativeOn: netNative.status === Loader.Ready && netNative.item.btOk
+                                       && (netNative.item.btHas || !BluetoothService.adapter)
+    Connections {
+        target: BluetoothService
+        function onStarted() { root.refreshBt() }
+    }
     Binding { target: root; property: "wifiHas";   when: root.netNativeOn; value: netNative.item ? netNative.item.wifiHas : false; restoreMode: Binding.RestoreNone }
     Binding { target: root; property: "wifiOn";    when: root.netNativeOn; value: netNative.item ? netNative.item.wifiOn : false; restoreMode: Binding.RestoreNone }
     Binding { target: root; property: "wifiList";  when: root.netNativeOn; value: netNative.item ? netNative.item.wifiList : []; restoreMode: Binding.RestoreNone }
@@ -2484,20 +2417,6 @@ ShellRoot {
         return cells
     }
 
-    // the same, as a Material Symbol, with night versions
-    function wxSymbol(c, day) {
-        const s = (c || "").toLowerCase()
-        if (s.indexOf("thunder") !== -1) return "thunderstorm"
-        if (s.indexOf("snow") !== -1 || s.indexOf("rime") !== -1) return "weather_snowy"
-        if (s.indexOf("rain") !== -1 || s.indexOf("drizzle") !== -1 || s.indexOf("shower") !== -1) return "rainy"
-        if (s.indexOf("fog") !== -1) return "foggy"
-        if (s.indexOf("overcast") !== -1) return "cloud"
-        if (s.indexOf("cloud") !== -1 || s.indexOf("mainly") !== -1)
-            return day === false ? "partly_cloudy_night" : "partly_cloudy_day"
-        if (s.indexOf("clear") !== -1) return day === false ? "clear_night" : "sunny"
-        return "cloud"
-    }
-
     // manual overrides for apps whose window class doesn't match their
     // .desktop file id
     readonly property var iconOverrides: ({
@@ -2709,83 +2628,6 @@ ShellRoot {
         onTriggered: root.player?.positionChanged()
     }
 
-    // ---- system stats -----------------------------------------------------
-    // Two long-running readers instead of launching four commands (nine
-    // programs) every 2 seconds.  statsProc loops by itself, reading
-    // /proc/stat, /proc/meminfo and /proc/net/dev with the shell's own
-    // built-ins, so the only thing it starts is `sleep`.  gpuStream is one
-    // nvidia-smi in its looping mode, which keeps the driver awake between
-    // readings instead of waking it from scratch each time.  If either
-    // stops, it's started again a few seconds later.
-    Process {
-        id: statsProc
-        command: ["sh", "-c",
-            'while :; do ' +
-            '  read -r _ u n s i w q sq st _ < /proc/stat; ' +
-            '  t=0; a=0; ' +
-            '  while read -r k v _; do case $k in MemTotal:) t=$v;; MemAvailable:) a=$v; break;; esac; done < /proc/meminfo; ' +
-            '  rx=0; tx=0; ' +
-            '  { read -r _; read -r _; while read -r line; do ' +
-            '      name=${line%%:*}; set -- $name; name=$1; [ "$name" = lo ] && continue; ' +
-            '      set -- ${line#*:}; rx=$((rx + $1)); tx=$((tx + $9)); ' +
-            '    done; } < /proc/net/dev; ' +
-            '  echo "S $u $n $s $i $w $q $sq $st $t $a $rx $tx"; ' +
-            '  sleep 2; ' +
-            'done']
-        stdout: SplitParser {
-            onRead: line => {
-                const f = line.trim().split(/\s+/)
-                if (f[0] !== "S" || f.length < 13) return
-                const v = f.slice(1).map(Number)
-                // cpu: busy share of the time since the last reading
-                const total = v[0] + v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7]
-                const idle = v[3] + v[4]
-                if (root.lastCpu) {
-                    const dt = total - root.lastCpu.total, di = idle - root.lastCpu.idle
-                    if (dt > 0) root.cpuPct = Math.round(100 * (dt - di) / dt)
-                }
-                root.lastCpu = { total: total, idle: idle }
-                // memory in use
-                if (v[8] > 0) root.memPct = Math.round((v[8] - v[9]) * 100 / v[8])
-                // network: bytes per second since the last reading
-                const now = Date.now()
-                if (root.lastNet) {
-                    const secs = (now - root.lastNet.t) / 1000
-                    if (secs > 0) {
-                        root.netDown = root.fmtRate(Math.max(0, (v[10] - root.lastNet.rx) / secs))
-                        root.netUp   = root.fmtRate(Math.max(0, (v[11] - root.lastNet.tx) / secs))
-                    }
-                }
-                root.lastNet = { rx: v[10], tx: v[11], t: now }
-                root.recordStats()
-            }
-        }
-        onExited: statsRestart.restart()
-    }
-    Timer { id: statsRestart; interval: 3000; onTriggered: statsProc.running = true }
-
-    Process {
-        id: gpuStream
-        command: ["sh", "-c",
-            "command -v nvidia-smi >/dev/null || exit 0; " +
-            "exec nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw " +
-            "--format=csv,noheader,nounits -lms 2000 2>/dev/null"]
-        stdout: SplitParser {
-            onRead: line => {
-                const p = line.split(",").map(x => parseFloat(x.trim()))
-                if (p.length < 5 || isNaN(p[0])) return
-                root.gpuPct    = Math.round(p[0])
-                root.gpuTemp   = Math.round(p[1])
-                root.gpuMemPct = p[3] > 0 ? Math.round(100 * p[2] / p[3]) : 0
-                root.gpuWatts  = Math.round(p[4])
-                root.gpuOk = true
-            }
-        }
-        // no NVIDIA card, or the driver went away: try again in a while
-        onExited: { root.gpuOk = false; gpuRestart.restart() }
-    }
-    Timer { id: gpuRestart; interval: 15000; onTriggered: gpuStream.running = true }
-
     // ---- the native readers, when the plugin is installed ----
     // NativeStats.qml imports Ether.Native (built from native/ by the
     // installer).  If it loads, it does the stats and the visualiser, and the
@@ -2794,72 +2636,17 @@ ShellRoot {
         id: nativeLoader
         source: "NativeStats.qml"
         onLoaded: { item.home = Quickshell.env("HOME"); item.app = root }
-        onStatusChanged: if (status === Loader.Error) root.startFallbackReaders()
+        onStatusChanged: if (status === Loader.Error) System.startFallbackReaders()
     }
     readonly property bool nativeOk: nativeLoader.status === Loader.Ready
-    function startFallbackReaders() {
-        statsProc.running = true
-        gpuStream.running = true
-    }
 
-    // ---- stats history, for the system panel's graphs ----------------
-    // The last 60 readings of each (two minutes at one every 2 s), as
-    // plain numbers.  Sampled on the clock rather than on change, so a
-    // flat line is still a line and the graphs keep an even pace.
-    property var cpuHist: []
-    property var memHist: []
-    property var gpuHist: []
-    property var tempHist: []
-    function recordStats() {
-        const push = (a, v) => { const b = a.slice(-59); b.push(v); return b }
-        cpuHist = push(cpuHist, cpuPct)
-        memHist = push(memHist, memPct)
-        if (gpuOk) {
-            gpuHist = push(gpuHist, gpuPct)
-            tempHist = push(tempHist, gpuTemp)
-        }
-    }
-
-    // the busiest processes, read only while the system panel is open
     property bool sysShown: false
-    property var topProcs: []
-    Process {
-        id: procsProc
-        command: ["sh", "-c", "ps -eo comm,%cpu,%mem --sort=-%cpu --no-headers | head -5"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const out = []
-                for (const line of text.split("\n")) {
-                    const f = line.trim().split(/\s+/)
-                    if (f.length < 3) continue
-                    const mem = parseFloat(f.pop()), cpu = parseFloat(f.pop())
-                    out.push({ name: f.join(" "), cpu: cpu || 0, mem: mem || 0 })
-                }
-                root.topProcs = out
-            }
-        }
-    }
-    Timer {
-        interval: 2000; repeat: true; triggeredOnStart: true
-        running: root.sysShown
-        onTriggered: procsProc.running = true
-    }
     onSysShownChanged: if (sysShown) {
         aiShown = false
-        upProc.running = true
+        System.refreshUptime()
         cardShown = false
         quickShown = false
         launcherShown = false
-    }
-
-    Timer {
-        interval: 60000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: upProc.running = true
-    }
-
-    Timer {
-        interval: 900000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: root.refreshWeather()
     }
 
     Timer {
@@ -3331,63 +3118,16 @@ ShellRoot {
         }
     }
 
-    // ---- settings ------------------------------------------------------
-    // ~/.config/quickshell/settings.json holds only what has been
-    // changed; everything else comes from cfgDefaults, so a missing or
-    // broken file changes nothing.  Modules read app.cfg.<key> and
-    // size text with app.fs(px).  The settings page writes through
-    // setting(); after hand-editing the file, run
-    //   qs ipc call settings reload
-    readonly property var cfgDefaults: ({
-        fontScale:   1.0,     // 0.7 - 1.6
-        bgOpacity:   0.75,    // 0.3 - 1.0, every shell surface
-        osdMs:       1400,    // volume indicator on screen
-        notifMs:     6000,    // popup life; critical ones get double
-        dockEnabled: true,
-        termOpacity: 0.75,    // kitty background, 0.3 - 1.0
-
-        // Hyprland: these defaults must match the ones at the top of
-        // hyprland.lua, which is what applies when a key is unset
-        gapsIn:      4,
-        gapsOut:     1,
-        borderSize:  2,
-        rounding:    12,
-        winActive:   1.0,
-        winInactive: 1.0,
-        blurSize:    4,
-        blurPasses:  3,
-        animations:  true,
-        animSpeed:   1.0,
-
-        // matugen: colour style and contrast, used by setwall
-        themeScheme:   "scheme-tonal-spot",
-        themeContrast: 0,
-        themePrefer:   "smart",        // Ether Shell's own pick: the subject, skin set aside (native plugin)
-        themeMode:     "dark",
-        nightLight:    false,
-
-        // bar
-        clock24h:     false,
-        clockSeconds: false,
-        clockDate:    true,
-        barStats:     true,     // CPU and memory
-        barGpu:       true,
-        barNet:       true,
-        barMedia:     true,     // now playing, centre of the bar
-
-        // idle, in minutes; 0 means never
-        idleLockMin:   5,
-        idleScreenMin: 10,
-        idleSleepMin:  0,
-
-        // Hyprland input (also in hyprKeys below)
-        repeatRate:    25,
-        repeatDelay:   600,
-        sensitivity:   0,
-        accelFlat:     false,
-        naturalScroll: false,
-        followMouse:   true
-    })
+    // ---- settings: common/Config.qml (a singleton; newer code reads
+    //      Config.cfg directly).  Passed on under the old names. ----
+    readonly property var cfgDefaults: Config.defaults
+    readonly property var cfgUser: Config.user
+    readonly property var cfg: Config.cfg
+    // a setting changed: pass it on to the programs that read it
+    Connections {
+        target: Config
+        function onSettingChanged(key) { root.applyExternal(key) }
+    }
 
     readonly property bool barStats: cfg.barStats !== false
     readonly property bool barGpu:   cfg.barGpu !== false
@@ -3417,33 +3157,15 @@ ShellRoot {
     readonly property bool dockEnabled: cfg.dockEnabled !== false
     readonly property real termOpacity:
         Math.max(0.3, Math.min(1, Number(cfg.termOpacity) || 0.75))
-    property var cfgUser: ({})
-    readonly property var cfg: Object.assign({}, cfgDefaults, cfgUser)
 
     function fs(px) {
         const k = Math.max(0.7, Math.min(1.6, Number(cfg.fontScale) || 1))
         return Math.round(px * k)
     }
 
-    function setting(key, value) {
-        const o = Object.assign({}, cfgUser)
-        o[key] = value
-        cfgUser = o
-        saveSettings()
-        applyExternal(key)
-    }
-    function resetSetting(key) {
-        const o = Object.assign({}, cfgUser)
-        delete o[key]
-        cfgUser = o
-        saveSettings()
-        applyExternal(key)
-    }
-    function resetAllSettings() {
-        cfgUser = ({})
-        saveSettings()
-        applyExternal("*")
-    }
+    function setting(key, value) { Config.setting(key, value) }
+    function resetSetting(key) { Config.resetSetting(key) }
+    function resetAllSettings() { Config.resetAll() }
 
     // Settings that belong to other programs.  kitty reads
     // ~/.config/kitty/shell-settings.conf (included at the end of
@@ -3451,7 +3173,6 @@ ShellRoot {
     // needs `dynamic_background_opacity yes` in kitty.conf.
     function applyExternal(key) {
         if (key === "termOpacity" || key === "*") writeKitty()
-        if (key === "*" || key === "wxUnits" || key === "wxLat") wxRefreshLater.restart()
         if (key === "*" || key === "clock24h" || key === "clockSeconds" || key.startsWith("lock"))
             lockDebounce.restart()
         if (key === "*" || hyprKeys[key] !== undefined) hyprDebounce.restart()
@@ -3747,6 +3468,59 @@ ShellRoot {
         onTriggered: root.refreshMonitors()
     }
 
+    // ---- monitor profiles (Settings, Displays) ----
+    // A saved layout for one set of connected screens (lib/profiles.mjs).
+    // When the screens connected change (a monitor plugged in or out, or a
+    // change while the PC was off: the last set is saved), the profile for
+    // the new set is used, with a notice.  Changing the layout by hand on
+    // the same screens is never undone: only a change of screens switches.
+    readonly property var monProfiles: Profiles.readProfiles(cfg.monitorProfiles)
+    readonly property var screensNowList: Quickshell.screens.map(s => ({ name: s.name, model: s.model, serial: s.serialNumber }))
+    readonly property string screensNow: Profiles.screensKey(screensNowList)
+    readonly property var profileNow: Profiles.findProfile(monProfiles, screensNow)
+    readonly property bool profileNowInUse: profileNow !== null && Profiles.profileInUse(profileNow, cfg.monitors, mainScreen)
+    readonly property bool profilesAuto: cfg.monitorProfilesAuto !== false
+
+    // save the layout now (the Displays page's, as applied) for these
+    // screens.  -> what happened, in words
+    function saveMonProfile(name, monitors) {
+        const p = Profiles.makeProfile(name, screensNowList, monitors, mainScreen, secondScreen)
+        if (!p) return "Give it a name first."
+        const r = Profiles.addProfile(monProfiles, p)
+        if (!r) return "There's room for " + Profiles.MAX_PROFILES + " profiles: delete one first."
+        setting("monitorProfiles", r.list)
+        setting("monitorsLastScreens", screensNow)
+        return r.replaced.length ? "Saved, replacing \u201c" + r.replaced.join("\u201d and \u201c") + "\u201d."
+                                 : "Saved. It's used whenever these screens are connected."
+    }
+    function deleteMonProfile(name) { setting("monitorProfiles", Profiles.removeProfile(monProfiles, name)) }
+    function useMonProfile(p) {
+        if (!p || p.key !== screensNow) return
+        setting("monitors", Profiles.profileMonitors(p, cfg.monitors))
+        setting("monitorsArrange", "custom")
+        if (p.main) setting("mainScreen", p.main)
+        if (p.second) setting("secondScreen", p.second)
+        monRefreshLater.restart()
+    }
+    // the screens changed: wait for them to settle (a monitor waking can
+    // come and go a few times), then switch if there's a profile for them
+    onScreensNowChanged: screensSettle.restart()
+    Timer {
+        id: screensSettle
+        interval: 2500
+        running: true                          // once at start, too
+        onTriggered: root.screensChangedTo(root.screensNow)
+    }
+    function screensChangedTo(key) {
+        if (key === "" || key === cfg.monitorsLastScreens) return
+        setting("monitorsLastScreens", key)
+        const p = profileNow
+        if (!profilesAuto || !p || profileNowInUse || revertLeft > 0) return
+        useMonProfile(p)
+        Quickshell.execDetached(["notify-send", "-a", "Ether Shell", "-i", "video-display",
+                                 "Screens changed", "Using your \u201c" + p.name + "\u201d layout."])
+    }
+
     // ---- default apps --------------------------------------------------
     // Terminal and file manager feed hyprland.lua's SUPER+T / SUPER+E
     // (through shell-settings.lua); the file manager and browser also
@@ -3781,18 +3555,9 @@ ShellRoot {
     Process { id: xdgWrite }
     function setDefaultApp(role, entry) {
         const id = entry.id.endsWith(".desktop") ? entry.id : entry.id + ".desktop"
-        const o = Object.assign({}, cfgUser)
-        if (role === "terminal") {
-            o.appTerminal = id
-            o.appTerminalCmd = entry.cmd
-        } else if (role === "files") {
-            o.appFiles = id
-            o.appFilesCmd = entry.cmd
-        } else {
-            o.appBrowser = id
-        }
-        cfgUser = o
-        saveSettings()
+        if (role === "terminal") Config.update({ appTerminal: id, appTerminalCmd: entry.cmd })
+        else if (role === "files") Config.update({ appFiles: id, appFilesCmd: entry.cmd })
+        else Config.update({ appBrowser: id })
         if (role === "terminal" || role === "files") hyprDebounce.restart()
         if (role === "files")
             xdgWrite.command = ["xdg-mime", "default", id, "inode/directory"]
@@ -4199,46 +3964,6 @@ ShellRoot {
         onExited: root.flushKitty()
     }
 
-    // writes go through a temp file and a rename, one at a time, so a
-    // slider being dragged never leaves a half-written file behind
-    property string pendingSettings: ""
-    function saveSettings() {
-        pendingSettings = JSON.stringify(cfgUser, null, 2) + "\n"
-        if (!settingsWrite.running) flushSettings()
-    }
-    function flushSettings() {
-        if (pendingSettings === "") return
-        settingsWrite.command = ["sh", "-c",
-            'f="$HOME/.config/quickshell/settings.json"; printf "%s" "$1" > "$f.tmp" && mv "$f.tmp" "$f"',
-            "sh", pendingSettings]
-        pendingSettings = ""
-        settingsWrite.running = true
-    }
-    Process {
-        id: settingsWrite
-        onExited: root.flushSettings()
-    }
-
-    Process {
-        id: settingsRead
-        running: true
-        command: ["sh", "-c",
-            "cat ~/.config/quickshell/settings.json 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                if (!t.length) { root.cfgUser = ({}); return }
-                try {
-                    const o = JSON.parse(t)
-                    if (o && typeof o === "object" && !Array.isArray(o))
-                        root.cfgUser = o
-                } catch (e) {
-                    console.log("settings.json parse failed, using defaults:", e)
-                }
-            }
-        }
-    }
-
     IpcHandler {
         target: "theme"
         function reload(): void { palProc.running = true }
@@ -4249,7 +3974,7 @@ ShellRoot {
         function toggle(): void { root.settingsShown = !root.settingsShown }
         function open(): void { root.settingsShown = true }
         function close(): void { root.settingsShown = false }
-        function reload(): void { settingsRead.running = true }
+        function reload(): void { Config.reload() }
         function sync(): void {
             root.writeHypr()
             root.writeKitty()
@@ -4271,70 +3996,7 @@ ShellRoot {
         }
     }
 
-    Process {
-        id: wxProc
-        command: ["sh", "-c",
-            "curl -s --max-time 12 'https://api.open-meteo.com/v1/forecast"
-            + "?latitude=" + root.wxLat + "&longitude=" + root.wxLon
-            + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,"
-            + "wind_speed_10m,weather_code,is_day"
-            + "&hourly=temperature_2m,weather_code,precipitation_probability,is_day&forecast_hours=13"
-            + "&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto"
-            + (root.wxMetric ? "&temperature_unit=celsius&wind_speed_unit=kmh'"
-                             : "&temperature_unit=fahrenheit&wind_speed_unit=mph'")]
-        stdout: StdioCollector {
-            readonly property var codes: ({
-                0: "Clear", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-                45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle",
-                55: "Heavy drizzle", 56: "Freezing drizzle", 57: "Freezing drizzle",
-                61: "Light rain", 63: "Rain", 65: "Heavy rain",
-                66: "Freezing rain", 67: "Freezing rain", 71: "Light snow",
-                73: "Snow", 75: "Heavy snow", 77: "Snow grains", 80: "Light showers",
-                81: "Showers", 82: "Heavy showers", 85: "Snow showers",
-                86: "Snow showers", 95: "Thunderstorm", 96: "Thunderstorm",
-                99: "Thunderstorm"
-            })
-            onStreamFinished: {
-                try {
-                    const j = JSON.parse(text)
-                    const c = j.current
-                    const u = root.wxMetric ? "\u00b0C" : "\u00b0F"
-                    root.wxDay = c.is_day !== 0
-                    // the hours ahead, starting with the one we're in
-                    const h = j.hourly || {}
-                    const hours = []
-                    for (let i = 0; i < (h.time || []).length && hours.length < 12; i++) {
-                        const hr = parseInt(h.time[i].slice(11, 13))
-                        const label = i === 0 ? "Now"
-                            : root.cfg.clock24h === true ? (hr < 10 ? "0" : "") + hr
-                            : ((hr % 12) || 12) + (hr < 12 ? " AM" : " PM")
-                        hours.push({ time: label, temp: Math.round(h.temperature_2m[i]) + "\u00b0",
-                                     cond: codes[h.weather_code[i]] || "", day: h.is_day[i] !== 0,
-                                     rain: h.precipitation_probability ? (h.precipitation_probability[i] || 0) : 0 })
-                    }
-                    root.wxHours = hours
-                    const d = j.daily || {}
-                    root.wxHi = d.temperature_2m_max ? Math.round(d.temperature_2m_max[0]) + "\u00b0" : ""
-                    root.wxLo = d.temperature_2m_min ? Math.round(d.temperature_2m_min[0]) + "\u00b0" : ""
-                    root.wxTemp = Math.round(c.temperature_2m) + u
-                    root.wxFeel = Math.round(c.apparent_temperature) + u
-                    root.wxHum  = c.relative_humidity_2m + "%"
-                    root.wxWind = Math.round(c.wind_speed_10m) + (root.wxMetric ? " km/h" : " mph")
-                    root.wxCond = codes[c.weather_code] || "Unknown"
-                    root.wxOk = true
-                } catch (e) {
-                    root.wxOk = false
-                }
-            }
-        }
-    }
-
-    onPowerShownChanged: if (powerShown) upProc.running = true
-    Process {
-        id: upProc
-        command: ["uptime", "-p"]
-        stdout: StdioCollector { onStreamFinished: root.uptimeText = text.trim() }
-    }
+    onPowerShownChanged: if (powerShown) System.refreshUptime()
 
     // real notification daemon — owns org.freedesktop.Notifications
     NotificationServer {

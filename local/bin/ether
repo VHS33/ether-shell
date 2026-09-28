@@ -10,9 +10,9 @@
 #   ether theme                   theme everything again from the wallpaper
 #   ether login install|undo      the login screen (asks for your password)
 #   ether login status            which login screen starts
+#   ether perf [SECONDS]          where the shell's memory and time go
+#                                 (watches it for 10 seconds; it only looks)
 #   ether plugin list             your plugins, and whether they're working
-#   ether plugin new NAME [--bar --launcher --widget --settings]
-#                                 start a plugin from a template
 #   ether plugin reload           look for plugins again (Check plugins)
 #   ether help                    this list
 #
@@ -60,6 +60,12 @@ doctor() {
     if [ -f "$lib/colour.mjs" ] && [ -f "$lib/text.mjs" ]; then ok "its shared logic is in place ($lib)"
     else problem "its shared logic is missing ($lib): the shell can't load without it"
          fix "copy config/quickshell/lib/ from Ether Shell into ~/.config/quickshell/lib/"; fi
+    for part in common services; do
+        d="$HOME/.config/quickshell/$part"
+        if ls "$d"/*.qml >/dev/null 2>&1; then ok "its $part are in place ($d)"
+        else problem "its $part are missing ($d): the shell can't load without them"
+             fix "copy config/quickshell/$part/ from Ether Shell into ~/.config/quickshell/$part/"; fi
+    done
     log="$run/ether-shell.log"
     if [ -f "$log" ]; then
         errs=$(grep -E "ReferenceError|TypeError|SyntaxError|is not a type|is not installed|Cannot assign|failed to load" "$log" | grep -v "Warnings occurred" | sort -u)
@@ -231,175 +237,139 @@ needs_shell() { running || { echo "ether: Ether Shell isn't running (start it: e
 usage() { sed -n '4,17s/^# \{0,1\}//p' "$0"; }
 plugins="$HOME/.config/ether-shell/plugins"
 
-# ---- ether plugin new: a working plugin from a template ----
-plugin_new() {
-    id=${1:-}; [ $# -gt 0 ] && shift
-    case "$id" in
-        ""|-*) echo "ether: ether plugin new NAME [--bar] [--launcher] [--widget] [--settings]" >&2; return 1 ;;
-    esac
-    # the same rule as Ether Shell's own checker
-    if ! printf '%s' "$id" | grep -Eq '^[a-z0-9][a-z0-9-]{0,39}$'; then
-        echo "ether: a plugin's name is lower-case letters, digits and dashes (like my-plugin)" >&2; return 1
+# ---- ether perf: where the shell's memory and time go ----
+# It only reads /proc: memory from smaps (each mapping's fair share, PSS,
+# grouped by what it belongs to), and time from each thread's CPU ticks and
+# wake-ups (voluntary context switches), read twice, SECONDS apart.
+# ETHER_PID measures another process (for testing).
+
+# one line per thread: tid ticks wakeups name
+perf_threads() {
+    awk '
+        FNR == 1 { n = split(FILENAME, p, "/"); tid = p[n - 1] }
+        FILENAME ~ /\/stat$/ {
+            l = $0; a = index(l, "("); b = 0
+            for (i = length(l); i > a; i--) if (substr(l, i, 1) == ")") { b = i; break }
+            name[tid] = substr(l, a + 1, b - a - 1)
+            split(substr(l, b + 2), f, " ")
+            ticks[tid] = f[12] + f[13]              # utime + stime
+        }
+        FILENAME ~ /\/status$/ && /^voluntary_ctxt_switches:/ { wake[tid] = $2 }
+        END { for (t in ticks) { c = name[t]; gsub(/[ \t]/, "_", c); print t, ticks[t], wake[t] + 0, c } }
+    ' "$1"/task/*/stat "$1"/task/*/status 2>/dev/null
+}
+
+# kB of a process's fair share of memory
+perf_pss() {
+    if [ -r "$1/smaps_rollup" ]; then awk '/^Pss:/ { print $2; exit }' "$1/smaps_rollup"
+    else awk '/^Pss:/ { s += $2 } END { print s + 0 }' "$1/smaps" 2>/dev/null; fi
+}
+
+perf() {
+    secs=${1:-10}
+    case "$secs" in ''|*[!0-9]*) echo "ether: ether perf [SECONDS] (1 to 120)" >&2; return 1 ;; esac
+    [ "$secs" -ge 1 ] && [ "$secs" -le 120 ] || { echo "ether: ether perf [SECONDS] (1 to 120)" >&2; return 1; }
+    pid=${ETHER_PID:-$(pgrep -xo quickshell 2>/dev/null)}
+    [ -n "$pid" ] && [ -r "$P/$pid/smaps" ] || { echo "ether: Ether Shell isn't running (start it: ether restart)" >&2; return 1; }
+    d="$P/$pid"
+    clk=$(getconf CLK_TCK 2>/dev/null); clk=${clk:-100}
+
+    # how long it's been running (memory tends to settle after a while)
+    up=$(awk -v clk="$clk" -v now="$(cut -d' ' -f1 "$P/uptime" 2>/dev/null)" '{
+            l = $0; b = 0; for (i = length(l); i > 0; i--) if (substr(l, i, 1) == ")") { b = i; break }
+            split(substr(l, b + 2), f, " "); s = int(now - f[20] / clk)
+            if (s < 0 || now == "") { print "?"; exit }
+            h = int(s / 3600); m = int((s % 3600) / 60)
+            print (h ? h "h " : "") m "m" }' "$d/stat" 2>/dev/null)
+    printf "${b}Ether Shell performance${n} (it only looks; nothing is changed)\n"
+    printf "quickshell, process %s, running for %s\n" "$pid" "${up:-?}"
+
+    # ---- memory ----
+    section "Memory"
+    awk '
+        function kind(p) {
+            if (p ~ /nvidia|^\/dev\/dri|libgallium|\/dri\/|libvulkan|_mesa|libdrm|libGLX|libEGL|libGLdispatch|libOpenGL/) return "graphics driver"
+            if (p ~ /libQt6/) return "Qt (the toolkit)"
+            if (p ~ /Ether\/Native/) return "Ether native plugin"
+            if (p ~ /\.(ttf|otf|ttc|woff2?|pcf)(\.gz)?$/ || p ~ /fontconfig/) return "fonts"
+            if (p ~ /^\/memfd:|^\/dev\/shm|dmabuf|^anon_inode/) return "screen buffers"
+            if (p == "" || p ~ /^\[(heap|anon)/) return "working memory"
+            if (p ~ /\.so/) return "other libraries"
+            return "other"
+        }
+        /^[0-9a-f]+-[0-9a-f]+ / { path = ""; for (i = 6; i <= NF; i++) path = path (i > 6 ? " " : "") $i; k = kind(path); next }
+        /^Pss:/ { kb[k] += $2; total += $2 }
+        END {
+            printf "  %-22s %6.0f MB\n", "Total", total / 1024
+            # biggest first
+            m = 0; for (k in kb) order[++m] = k
+            for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++) if (kb[order[j]] > kb[order[i]]) { t = order[i]; order[i] = order[j]; order[j] = t }
+            for (i = 1; i <= m; i++) {
+                k = order[i]; if (kb[k] < 512) continue
+                bar = ""; w = int(24 * kb[k] / total + 0.5); for (j = 0; j < w; j++) bar = bar "#"
+                printf "  %-22s %6.0f MB  %s\n", k, kb[k] / 1024, bar
+            }
+        }' "$d/smaps"
+    echo "  (working memory: the QML objects, JavaScript, pictures and caches;"
+    echo "   the graphics card's own memory isn't counted here)"
+
+    # programs the shell has started
+    kids=$(pgrep -P "$pid" 2>/dev/null)
+    if [ -n "$kids" ]; then
+        section "Programs it has running"
+        for c in $kids; do
+            [ -r "$P/$c/comm" ] || continue
+            kb=$(perf_pss "$P/$c")
+            awk -v n="$(cat "$P/$c/comm")" -v kb="${kb:-0}" 'BEGIN { printf "  %-22s %6.0f MB\n", n, kb / 1024 }'
+        done
     fi
-    dir="$plugins/$id"
-    [ -e "$dir" ] && { echo "ether: $dir is there already (nothing changed)" >&2; return 1; }
-    bar=0; launcher=0; widget=0; settings=0
-    for a in "$@"; do
-        case "$a" in
-            --bar) bar=1 ;; --launcher) launcher=1 ;; --widget) widget=1 ;; --settings) settings=1 ;;
-            *) echo "ether: unknown option: $a" >&2; return 1 ;;
-        esac
-    done
-    [ $bar = 0 ] && [ $launcher = 0 ] && [ $widget = 0 ] && bar=1          # a bar item, by default
-    # "my-plugin" -> "My plugin"
-    name=$(printf '%s' "$id" | tr '-' ' ' | sed 's/^./\U&/')
-    prefix="!$(printf '%s' "$id" | tr -d '-' | cut -c1-5)"
-    mkdir -p "$dir"
 
-    parts=""
-    [ $bar = 1 ] && parts="$parts,
-    \"bar\": { \"file\": \"Bar.qml\", \"side\": \"right\" }"
-    [ $launcher = 1 ] && parts="$parts,
-    \"launcher\": { \"file\": \"Launcher.qml\", \"prefix\": \"$prefix\", \"title\": \"$name\" }"
-    [ $widget = 1 ] && parts="$parts,
-    \"widget\": { \"file\": \"Widget.qml\", \"name\": \"$name\", \"description\": \"What $name shows\" }"
-    [ $settings = 1 ] && parts="$parts,
-    \"settings\": { \"file\": \"Settings.qml\" }"
-    cat > "$dir/plugin.json" << JSON
-{
-    "id": "$id",
-    "name": "$name",
-    "description": "What $name does, in a sentence.",
-    "version": "0.1",
-    "author": "$(id -un)",
-    "api": 1$parts
-}
-JSON
-
-    [ $bar = 1 ] && cat > "$dir/Bar.qml" << 'QML'
-import QtQuick
-
-// A bar item.  Its size is what the bar makes room for (implicitWidth and
-// implicitHeight); the click area sits beside the Row, not inside it.
-// Everything from Ether Shell comes through `ether`: see docs/PLUGINS.md.
-Item {
-    id: item
-    property var ether
-    implicitWidth: row.implicitWidth
-    implicitHeight: row.implicitHeight
-
-    Row {
-        id: row
-        spacing: 5
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "extension"                      // a Material Symbols icon name
-            color: item.ether ? item.ether.accent : "white"
-            font.family: item.ether ? item.ether.iconFont : ""
-            font.pixelSize: 16
+    # ---- time ----
+    section "While you leave it alone ($secs s)"
+    echo "  measuring: leave the mouse and keyboard alone, and pause any music..."
+    t0=$(mktemp); t1=$(mktemp)
+    perf_threads "$d" > "$t0"; sleep "$secs"; perf_threads "$d" > "$t1"
+    awk -v secs="$secs" -v clk="$clk" -v pid="$pid" '
+        function label(t, c) {
+            if (t == pid) return "main (QML, JavaScript)"
+            if (c == "quickshell") return "Ether native threads"
+            if (c ~ /QSGRenderThread/) return "drawing"
+            if (c ~ /^pw-|data-loop|pipewire/) return "sound (visualiser)"
+            if (c ~ /QDBus/) return "D-Bus (tray, media...)"
+            if (c ~ /Thread_\(pooled\)|QThreadPool/) return "Qt workers"
+            if (c ~ /QQmlThread|WorkerScript/) return "QML background"
+            return c
         }
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: (item.ether && item.ether.settings.greeting) || "Hello"
-            color: item.ether ? item.ether.fg : "white"
-            font.family: item.ether ? item.ether.font : ""
-            font.pixelSize: item.ether ? item.ether.fs(12) : 12
+        NR == FNR { t0[$1] = $2; w0[$1] = $3; next }
+        ($1 in t0) {
+            l = label($1, $4); dt = $2 - t0[$1]; dw = $3 - w0[$1]
+            if (dt < 0) dt = 0; if (dw < 0) dw = 0
+            cpu[l] += dt; wake[l] += dw; tc += dt; tw += dw
         }
-    }
-    MouseArea {
-        anchors.fill: parent
-        cursorShape: Qt.PointingHandCursor
-        onClicked: item.ether.notify("Hello", "From your new plugin")
-    }
-}
-QML
-
-    [ $launcher = 1 ] && cat > "$dir/Launcher.qml" << 'QML'
-import QtQuick
-
-// A launcher part.  The launcher sets `query` as you type (after this
-// plugin's prefix), and shows `results` whenever they're set: each is
-// { title, subtitle, icon, and copy, open or run }.  To look something up,
-// set results when the answer comes (ether.read, or XMLHttpRequest).
-Item {
-    id: l
-    property var ether
-    property string query: ""
-    property var results: query === "" ? [] : [
-        { title: "You typed “" + query + "”", subtitle: "Enter copies it", icon: "content_copy", copy: query }
-    ]
-}
-QML
-
-    [ $widget = 1 ] && cat > "$dir/Widget.qml" << 'QML'
-import QtQuick
-
-// A desktop widget.  Ether Shell puts it in a card like the built-in ones;
-// this draws only what's inside, at its own size (implicitWidth/Height).
-Column {
-    id: w
-    property var ether
-    spacing: 4
-    Text {
-        text: (w.ether && w.ether.settings.greeting) || "Hello"
-        color: w.ether ? w.ether.accent : "white"
-        font.family: w.ether ? w.ether.font : ""
-        font.pixelSize: 32
-    }
-    Text {
-        text: "from your new plugin"
-        color: w.ether ? w.ether.dim : "white"
-        font.family: w.ether ? w.ether.font : ""
-        font.pixelSize: w.ether ? w.ether.fs(12) : 12
-    }
-}
-QML
-
-    [ $settings = 1 ] && cat > "$dir/Settings.qml" << 'QML'
-import QtQuick
-
-// Its settings, shown under it in Settings, Plugins, while it's on.  Read
-// them from ether.settings; save with ether.set(key, value).
-Column {
-    id: s
-    property var ether
-    spacing: 4
-    Text {
-        text: "Greeting"
-        color: s.ether.dim
-        font.family: s.ether.font
-        font.pixelSize: s.ether.fs(11)
-        font.bold: true
-    }
-    Rectangle {
-        width: Math.min(s.width, 320); height: 36; radius: 18
-        color: Qt.rgba(s.ether.fg.r, s.ether.fg.g, s.ether.fg.b, 0.08)
-        TextInput {
-            anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
-            verticalAlignment: TextInput.AlignVCenter
-            text: s.ether.settings.greeting || ""
-            color: s.ether.fg
-            font.family: s.ether.font
-            font.pixelSize: s.ether.fs(13)
-            onEditingFinished: s.ether.set("greeting", text)
-        }
-    }
-}
-QML
-
-    echo "Made $dir:"
-    ls "$dir" | sed 's/^/  /'
-    running && qs ipc call plugins reload >/dev/null 2>&1
-    echo "Switch it on in Settings, Plugins. After changing its files: ether plugin reload."
-    echo "How plugins work, and everything they can use: ~/.config/ether-shell/PLUGINS.md"
+        END {
+            pc = 100 * tc / clk / secs; ws = tw / secs
+            printf "  %-22s %6.1f %% of one core\n", "CPU", pc
+            printf "  %-22s %6.0f a second\n", "Wake-ups", ws
+            m = 0; for (l in cpu) if (cpu[l] > 0 || wake[l] > 0) order[++m] = l
+            for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++)
+                if (cpu[order[j]] * 1000 + wake[order[j]] > cpu[order[i]] * 1000 + wake[order[i]]) { t = order[i]; order[i] = order[j]; order[j] = t }
+            if (m) print "  busiest:"
+            for (i = 1; i <= m && i <= 6; i++)
+                printf "    %-20s %6.1f %%  %5.0f wake-ups a second\n", order[i], 100 * cpu[order[i]] / clk / secs, wake[order[i]] / secs
+            print ""
+            if (pc < 1 && ws < 100) print "  Quiet: it barely does anything while idle."
+            else if (pc < 3 && ws < 300) print "  Fairly quiet, with some room to trim."
+            else print "  Busy for an idle desktop: worth looking into (unless something was moving)."
+        }' "$t0" "$t1"
+    rm -f "$t0" "$t1"
 }
 
 # ---- ether plugin list: as the Plugins page sees them ----
 plugin_list() {
     if running; then
         out=$(qs ipc call plugins list 2>/dev/null)
-        [ -n "$out" ] || { echo "No plugins in $plugins yet (start one: ether plugin new NAME)"; return 0; }
-        printf '%s\n' "$out" | while IFS='|' read -r id state name what; do
+        [ -n "$out" ] || { echo "No plugins in $plugins yet"; return 0; }
+        printf '%s\n' "$out" | while IFS='|' read -r id state _ what; do
             case "$state" in
                 on) mark="on        " ;; off) mark="off       " ;;
                 set-aside) mark="set aside " ;; *) mark="can't use " ;;
@@ -414,6 +384,7 @@ plugin_list() {
 
 case "${1:-}" in
     doctor) doctor ;;
+    perf) perf "${2:-}" ;;
     restart) exec "$bin/ether-shell" ;;
     theme) needs_shell; exec qs ipc call wallpaper reapply ;;
     wallpaper)
@@ -437,10 +408,9 @@ case "${1:-}" in
         esac ;;
     plugin)
         case "${2:-}" in
-            new) shift 2; plugin_new "$@" ;;
             list) plugin_list ;;
             reload) needs_shell; qs ipc call plugins reload >/dev/null && echo "Plugins checked again." ;;
-            *) echo "ether: ether plugin list | new NAME | reload" >&2; exit 1 ;;
+            *) echo "ether: ether plugin list | reload" >&2; exit 1 ;;
         esac ;;
     help|-h|--help) usage ;;
     "") usage; exit 1 ;;

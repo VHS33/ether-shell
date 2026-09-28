@@ -2,7 +2,7 @@
 // come from other people.
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { readManifest, parseScan, validCommand, API_VERSION } from "../config/quickshell/lib/plugins.mjs"
+import { readManifest, parseScan, validCommand, pluginPath, API_VERSION } from "../config/quickshell/lib/plugins.mjs"
 
 const D = "/home/u/.config/ether-shell/plugins"
 const good = { id: "uptime", name: "Uptime", description: "How long since boot", version: "1.0", author: "hal",
@@ -123,4 +123,17 @@ test("settings alone don't make a plugin", () => {
     const p = read("countdown", { id: "countdown", api: 1, settings: { file: "Settings.qml" } })
     assert.equal(p.ok, false)
     assert.match(p.errors[0], /doesn't add anything/)
+})
+
+test("a plugin's files stay inside its folder (ether.file)", () => {
+    assert.equal(pluginPath("icon.png"), "icon.png")
+    assert.equal(pluginPath("img/icon.png"), "img/icon.png")
+    assert.equal(pluginPath("./a//b/./c"), "a/b/c")
+    assert.equal(pluginPath("/etc/passwd"), "etc/passwd")          // still inside the folder
+    for (const bad of ["..", "../x", "a/../../x", "....//x", "..././..././etc/passwd", "a/..", "a\\..\\b",
+                       "", ".", "/", "a\0b", "x".repeat(513), null, 7])
+        assert.ok(!pluginPath(bad) || !pluginPath(bad).split("/").includes(".."), JSON.stringify(bad))
+    for (const bad of ["..", "../x", "a/../../x", "a/..", "", ".", "/", null])
+        assert.equal(pluginPath(bad), "", JSON.stringify(bad))
+    assert.equal(pluginPath("....//x"), "..../x")                   // a folder named "....", not a way out
 })

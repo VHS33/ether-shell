@@ -832,7 +832,7 @@ Variants {
             { t: "Wallpaper",      d: "The image everything takes its colours from" },
             { t: "Bar",            d: "The clock and what the top bar shows" },
             { t: "Windows",        d: "Spacing, shape and motion for app windows" },
-            { t: "Dock",           d: "The window dock along the bottom edge" },
+            { t: "Dock",           d: "The window dock, along the bottom or down a side" },
             { t: "Notifications",  d: "Popups and on-screen indicators" },
             { t: "Idle",           d: "Locking, screens off and sleep when you step away" },
             { t: "Displays",       d: "Arrange your screens by dragging, and each one's resolution, refresh, scale and rotation" },
@@ -849,7 +849,7 @@ Variants {
             { t: "Lock screen",    d: "What you see when the screen is locked" },
             { t: "Default apps",   d: "Which terminal, file manager and browser open" },
             { t: "AI assistant",   d: "Which AI answers in the assistant panel, and your key for it" },
-            { t: "Plugins",        d: "Add-ons from other people (or you): bar items and launcher results" },
+            { t: "Plugins",        d: "Add-ons from other people (or you): bar items, launcher results, widgets and settings" },
             { t: "Keybinds",       d: "Every shortcut, and changing them" },
             { t: "Game overlay",   d: "Frame rate, GPU and CPU on top of your games, in your theme" }
         ]
@@ -3143,6 +3143,109 @@ Variants {
                                                     }
                                                 }
                                             ]
+                                        }
+
+                                        // ---- profiles: a saved layout per set of screens ----
+                                        SectionLabel {
+                                            app: rootV.app
+                                            text: "Profiles"
+                                        }
+
+                                        Card {
+                                            app: rootV.app
+                                            title: "Switch layouts by themselves"
+                                            desc: "When a monitor is plugged in or out, use the saved profile for the screens then connected. Changes you make by hand are never undone."
+                                            trailing: [
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Off", "On"]
+                                                    current: app.profilesAuto ? 1 : 0
+                                                    onPicked: i => app.setting("monitorProfilesAuto", i === 1)
+                                                }
+                                            ]
+                                        }
+
+                                        Card {
+                                            id: saveProfileCard
+                                            app: rootV.app
+                                            visible: app.revertLeft === 0
+                                            property string said: ""
+                                            Timer { id: saidClear; interval: 6000; onTriggered: saveProfileCard.said = "" }
+                                            function save() {
+                                                if (win.draftDirty()) { said = "Apply your changes first, then save them."; saidClear.restart(); return }
+                                                const out = {}
+                                                for (const n of Object.keys(win.draft)) {
+                                                    const d = win.draft[n]
+                                                    out[n] = { mode: d.mode, position: Math.round(d.x || 0) + "x" + Math.round(d.y || 0), scale: d.scale,
+                                                               transform: d.transform || 0, vrr: d.vrr || 0 }
+                                                }
+                                                said = app.saveMonProfile(profileName.text, out)
+                                                if (said.startsWith("Saved")) profileName.text = ""
+                                                saidClear.restart()
+                                            }
+                                            title: "Save this layout"
+                                            desc: said !== "" ? said
+                                                  : "As it is now, for the screens connected: " + app.screensNowList.map(x => x.name).join(", ") + "."
+                                            trailing: [
+                                                Rectangle {
+                                                    implicitWidth: 150
+                                                    implicitHeight: 34
+                                                    radius: 10
+                                                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                                    border.width: profileName.activeFocus ? 2 : 0
+                                                    border.color: app.cBlue
+                                                    TextInput {
+                                                        id: profileName
+                                                        anchors.fill: parent
+                                                        anchors.leftMargin: 10
+                                                        anchors.rightMargin: 10
+                                                        verticalAlignment: TextInput.AlignVCenter
+                                                        color: app.cFg
+                                                        selectionColor: app.cBlue
+                                                        font.family: "Inter"
+                                                        font.pixelSize: app.fs(12)
+                                                        maximumLength: 30
+                                                        clip: true
+                                                        onAccepted: saveProfileCard.save()
+                                                        Text {
+                                                            visible: !profileName.text && !profileName.activeFocus
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            text: "A name, like Desk"
+                                                            color: app.cFaint
+                                                            font: profileName.font
+                                                        }
+                                                    }
+                                                },
+                                                Seg {
+                                                    app: rootV.app
+                                                    options: ["Save"]
+                                                    onPicked: saveProfileCard.save()
+                                                }
+                                            ]
+                                        }
+
+                                        Repeater {
+                                            model: app.monProfiles
+                                            delegate: Card {
+                                                id: profCard
+                                                required property var modelData
+                                                readonly property bool here: modelData.key === app.screensNow
+                                                readonly property bool inUse: here && app.profileNowInUse
+                                                app: rootV.app
+                                                title: modelData.name + (inUse ? "  \u00b7  in use" : "")
+                                                desc: modelData.screens.map(x => x.name + (x.model ? " (" + x.model + ")" : "")).join(", ")
+                                                      + (here ? "" : ". Not connected now.")
+                                                trailing: [
+                                                    Seg {
+                                                        app: rootV.app
+                                                        options: profCard.here && !profCard.inUse && app.revertLeft === 0 ? ["Use", "Delete"] : ["Delete"]
+                                                        onPicked: i => {
+                                                            if (options[i] === "Use") app.useMonProfile(profCard.modelData)
+                                                            else app.deleteMonProfile(profCard.modelData.name)
+                                                        }
+                                                    }
+                                                ]
+                                            }
                                         }
                                     }
 

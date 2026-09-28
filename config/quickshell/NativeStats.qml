@@ -1,5 +1,6 @@
 import QtQuick
 import Ether.Native
+import qs.services
 
 // ============================================================
 //   NATIVE READERS  (the Ether.Native C++ plugin)
@@ -18,20 +19,20 @@ Item {
         running: nat.app !== null
         // slower while a game runs: the bar is hidden behind it anyway
         interval: nat.app && nat.app.gameRunning ? 10000 : 2000
+        // the readings go to System (services/System.qml)
         onUpdated: {
-            const a = nat.app
-            a.cpuPct = cpuPct
-            a.memPct = memPct
-            a.netDown = a.fmtRate(netDownBps)
-            a.netUp = a.fmtRate(netUpBps)
-            a.gpuOk = gpuOk
+            System.cpuPct = cpuPct
+            System.memPct = memPct
+            System.netDown = System.fmtRate(netDownBps)
+            System.netUp = System.fmtRate(netUpBps)
+            System.gpuOk = gpuOk
             if (gpuOk) {
-                a.gpuPct = gpuPct
-                a.gpuTemp = gpuTemp
-                a.gpuMemPct = gpuMemPct
-                a.gpuWatts = gpuWatts
+                System.gpuPct = gpuPct
+                System.gpuTemp = gpuTemp
+                System.gpuMemPct = gpuMemPct
+                System.gpuWatts = gpuWatts
             }
-            a.recordStats()
+            System.recordStats()
         }
     }
 

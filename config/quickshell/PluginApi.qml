@@ -1,4 +1,5 @@
 import QtQuick
+import "lib/plugins.mjs" as Plugins
 
 // The toolkit each plugin gets, as its `ether` property (version 1).
 // Everything a plugin needs to fit in and to do things, without reaching into
@@ -45,5 +46,7 @@ QtObject {
     function copy(text) { app.pluginRun(pluginId, ["wl-copy", "--", String(text)]) }
     function open(url) { app.pluginRun(pluginId, ["xdg-open", String(url)]) }
     function notify(title, body) { app.pluginRun(pluginId, ["notify-send", "-a", pluginId, String(title), String(body ?? "")]) }
-    function file(name) { return "file://" + dir + "/" + String(name).replace(/^\/+|\.\.\//g, "") }
+    // a file in the plugin's folder, as a URL for an Image (subfolders
+    // allowed; never outside it)
+    function file(name) { const p = Plugins.pluginPath(String(name ?? "")); return p ? "file://" + dir + "/" + p : "" }
 }

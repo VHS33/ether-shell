@@ -128,6 +128,10 @@ Variants {
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             visible: false
+            // decoded just big enough to cover its box (album art can be a
+            // 1280-pixel video thumbnail); with both sides given and the
+            // crop fill, Qt keeps the picture's shape and covers the box
+            sourceSize: Qt.size(Math.max(32, Math.ceil(ri.width * 1.5)), Math.max(32, Math.ceil(ri.height * 1.5)))
         }
         Item {
             id: riMask
@@ -356,14 +360,22 @@ Variants {
     LazyLoader {
         id: perScreen
         required property var modelData
-        // the older sidebar: built when the clock opens it (the older style),
-        // or once something opens it, then kept
+        // Built the first time it's opened, kept while it's in use, and
+        // released 3 minutes after it closes (the Timer in its window).
         property bool used: false
-        active: modelData.name === app.mainScreen && (used || !app.rightMorph || app.sidebarShown)
+        active: modelData.name === app.mainScreen && (used || app.sidebarShown)
         onActiveChanged: if (active) used = true
 
     PanelWindow {
         id: winS
+
+        // Released 3 minutes after it closes: its memory back.  Opening it
+        // again builds it afresh, a moment's work.
+        Timer {
+            interval: 180000
+            running: !app.sidebarShown
+            onTriggered: Qt.callLater(() => { perScreen.used = false })
+        }
         readonly property var modelData: perScreen.modelData
         screen: modelData
         // The window stays mapped and the card slides in and out.  Mapping

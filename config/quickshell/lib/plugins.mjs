@@ -127,3 +127,19 @@ export function validCommand(cmd) {
         && cmd.every(a => typeof a === "string" && a.length <= 4096 && !a.includes("\0"))
         && cmd[0].length > 0
 }
+
+// A file inside the plugin's own folder, as a path relative to it
+// ("icon.png", "img/icon.png"), for ether.file().  Anything that would leave
+// the folder ("..") gives "".
+export function pluginPath(name) {
+    if (typeof name !== "string" || name.length === 0 || name.length > 512
+        || name.includes("\0") || name.includes("\\")) return ""
+    const parts = []
+    for (const p of name.split("/")) {
+        if (p === "" || p === ".") continue
+        if (p === "..") return ""
+        parts.push(p)
+    }
+    return parts.join("/")
+}
+

@@ -11,6 +11,7 @@ import "../../config/quickshell/lib/layout.mjs" as LayoutLib
 import "../../config/quickshell/lib/models.mjs" as ModelsLib
 import "../../config/quickshell/lib/keybinds.mjs" as KeybindsLib
 import "../../config/quickshell/lib/overlay.mjs" as OverlayLib
+import "../../config/quickshell/lib/profiles.mjs" as ProfilesLib
 // the shipped plugins' own modules too
 import "../../plugins/countdown/Countdown.mjs" as CountdownLib
 QtObject {

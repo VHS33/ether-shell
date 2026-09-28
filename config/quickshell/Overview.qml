@@ -34,14 +34,22 @@ Variants {
     LazyLoader {
         id: perScreen
         required property var modelData
-        // Built the first time it's opened, then kept for instant opening:
-        // nothing sits in memory for a panel that's never used.
+        // Built the first time it's opened, kept while it's in use, and
+        // released 3 minutes after it closes (the Timer in its window).
         property bool used: false
         active: modelData.name === app.mainScreen && (used || app.overviewShown)
         onActiveChanged: if (active) used = true
 
     PanelWindow {
         id: winO
+
+        // Released 3 minutes after it closes: its memory back.  Opening it
+        // again builds it afresh, a moment's work.
+        Timer {
+            interval: 180000
+            running: !app.overviewShown
+            onTriggered: Qt.callLater(() => { perScreen.used = false })
+        }
         readonly property var modelData: perScreen.modelData
         screen: modelData
         // Stays mapped and animates itself: mapping a new surface on each

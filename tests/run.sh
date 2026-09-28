@@ -26,7 +26,7 @@ else skip "shellcheck isn't installed"; fi
 echo "QML (qmllint: syntax errors; the Quickshell modules it can't see are fine)"
 qmllint=$(qtbin qmllint)
 if [ -n "$qmllint" ]; then
-    n=0; for f in config/quickshell/*.qml config/ether-greeter/*.qml plugins/*/*.qml; do
+    n=0; for f in config/quickshell/*.qml config/quickshell/services/*.qml config/quickshell/common/*.qml config/ether-greeter/*.qml plugins/*/*.qml; do
         out=$("$qmllint" "$f" 2>&1 | grep -iE "expected token|syntax error|unexpected token|duplicate")
         if [ -n "$out" ]; then bad "$f"; echo "$out" | head -10; else n=$((n + 1)); fi
     done
@@ -49,32 +49,58 @@ if have node; then
     else bad "tests: $summary"; echo "$out" | grep -B2 -A12 '^not ok' | head -40; fi
 else skip "node isn't installed"; fi
 
+echo "ether perf reads /proc right (a pretend one)"
+fp=$(mktemp -d); pp="$fp/4242"
+mkdir -p "$pp/task/4242" "$pp/task/4250" "$pp/task/4251"
+echo "5000.00 1.00" > "$fp/uptime"
+# memory: 100 MB Qt, 60 MB NVIDIA, 30 MB working memory, 4 MB fonts, 2 MB
+# Ether's plugin (196 MB); started at 1,000 s, now 5,000 s: 1h 6m ago
+{
+    printf '7f00-7f01 r-xp 0 0:1 1 /usr/lib/libQt6Quick.so.6\nPss: 102400 kB\n'
+    printf '7f02-7f03 r-xp 0 0:1 2 /usr/lib/libnvidia-glcore.so.580\nPss: 51200 kB\n'
+    printf '7f04-7f05 rw-s 0 0:1 3 /dev/nvidiactl\nPss: 10240 kB\n'
+    printf '7f06-7f07 rw-p 0 0:0 0 [heap]\nPss: 20480 kB\n'
+    printf '7f08-7f09 rw-p 0 0:0 0 \nPss: 10240 kB\n'
+    printf '7f0a-7f0b r--p 0 0:1 4 /usr/share/fonts/inter/Inter Variable.ttf\nPss: 4096 kB\n'
+    printf '7f0c-7f0d r-xp 0 0:1 5 /home/u/.local/lib/ether-shell/qml/Ether/Native/libethernative.so\nPss: 2048 kB\n'
+} > "$pp/smaps"
+# threads: stat (name in brackets, with a space in one) and wake-ups
+stat() { echo "$1 ($2) S 1 1 1 0 -1 0 0 0 0 0 $3 $4 0 0 20 0 1 0 100000 0 0"; }
+setthreads() {
+    stat 4242 quickshell "$1" 0 > "$pp/task/4242/stat"; printf 'voluntary_ctxt_switches:\t%s\n' "$2" > "$pp/task/4242/status"
+    stat 4250 QSGRenderThread "$3" 0 > "$pp/task/4250/stat"; printf 'voluntary_ctxt_switches:\t%s\n' "$4" > "$pp/task/4250/status"
+    stat 4251 "Thread (pooled)" 0 0 > "$pp/task/4251/stat"; printf 'voluntary_ctxt_switches:\t0\n' > "$pp/task/4251/status"
+}
+setthreads 1000 5000 500 2000
+cp "$pp/task/4242/stat" "$pp/stat"
+# half a second in: 0.1 s of main-thread time and 0.05 s of drawing (ticks
+# are hundredths), 100 and 300 wake-ups; over 2 s that's 5 % and 2.5 %
+( sleep 0.5; setthreads 1010 5100 505 2300 ) &
+out=$(ETHER_PROC="$fp" ETHER_PID=4242 sh local/bin/ether perf 2 2>&1)
+wait
+want='Total +196 MB
+Qt \(the toolkit\) +100 MB
+graphics driver +60 MB
+working memory +30 MB
+fonts +4 MB
+Ether native plugin +2 MB
+CPU +7.5 % of one core
+Wake-ups +200 a second
+main \(QML, JavaScript\) +5.0 % +50 wake-ups
+drawing +2.5 % +150 wake-ups
+running for 1h 6m'
+missing=$(printf '%s\n' "$want" | while IFS= read -r w; do printf '%s\n' "$out" | grep -Eq "$w" || echo "$w"; done)
+if [ -z "$missing" ]; then ok "memory by kind, CPU and wake-ups by thread"
+else bad "ether perf got these wrong: $(echo "$missing" | tr '\n' ';')"; echo "$out" | head -30; fi
+printf '%s\n' "$out" | grep -q "Thread" && bad "ether perf showed an idle thread as busy"
+rm -rf "$fp"
+
 echo "no QML object has the same handler twice (it wouldn't load)"
-if out=$(gawk -f tests/dup-handlers.awk config/quickshell/*.qml config/ether-greeter/*.qml plugins/*/*.qml 2>&1); then
+if out=$(gawk -f tests/dup-handlers.awk config/quickshell/*.qml config/quickshell/services/*.qml config/quickshell/common/*.qml config/ether-greeter/*.qml plugins/*/*.qml 2>&1); then
     ok "no handler set twice"
 else
     bad "a handler set twice: $out"
 fi
-
-echo "plugin templates (ether plugin new) make working plugins"
-if have node; then
-    th=$(mktemp -d)
-    mkdir -p "$th/bin"; printf '#!/bin/sh\nexit 1\n' > "$th/bin/pgrep"; chmod +x "$th/bin/pgrep"
-    HOME="$th" PATH="$th/bin:$PATH" sh local/bin/ether plugin new t-default >/dev/null 2>&1
-    HOME="$th" PATH="$th/bin:$PATH" sh local/bin/ether plugin new t-all --bar --launcher --widget --settings >/dev/null 2>&1
-    for id in t-default t-all; do
-        d="$th/.config/ether-shell/plugins/$id"
-        if [ -f "$d/plugin.json" ] && node --input-type=module -e "
-            import { readManifest } from '$PWD/config/quickshell/lib/plugins.mjs'; import { readFileSync, existsSync } from 'node:fs'
-            const p = readManifest('$id', readFileSync('$d/plugin.json', 'utf8'), '$th/.config/ether-shell/plugins')
-            for (const k of ['bar', 'launcher', 'widget', 'settings']) if (p[k] && !existsSync('$d/' + p[k].file)) process.exit(2)
-            process.exit(p.ok ? 0 : 1)"; then
-            ok "template $id"
-        else bad "template $id doesn't make a working plugin"; fi
-        if have qmllint; then for q in "$d"/*.qml; do qmllint "$q" 2>&1 | grep -qiE "syntax|expected token|unexpected" && bad "template $(basename "$q") has a QML mistake"; done; fi
-    done
-    rm -rf "$th"
-else skip "node isn't installed"; fi
 
 echo "Qt's JavaScript engine runs the same modules"
 # every module in lib/ must be imported by the check (a new one is easy to forget)

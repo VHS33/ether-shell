@@ -8,6 +8,7 @@ import Quickshell.Services.SystemTray
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
 import "lib/models.mjs" as Models
+import qs.services
 
 // ============================================================
 //   RIGHT ISLAND: QUICK SETTINGS
@@ -1558,29 +1559,35 @@ Variants {
                                 if (isr.picker === "wifi") app.refreshWifi(true)
                             }
                         }
+                        // Bluetooth, always in its place: no adapter, its service
+                        // off (tap to start it), or the usual on/off and devices
                         Tile {
                             app: rootV.app
-                            visible: app.btHas
                             readonly property var linked: app.btList.find(d => d.connected)
-                            glyph: app.btOn ? (linked ? "bluetooth_connected" : "bluetooth") : "bluetooth_disabled"
+                            // "none": no adapter; "stopped": the service isn't running
+                            readonly property string btState: !BluetoothService.adapter ? "none"
+                                                          : !BluetoothService.active && !app.btHas ? "stopped" : "ready"
+                            opacity: btState === "none" ? 0.45 : 1
+                            glyph: btState !== "ready" || !app.btOn ? "bluetooth_disabled"
+                                 : linked ? "bluetooth_connected" : "bluetooth"
                             title: "Bluetooth"
-                            sub: !app.btOn ? "Off" : linked ? linked.name + ((linked.battery ?? -1) >= 0 ? ", " + linked.battery + "%" : "") : "On"
-                            on: app.btOn
-                            chevron: true
+                            sub: btState === "none" ? "No adapter found"
+                               : btState === "stopped" ? (BluetoothService.starting ? "Starting\u2026"
+                                                        : BluetoothService.error !== "" ? BluetoothService.error
+                                                        : "Service off, tap to start")
+                               : !app.btOn ? "Off"
+                               : linked ? linked.name + ((linked.battery ?? -1) >= 0 ? ", " + linked.battery + "%" : "") : "On"
+                            on: btState === "ready" && app.btOn
+                            chevron: btState === "ready"
                             expanded: isr.picker === "bt"
-                            onClicked: app.btToggle()
+                            onClicked: {
+                                if (btState === "stopped") BluetoothService.start()
+                                else if (btState === "ready") app.btToggle()
+                            }
                             onChevronClicked: {
                                 isr.picker = isr.picker === "bt" ? "" : "bt"
                                 if (isr.picker === "bt") { app.refreshBt(); if (app.btOn) app.btScan() }
                             }
-                        }
-                        Tile {
-                            app: rootV.app
-                            glyph: app.dnd ? "notifications_off" : "notifications"
-                            title: "Do not disturb"
-                            sub: app.dnd ? "Popups hidden" : "Off"
-                            on: app.dnd
-                            onClicked: app.dnd = !app.dnd
                         }
                         Tile {
                             app: rootV.app
@@ -1605,6 +1612,14 @@ Variants {
                             sub: app.keepAwake ? "Won't lock or sleep" : "Off"
                             on: app.keepAwake
                             onClicked: app.keepAwake = !app.keepAwake
+                        }
+                        Tile {
+                            app: rootV.app
+                            glyph: app.dnd ? "notifications_off" : "notifications"
+                            title: "Do not disturb"
+                            sub: app.dnd ? "Popups hidden" : "Off"
+                            on: app.dnd
+                            onClicked: app.dnd = !app.dnd
                         }
                     }
 
