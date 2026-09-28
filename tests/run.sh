@@ -26,7 +26,7 @@ else skip "shellcheck isn't installed"; fi
 echo "QML (qmllint: syntax errors; the Quickshell modules it can't see are fine)"
 qmllint=$(qtbin qmllint)
 if [ -n "$qmllint" ]; then
-    n=0; for f in config/quickshell/*.qml config/quickshell/services/*.qml config/quickshell/common/*.qml config/ether-greeter/*.qml plugins/*/*.qml; do
+    n=0; for f in config/quickshell/*.qml config/quickshell/services/*.qml config/quickshell/common/*.qml config/quickshell/common/*/*.qml config/quickshell/modules/*/*.qml config/ether-greeter/*.qml plugins/*/*.qml; do
         out=$("$qmllint" "$f" 2>&1 | grep -iE "expected token|syntax error|unexpected token|duplicate")
         if [ -n "$out" ]; then bad "$f"; echo "$out" | head -10; else n=$((n + 1)); fi
     done
@@ -95,8 +95,13 @@ else bad "ether perf got these wrong: $(echo "$missing" | tr '\n' ';')"; echo "$
 printf '%s\n' "$out" | grep -q "Thread" && bad "ether perf showed an idle thread as busy"
 rm -rf "$fp"
 
+echo "every app.<name> used exists on the shell; no service reuses its id as a local"
+if have python3; then
+    if out=$(python3 tests/app-names.py 2>&1); then ok "all there"; else bad "missing:"; echo "$out" | head -10; fi
+else skip "python3 isn't installed"; fi
+
 echo "no QML object has the same handler twice (it wouldn't load)"
-if out=$(gawk -f tests/dup-handlers.awk config/quickshell/*.qml config/quickshell/services/*.qml config/quickshell/common/*.qml config/ether-greeter/*.qml plugins/*/*.qml 2>&1); then
+if out=$(gawk -f tests/dup-handlers.awk config/quickshell/*.qml config/quickshell/services/*.qml config/quickshell/common/*.qml config/quickshell/common/*/*.qml config/quickshell/modules/*/*.qml config/ether-greeter/*.qml plugins/*/*.qml 2>&1); then
     ok "no handler set twice"
 else
     bad "a handler set twice: $out"

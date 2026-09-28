@@ -255,6 +255,19 @@ place() {  # place <source> <destination>
     run cp "$src" "$dst"
 }
 
+# The shell's files find each other through Quickshell's qs.* imports
+# (import qs.services, qs.modules.bar...), which Quickshell has from 0.2 on;
+# with an older one the shell doesn't load at all, so stop here instead
+qs_ver=$(qs --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+if [ -z "$qs_ver" ]; then
+    if [ "$DRY" = 1 ]; then info "[dry run] would check Quickshell is 0.2 or newer"
+    else die "Quickshell isn't installed (no qs command). Install it: sudo pacman -S quickshell"; fi
+elif [ "$(printf '%s\n0.2\n' "$qs_ver" | sort -V | head -1)" != "0.2" ]; then
+    die "Quickshell $qs_ver is too old: Ether Shell needs 0.2 or newer. Update it: sudo pacman -Syu quickshell"
+else
+    info "Quickshell $qs_ver (0.2 or newer, as the shell needs)"
+fi
+
 step "Installing configs"
 # A Quickshell service of its own (from another setup) would start a second
 # copy of the shell in every UWSM session, where the graphical session target

@@ -56,13 +56,19 @@ doctor() {
             fix "~/.local/bin/ether-shell (it replaces them all with one)"
         fi
     fi
+    # the shell's qs.* imports need Quickshell 0.2 or newer
+    qv=$(qs --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    if [ -z "$qv" ]; then problem "Quickshell isn't installed (no qs command)"; fix "sudo pacman -S quickshell"
+    elif [ "$(printf '%s\n0.2\n' "$qv" | sort -V | head -1)" != "0.2" ]; then
+        problem "Quickshell $qv is too old: Ether Shell needs 0.2 or newer"; fix "sudo pacman -Syu quickshell"
+    else ok "Quickshell $qv"; fi
     lib="$HOME/.config/quickshell/lib"
     if [ -f "$lib/colour.mjs" ] && [ -f "$lib/text.mjs" ]; then ok "its shared logic is in place ($lib)"
     else problem "its shared logic is missing ($lib): the shell can't load without it"
          fix "copy config/quickshell/lib/ from Ether Shell into ~/.config/quickshell/lib/"; fi
-    for part in common services; do
+    for part in common services modules; do
         d="$HOME/.config/quickshell/$part"
-        if ls "$d"/*.qml >/dev/null 2>&1; then ok "its $part are in place ($d)"
+        if ls "$d"/*.qml >/dev/null 2>&1 || ls "$d"/*/*.qml >/dev/null 2>&1; then ok "its $part are in place ($d)"
         else problem "its $part are missing ($d): the shell can't load without them"
              fix "copy config/quickshell/$part/ from Ether Shell into ~/.config/quickshell/$part/"; fi
     done

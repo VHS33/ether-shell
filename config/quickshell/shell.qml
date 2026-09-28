@@ -17,130 +17,27 @@ import "lib/overlay.mjs" as Overlay
 import "lib/profiles.mjs" as Profiles
 import qs.common
 import qs.services
+import qs.modules.bar
+import qs.modules.dock
+import qs.modules.launcher
+import qs.modules.overview
+import qs.modules.ai
+import qs.modules.cheatsheet
+import qs.modules.clipboard
+import qs.modules.media
+import qs.modules.notifications
+import qs.modules.osd
+import qs.modules.power
+import qs.modules.sidebar
+import qs.modules.settings
+import qs.modules.games
+import qs.modules.plugins
+import qs.modules.scenes
+import qs.modules.widgets
 
 ShellRoot {
     id: root
 
-    // Palette generated from the wallpaper by matugen; falls back to
-    // Catppuccin Mocha when no palette has been generated yet.
-    property var pal: ({})
-
-    // cava spectrum, 28 bars of 0-100; only runs while the media card is
-    // open so nothing is burning CPU in the background
-    property var cavaBars: new Array(28).fill(0)
-
-    function withAlpha(hex, aa) {
-        if (!hex) return undefined
-        return "#" + aa + hex.replace("#", "")
-    }
-
-    // every shell surface (bar pills, dock, sidebar, cards, popups)
-    // takes one opacity from settings (bgOpacity), matching the
-    // terminal's default so the whole desktop reads as one material
-    function hexA(a) {
-        const v = Math.round(Math.max(0, Math.min(1, a)) * 255)
-        return (v < 16 ? "0" : "") + v.toString(16)
-    }
-    readonly property real bgA:
-        Math.max(0.3, Math.min(1, Number(cfg.bgOpacity) || 0.75))
-    property color cBg:     withAlpha(pal.bg ?? "#1e1e2e", hexA(bgA))
-    property color cCard:   withAlpha(pal.card ?? "#1e1e2e", hexA(bgA))
-    property color cSurf:   pal.surf   ?? "#313244"
-    property color cTile:   withAlpha(pal.tile, "33") ?? "#33313244"
-    property color cBorder: pal.border ?? "#414356"
-    property color cFg:     pal.fg     ?? "#cdd6f4"
-    property color cDim:    pal.dim    ?? "#a6adc8"
-    property color cFaint:  pal.faint  ?? "#6c7086"
-    // ---- the accent: the wallpaper's own colour (Settings > Theme > Accent) ----
-    // Material's dark themes always use a light version of the colour (its
-    // tone 80), so an orange wallpaper gets a soft salmon accent.  "vivid"
-    // (the default) uses the wallpaper's actual colour, adjusted only when it
-    // wouldn't be readable: lightened (or darkened, on a light theme) just
-    // until it has 4.5:1 contrast with the background, keeping its hue.  Text
-    // on it is dark or light, whichever reads better.  Greyscale wallpapers,
-    // and the monochrome and neutral styles, keep Material's colours.
-    readonly property bool vividOn: cfg.accentStyle !== "soft" && smartOn && wallSeed !== ""
-                                    && wallWhy !== "no strong colour"
-                                    && themeScheme !== "scheme-monochrome" && themeScheme !== "scheme-neutral"
-    // The colour rules live in lib/colour.mjs: shared with the tests, and the
-    // same calculation as setwall's awk, so the shell and every app agree.
-    // These keep the names the rest of the shell uses.
-    function hexOf(c) { return Qt.color(c).toString() }
-    function contrast(a, b) { return Colour.contrast(hexOf(a), hexOf(b)) }
-    function readableAccent(colour, bg) { return Qt.color(Colour.readableAccent(hexOf(colour), hexOf(bg))) }
-    function textOn(accent, darkText, lightText) {
-        return Colour.contrast(hexOf(accent), hexOf(darkText)) >= Colour.contrast(hexOf(accent), hexOf(lightText))
-               ? darkText : lightText
-    }
-    // setwall works the accent out for every app (vivid or soft, by the same
-    // rule) and writes it as pal.vivid; before a theme with it has been made,
-    // the shell works it out itself
-    property color cBlue: pal.vivid ?? (vividOn ? readableAccent(wallSeed, pal.bg ?? "#1e1e2e") : (pal.blue ?? "#89b4fa"))
-    // The shell's third accent, from the picture itself.  Material builds the
-    // third accent by turning the main colour round the colour wheel, which
-    // often lands on a colour that isn't in the wallpaper (teal beside an
-    // orange picture).  With the smart colour: the picture's own second
-    // colour when it has one, otherwise a close neighbour of the main colour;
-    // at the palette's own third-accent lightness, so it sits in the theme.
-    // Monochrome and neutral keep theirs (their greys are the point).
-    readonly property color palGreen:  pal.green  ?? "#a6e3a1"
-    function thirdAccent(primary, tertiary, second, scheme) {
-        return Qt.color(Colour.thirdAccent(hexOf(primary), hexOf(tertiary), second ? hexOf(second) : "", scheme, smartOn))
-    }
-    // second and third accents: with the vivid accent, the picture's own
-    // second and third colours (setwall makes them readable); Material's
-    // otherwise.  (thirdAccent for colour files from before these existed.)
-    property color cGreen: pal.third ?? thirdAccent(pal.blue ?? "#89b4fa", palGreen, wallSecond, themeScheme)
-    property color cPeach:  pal.second ?? pal.peach ?? "#fab387"
-    // light mode swaps the three pastel "fixed" accents for darker
-    // companions, which would otherwise wash out on a light background
-    // Light, dark, or "auto": light for wallpapers that look bright (their
-    // lightness, 0-100, measured by the native plugin; above 60 is light).
-    // Without the plugin, auto stays dark.
-    readonly property bool isLight: cfg.themeMode === "light"
-                                    || (cfg.themeMode === "auto" && wallLightness > 60)
-    property real wallLightness: -1
-    property color cMauve:  (isLight ? pal.mauveL : pal.mauve) ?? "#cba6f7"
-    property color cTeal:   (isLight ? pal.tealL : pal.teal)   ?? "#94e2d5"
-    property color cRed:    pal.red    ?? "#f38ba8"
-    property color cYellow: (isLight ? pal.yellowL : pal.yellow) ?? "#f9e2af"
-    // text and icons drawn on top of an accent colour
-    property color cOnAccent: pal.onVivid ?? (vividOn ? textOn(cBlue, pal.bg ?? "#1e1e2e", pal.fg ?? "#cdd6f4")
-                                                      : (pal.onAccent ?? "#1e1e2e"))
-    // Material's filled-but-deeper accent (the clock's group, tiles that
-    // are on) and the text that sits on it.  Until matugen has written
-    // them, a mix of the accent and the background stands in.
-    property color cPrimC: pal.primaryC ?? Qt.tint(pal.bg ?? "#1e1e2e",
-                                                    Qt.rgba(cBlue.r, cBlue.g, cBlue.b, 0.35))
-    property color cOnPrimC: pal.onPrimaryC ?? cFg
-
-    // ---- theme changes fade instead of snapping ----
-    // Each colour eases to its new value over about half a second.  Off
-    // until the first palette has loaded, so the shell doesn't sweep in
-    // from its fallback colours at every login.
-    property bool colourFade: false
-    Timer { id: fadeOn; interval: 800; onTriggered: root.colourFade = true }
-    Behavior on cBg { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cCard { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cSurf { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cTile { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cBorder { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cFg { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cDim { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cFaint { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cBlue { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cGreen { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cPeach { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cMauve { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cTeal { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cRed { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cYellow { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cOnAccent { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cPrimC { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    Behavior on cOnPrimC { enabled: root.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
-    // dimming layers: the background colour at a given strength
-    function scrim(a) { return withAlpha(pal.bg ?? "#1e1e2e", hexA(a)) }
-    readonly property string font:   "JetBrainsMono Nerd Font"
 
     // ---- weather: services/Weather.qml (a singleton; newer code uses
     //      Weather.<name> directly).  Passed on under the old names. ----
@@ -165,7 +62,62 @@ ShellRoot {
     function wxSymbol(c, day) { return Weather.wxSymbol(c, day) }
     function searchPlace(q) { Weather.searchPlace(q) }
     function setPlace(r) { Weather.setPlace(r) }
-    readonly property string notesPath: Quickshell.env("HOME") + "/.config/quickshell/marked-days.txt"
+
+    // ---- colours: services/Theme.qml (a singleton; newer code uses
+    //      Theme.<name> directly).  Passed on under the old names. ----
+    readonly property color artAccent: Theme.artAccent
+    readonly property color artContainer: Theme.artContainer
+    readonly property color artOnAccent: Theme.artOnAccent
+    readonly property color artOnContainer: Theme.artOnContainer
+    readonly property var artValid: Theme.artValid
+    readonly property color cBg: Theme.cBg
+    readonly property color cBlue: Theme.cBlue
+    readonly property color cBorder: Theme.cBorder
+    readonly property color cCard: Theme.cCard
+    readonly property color cDim: Theme.cDim
+    readonly property color cFaint: Theme.cFaint
+    readonly property color cFg: Theme.cFg
+    readonly property color cGreen: Theme.cGreen
+    readonly property color cMauve: Theme.cMauve
+    readonly property color cOnAccent: Theme.cOnAccent
+    readonly property color cOnPrimC: Theme.cOnPrimC
+    readonly property color cPeach: Theme.cPeach
+    readonly property color cPrimC: Theme.cPrimC
+    readonly property color cRed: Theme.cRed
+    readonly property color cSurf: Theme.cSurf
+    readonly property color cTeal: Theme.cTeal
+    readonly property color cTile: Theme.cTile
+    readonly property color cYellow: Theme.cYellow
+    readonly property color mBlue: Theme.mBlue
+    readonly property color mOnAccent: Theme.mOnAccent
+    readonly property var bgA: Theme.bgA
+    readonly property var colourFade: Theme.colourFade
+    readonly property var darkTheme: Theme.darkTheme
+    readonly property var font: Theme.font
+    readonly property var isLight: Theme.isLight
+    readonly property var pal: Theme.pal
+    readonly property var smartOn: Theme.smartOn
+    readonly property var themeContrast: Theme.themeContrast
+    readonly property var themePrefer: Theme.themePrefer
+    readonly property var themeScheme: Theme.themeScheme
+    readonly property var vividOn: Theme.vividOn
+    readonly property var wallColourfulness: Theme.wallColourfulness
+    readonly property var wallLightness: Theme.wallLightness
+    readonly property var wallScheme: Theme.wallScheme
+    readonly property var wallSecond: Theme.wallSecond
+    readonly property var wallSeed: Theme.wallSeed
+    readonly property var wallThird: Theme.wallThird
+    readonly property var wallWhy: Theme.wallWhy
+    function contrast(a, b) { return Theme.contrast(a, b) }
+    function readableAccent(colour, bg) { return Theme.readableAccent(colour, bg) }
+    function reloadPalette() { return Theme.reloadPalette() }
+    function scrim(a) { return Theme.scrim(a) }
+    function thirdAccent(primary, tertiary, second, scheme) { return Theme.thirdAccent(primary, tertiary, second, scheme) }
+    Binding { target: Theme; property: "nativeOk"; value: root.nativeOk }
+    Connections {
+        target: Theme
+        function onPaletteLoaded() { root.publishLoginSoon() }
+    }
 
     // ---- this machine --------------------------------------------------
     // The monitor the bar, sidebar, dock and panels live on: set on the
@@ -655,7 +607,6 @@ ShellRoot {
     // its environment.  The start-up script may keep the shell itself on
     // NVIDIA's driver alone (__EGL_VENDOR_LIBRARY_FILENAMES); apps must not
     // inherit that, so they start exactly as they would from anywhere else.
-    readonly property var appEnv: ({ "__EGL_VENDOR_LIBRARY_FILENAMES": null })
     // Under UWSM, apps start as their own systemd units (through uwsm-app, its
     // fast client, or uwsm app): contained, stopped cleanly at log out, with
     // their own memory and CPU accounting.  Otherwise they start as before.
@@ -893,24 +844,11 @@ ShellRoot {
     // to the compositor's clipboard; see NativeStats.qml) the history keeps
     // itself up to date; otherwise cliphist keeps it, fed by wl-paste
     // watchers this shell starts only then, and is asked when needed.
-    property var clipItems: []
-    readonly property bool clipNativeOn: nativeOk && nativeLoader.item !== null && nativeLoader.item.clipAvailable
-    Binding { target: root; property: "clipItems"; when: root.clipNativeOn
-              value: nativeLoader.item ? nativeLoader.item.clipItems : []; restoreMode: Binding.RestoreNone }
-    function readClipboard() {
-        if (clipNativeOn) return              // live already
-        clipProc.running = true
-    }
-    // the fallback's watchers, once it's clear the native history isn't there
-    property bool clipDecided: false
-    Timer { interval: 3000; running: true; onTriggered: root.clipDecided = true }
-    Process { running: root.clipDecided && !root.clipNativeOn; command: ["wl-paste", "--type", "text", "--watch", "cliphist", "store"] }
-    Process { running: root.clipDecided && !root.clipNativeOn; command: ["wl-paste", "--type", "image", "--watch", "cliphist", "store"] }
 
 
     // refreshes wait until the sidebar has slid in, so they don't compete
     // with the opening frames
-    onSidebarShownChanged: if (sidebarShown) { sideRefresh.restart(); notifUnseen = 0 }
+    onSidebarShownChanged: if (sidebarShown) { sideRefresh.restart(); Notifications.notifUnseen = 0 }
     Timer {
         id: sideRefresh
         interval: 260
@@ -919,88 +857,11 @@ ShellRoot {
     function refreshSidebar() {
         readBrightness()
         root.readClipboard()
-        if (!netNativeOn) netStatProc.running = true
-    }
-
-    // ---- network, for the sidebar's network tile ----------------------
-    // The first connected device from NetworkManager: its kind and the
-    // connection's name.  Refreshed whenever the sidebar opens.
-    property string netKind: ""        // "wifi", "ethernet" or ""
-    property string netName: ""
-    Process {
-        id: netStatProc
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let kind = "", name = ""
-                for (const line of text.split("\n")) {
-                    const f = line.split(":")
-                    if (f.length < 3 || f[1] !== "connected") continue
-                    if (f[0] === "wifi" || f[0] === "ethernet") {
-                        kind = f[0]
-                        name = f.slice(2).join(":")
-                        break
-                    }
-                }
-                root.netKind = kind
-                root.netName = name
-            }
-        }
+        NetworkService.refreshNet()
     }
 
 
-    Process {
-        id: clipProc
-        command: ["sh", "-c", "cliphist list"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const out = []
-                for (const line of text.split("\n")) {
-                    if (!line.length) continue
-                    const tab = line.indexOf("\t")
-                    if (tab === -1) continue
-                    out.push({
-                        id: line.slice(0, tab),
-                        preview: line.slice(tab + 1)
-                    })
-                }
-                root.clipItems = out
-                if (root.clipShown) root.makeClipThumbs()
-            }
-        }
-    }
 
-    Process { id: clipAct }
-
-    function clipCopy(id) {
-        if (clipNativeOn) { nativeLoader.item.clipCopy(id); root.sidebarShown = false; root.clipShown = false; return }
-        clipAct.command = ["sh", "-c",
-            "cliphist decode " + id + " | wl-copy"]
-        clipAct.running = true
-        root.sidebarShown = false
-        root.clipShown = false
-    }
-
-    function clipDelete(id) {
-        if (clipNativeOn) { nativeLoader.item.clipRemove(id); return }
-        clipAct.command = ["sh", "-c",
-            "cliphist list | grep -m1 '^" + id + "\t' | cliphist delete"]
-        clipAct.running = true
-        clipRefresh.restart()
-    }
-
-    function clipWipe() {
-        if (clipNativeOn) { nativeLoader.item.clipClear(); return }
-        clipAct.command = ["sh", "-c", "cliphist wipe"]
-        clipAct.running = true
-        clipRefresh.restart()
-    }
-
-    Timer {
-        id: clipRefresh
-        interval: 120
-        onTriggered: root.readClipboard()
-    }
 
     // ---- keybind cheatsheet ------------------------------------------
     // Read from hyprctl rather than maintained by hand, so it cannot
@@ -1015,93 +876,7 @@ ShellRoot {
     property int settingsPage: 0
 
     property bool cheatShown: false
-    property var cheatBinds: []
-
-    onCheatShownChanged: if (cheatShown) cheatProc.running = true
-
-    readonly property var modNames: [
-        [64, "SUPER"], [8, "ALT"], [4, "CTRL"], [1, "SHIFT"]
-    ]
-
-    function modString(mask) {
-        const out = []
-        for (const [bit, name] of root.modNames) {
-            if (mask & bit) out.push(name)
-        }
-        return out
-    }
-
-    Process {
-        id: cheatProc
-        command: ["sh", "-c", "hyprctl binds -j"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let raw = []
-                try {
-                    raw = JSON.parse(text)
-                } catch (e) {
-                    console.log("cheatsheet: could not parse binds:", e)
-                    return
-                }
-
-                // key names people recognise
-                const pretty = {
-                    "SUPER_L": "SUPER (tap)", "slash": "/", "Tab": "Tab",
-                    "mouse:272": "Left drag", "mouse:273": "Right drag",
-                    "mouse_down": "Scroll down", "mouse_up": "Scroll up",
-                    "left": "\u2190", "right": "\u2192", "up": "\u2191", "down": "\u2193",
-                    "XF86AudioRaiseVolume": "Volume up key", "XF86AudioLowerVolume": "Volume down key",
-                    "XF86AudioMute": "Mute key", "XF86AudioMicMute": "Mic mute key",
-                    "XF86MonBrightnessUp": "Brightness up key", "XF86MonBrightnessDown": "Brightness down key",
-                    "XF86AudioNext": "Next key", "XF86AudioPrev": "Previous key",
-                    "XF86AudioPlay": "Play key", "XF86AudioPause": "Pause key"
-                }
-                // which group a bind belongs to, from its description
-                const groupOf = l => {
-                    if (/^(Go to|Send window to) workspace|workspace|overview/i.test(l)) return "Workspaces"
-                    if (/screenshot|text from the screen/i.test(l)) return "Screenshots"
-                    if (/volume|mute|brightness|track|play|pause/i.test(l)) return "Media"
-                    if (/window|float|pseudotile|split|focus|drag|resize|fullscreen|maximi/i.test(l)) return "Windows"
-                    if (/terminal|file manager|app menu|launcher/i.test(l)) return "Apps"
-                    return "Shell"
-                }
-
-                const out = []
-                const seen = {}
-                for (const b of raw) {
-                    const key = b.key ?? ""
-                    if (!key.length) continue
-
-                    let label = b.description ?? ""
-                    if (!label.length) {
-                        const d = b.dispatcher ?? ""
-                        label = d === "__lua" ? "(lua)" : d
-                    }
-
-                    const mods = root.modString(b.modmask ?? 0)
-                    // SUPER_L is the tap itself, not a modifier plus a key
-                    let keys = key === "SUPER_L" ? ["SUPER (tap)"]
-                             : mods.concat([pretty[key] ?? (key.length === 1 ? key.toUpperCase() : key)])
-
-                    // twenty workspace binds become two rows
-                    if (/^Workspace \d+$/.test(label)) {
-                        label = "Go to workspace"
-                        keys = mods.concat(["1 \u2026 0"])
-                    } else if (/^Send to workspace \d+$/.test(label)) {
-                        label = "Send window to workspace"
-                        keys = mods.concat(["1 \u2026 0"])
-                    }
-
-                    const id = keys.join("+") + "|" + label
-                    if (seen[id]) continue
-                    seen[id] = true
-                    out.push({ keys: keys, label: label, group: groupOf(label) })
-                }
-                root.cheatBinds = out
-            }
-        }
-    }
-
+    onCheatShownChanged: if (cheatShown) Shortcuts.refreshCheat()
     // ---- motion ----------------------------------------------------------
     // Every animation in the shell takes its length from here, so the
     // desktop moves as one: three speeds, one curve, all following
@@ -1154,22 +929,22 @@ ShellRoot {
     }
 
     Connections {
-        target: Pipewire.defaultAudioSink?.audio ?? null
+        target: Audio.sink?.audio ?? null
         function onVolumeChanged() {
-            root.showOsd(Pipewire.defaultAudioSink.audio.volume,
-                         Pipewire.defaultAudioSink.audio.muted)
+            root.showOsd(Audio.sink.audio.volume,
+                         Audio.sink.audio.muted)
         }
         function onMutedChanged() {
-            root.showOsd(Pipewire.defaultAudioSink.audio.volume,
-                         Pipewire.defaultAudioSink.audio.muted)
+            root.showOsd(Audio.sink.audio.volume,
+                         Audio.sink.audio.muted)
         }
     }
 
     // the microphone only shows when it's muted or unmuted, from anywhere
     Connections {
-        target: Pipewire.defaultAudioSource?.audio ?? null
+        target: Audio.source?.audio ?? null
         function onMutedChanged() {
-            const a = Pipewire.defaultAudioSource.audio
+            const a = Audio.source.audio
             root.showOsdOf("mic", a.volume, a.muted)
         }
     }
@@ -1183,38 +958,37 @@ ShellRoot {
             root.cardShown = false
         }
     }
-    property var wallpapers: []
 
 
-    property var notifList: []
-    property var popups: []
-
-    function dismissPopup(id) {
-        root.popups = root.popups.filter(n => n.id !== id)
-    }
-
-    // run one of a notification's buttons ("Reply", "Open", the click
-    // action "default", ...) through the live object, then clear it
-    function invokeNotifAction(id, key) {
-        const obj = root.notifRefs[id]
-        if (obj) {
-            try {
-                for (const a of (obj.actions || []))
-                    if (String(a.identifier) === key) { a.invoke(); break }
-            } catch (e) {}
+    // ---- notifications: services/Notifications.qml (a singleton; newer
+    //      code uses it directly).  Passed on under the old names. ----
+    readonly property var notifList: Notifications.notifList
+    readonly property var popups: Notifications.popups
+    readonly property var notifRefs: Notifications.notifRefs
+    readonly property var notifCount: Notifications.notifCount
+    readonly property var notifGroups: Notifications.notifGroups
+    readonly property var notifUnseen: Notifications.notifUnseen
+    readonly property var notifLoaded: Notifications.notifLoaded
+    readonly property var notifSeq: Notifications.notifSeq
+    function dismissPopup(id) { Notifications.dismissPopup(id) }
+    function invokeNotifAction(id, key) { Notifications.invokeNotifAction(id, key) }
+    function sendNotifReply(id, text) { Notifications.sendNotifReply(id, text) }
+    function dismissGroup(appName) { Notifications.dismissGroup(appName) }
+    function notifWhen(n) { return Notifications.notifWhen(n) }
+    function dismissNotif(id) { Notifications.dismissNotif(id) }
+    function clearNotifs() { Notifications.clearNotifs() }
+    Binding { target: Notifications; property: "quiet"; value: root.quietNow }
+    Binding { target: Notifications; property: "islandNotifs"; value: root.islandNotifs }
+    Binding { target: Notifications; property: "panelsOpen"; value: root.quickShown || root.sidebarShown }
+    // one arrived for the island: show it there
+    Connections {
+        target: Notifications
+        function onArrivedForIsland(n) {
+            root.showIsland({ kind: "notif", id: n.id, app: n.app, summary: n.summary, body: n.body,
+                              icon: root.notifIcon(n), urgent: n.urgency >= 2,
+                              canOpen: (n.actions || []).some(a => a.key === "default") },
+                            n.urgency >= 2 ? 8000 : 4500)
         }
-        dismissNotif(id)
-    }
-
-    // send a typed reply back to the app that asked for one
-    function sendNotifReply(id, text) {
-        const obj = root.notifRefs[id]
-        if (obj && text.trim() !== "") {
-            try { obj.sendInlineReply(text) } catch (e) {
-                console.log("inline reply failed:", e)
-            }
-        }
-        dismissNotif(id)
     }
 
     // an icon for a notification: a file path, an icon name, or the
@@ -1229,90 +1003,8 @@ ShellRoot {
         }
         return iconFor(n.desktop || n.app)
     }
-    property int notifSeq: 0
-
-    // Live Notification objects, keyed by our id.  They must NOT go inside
-    // notifList/popups: those arrays are list models, and when the server
-    // destroys an expired notification, a model entry still pointing at it
-    // makes Qt segfault the next time it builds a delegate from that entry.
-    // Model entries hold only plain values; the object is looked up here.
-    property var notifRefs: ({})
-    readonly property int notifCount: notifList.length
-
-    // ---- grouped by app, and history ------------------------------------
-    // Groups are worked out from notifList: { app, icon, items } with the
-    // newest group first and each group's newest item first.
-    readonly property var notifGroups: {
-        const idx = {}, out = []
-        for (const n of notifList) {
-            const k = n.app || "notification"
-            if (idx[k] === undefined) { idx[k] = out.length; out.push({ app: k, items: [] }) }
-            out[idx[k]].items.push(n)
-        }
-        return out
-    }
-    function dismissGroup(appName) {
-        for (const n of notifList.filter(x => (x.app || "notification") === appName)) {
-            const obj = notifRefs[n.id]
-            if (obj) { try { obj.dismiss() } catch (e) {} }
-        }
-        notifList = notifList.filter(x => (x.app || "notification") !== appName)
-        popups = popups.filter(x => (x.app || "notification") !== appName)
-    }
-    // when it arrived: the time today, the day before that
-    function notifWhen(n) {
-        if (!n.ts) return n.when || ""
-        const d = new Date(n.ts), now = new Date()
-        if (d.toDateString() === now.toDateString())
-            return Qt.formatDateTime(d, cfg.clock24h === true ? "HH:mm" : "h:mm AP")
-        return Qt.formatDateTime(d, "ddd d")
-    }
-    // arrived since quick settings or the sidebar was last opened
-    property int notifUnseen: 0
-
-    // Saved to ~/.local/state/ether/notifications.json (the newest 100),
-    // and read back at startup.  Saved ones come back without their
-    // buttons: the app that sent them has moved on.
-    property bool notifLoaded: false
-    Process {
-        running: true
-        // (the project was called Aether; its folder is moved across once)
-        command: ["sh", "-c", "s=\"$HOME/.local/state\"; " +
-            "[ -d \"$s/aether\" ] && [ ! -e \"$s/ether\" ] && mv \"$s/aether\" \"$s/ether\"; " +
-            "cat \"$s/ether/notifications.json\" 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const saved = JSON.parse(text)
-                    if (Array.isArray(saved)) {
-                        const old = saved.map(n => Object.assign({}, n, { saved: true, actions: [], replyable: false }))
-                        let top = root.notifSeq
-                        for (const n of old) top = Math.max(top, n.id || 0)
-                        root.notifSeq = top
-                        root.notifList = root.notifList.concat(old).slice(0, 100)
-                    }
-                } catch (e) {}
-                root.notifLoaded = true
-            }
-        }
-    }
-    onNotifListChanged: if (notifLoaded) notifSave.restart()
-    Timer {
-        id: notifSave
-        interval: 800
-        onTriggered: {
-            notifWrite.command = ["sh", "-c",
-                'd="$HOME/.local/state/ether"; mkdir -p "$d"; ' +
-                'printf "%s" "$1" > "$d/notifications.json.tmp" && mv "$d/notifications.json.tmp" "$d/notifications.json"',
-                "sh", JSON.stringify(root.notifList.slice(0, 100))]
-            notifWrite.running = true
-        }
-    }
-    Process { id: notifWrite }
-
     property int monthOffset: 0
     property string selectedKey: ""
-    property var markedDays: []
 
     // Hyprland publishes its client list natively, so the dock no longer
     // needs the KWin script and journal tail it used on Plasma.
@@ -1457,36 +1149,39 @@ ShellRoot {
         }
     }
 
-    // The player everything controls: the one picked in the media card
-    // if it's still around, else whichever is playing, else the first.
-    property string pickedPlayer: ""
-    readonly property var player: {
-        const list = Mpris.players.values
-        if (!list || list.length === 0) return null
-        if (pickedPlayer !== "")
-            for (const p of list) if (p.dbusName === pickedPlayer) return p
-        for (const p of list) {
-            if (p.playbackState === MprisPlaybackState.Playing) return p
-        }
-        return list[0]
+    // ---- sound and media: services/Audio.qml and Media.qml (singletons;
+    //      newer code uses them directly).  Passed on under the old names. ----
+    readonly property var pickedPlayer: Media.pickedPlayer
+    readonly property var player: Media.player
+    readonly property var playerList: Media.playerList
+    readonly property var playing: Media.playing
+    readonly property var lyricsOn: Media.lyricsOn
+    readonly property var lyrics: Media.lyrics
+    readonly property var lyricsPlain: Media.lyricsPlain
+    readonly property var lyricsState: Media.lyricsState
+    readonly property var lyricIndex: Media.lyricIndex
+    readonly property var cavaBars: Media.cavaBars
+    function fmtTime(sec) { return Media.fmtTime(sec) }
+    function fetchLyrics() { Media.fetchLyrics() }
+    Binding { target: Media; property: "drawerOpen"; value: root.cardShown }
+    Binding { target: Media; property: "sidebarOpen"; value: root.sidebarShown }
+    Binding { target: Media; property: "nativeOk"; value: root.nativeOk }
+    Connections {
+        target: Media
+        function onTrackKeyChanged() { trackIslandLater.restart() }
     }
-    // every player, as plain values for the card's switcher
-    readonly property var playerList: (Mpris.players.values || []).map(p => ({
-        key: p.dbusName, name: p.identity || p.dbusName,
-        playing: p.playbackState === MprisPlaybackState.Playing
-    }))
 
     onPlayerChanged: if (!player) cardShown = false
 
     // one island open at a time: opening one closes the others
     onCardShownChanged: if (cardShown) {
         quickShown = false; sysShown = false; launcherShown = false
-        lyricsLater.restart()
+        Media.fetchLyricsSoon()
     }
     onQuickShownChanged: if (quickShown) {
         BluetoothService.check()             // an adapter plugged in since?
         cardShown = false; sysShown = false; launcherShown = false
-        notifUnseen = 0
+        Notifications.notifUnseen = 0
         quickSettle.restart()
     }
     // Brightness (ddcutil, slow), network, Wi-Fi, Bluetooth and the
@@ -1516,33 +1211,7 @@ ShellRoot {
     property var playWeek: []                 // this week's games, for the playtime card
     readonly property bool autoGame: gameRunning && cfg.autoGameMode !== false
     readonly property bool quietNow: dnd || (gameRunning && cfg.gameQuiet !== false)
-    onAutoGameChanged: hyprDebounce.restart()
     function markGame() { gameWatch.markFocused() }
-
-    // ---- now-playing colours ---------------------------------------------
-    // While something plays, the media views (the media drawer, the bar's
-    // media pill, quick settings' mini player and the island's song card)
-    // take their accent colours from the album art, and fade back to the
-    // wallpaper's when it stops.  The colours come from ArtColors in the
-    // native plugin (via NativeStats.qml); without it, they stay the theme's.
-    // Everything else keeps the wallpaper theme.
-    property bool artValid: false
-    property color artAccent: cBlue
-    property color artOnAccent: cOnAccent
-    property color artContainer: cPrimC
-    property color artOnContainer: cOnPrimC
-    readonly property bool darkTheme: (cBg.r * 0.299 + cBg.g * 0.587 + cBg.b * 0.114) < 0.5
-    readonly property bool playing: player?.playbackState === MprisPlaybackState.Playing
-    readonly property bool artOn: cfg.artColors !== false && artValid && playing
-    // what the media views use
-    property color mBlue: artOn ? artAccent : cBlue
-    property color mOnAccent: artOn ? artOnAccent : cOnAccent
-    property color mPrimC: artOn ? artContainer : cPrimC
-    property color mOnPrimC: artOn ? artOnContainer : cOnPrimC
-    Behavior on mBlue { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
-    Behavior on mOnAccent { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
-    Behavior on mPrimC { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
-    Behavior on mOnPrimC { ColorAnimation { duration: 700; easing.type: Easing.InOutQuad } }
 
     // ---- scenes (Scenes.qml): saved desktops ----
     property var sceneList: []                // [{ name, count, saved }], newest first
@@ -1567,318 +1236,34 @@ ShellRoot {
                   "--why=Keep awake is on", "sleep", "infinity"]
     }
 
-    // ---- Wi-Fi and Bluetooth, native (Quickshell 0.3+) -------------------
-    // NetNative.qml uses Quickshell's own NetworkManager and BlueZ modules:
-    // live, nothing polled, no programs run.  Loaded on its own, so on an
-    // older Quickshell (no such modules) it just fails to load and the
-    // nmcli and bluetoothctl code below carries on.  Either way the same
-    // properties and actions, so the UI doesn't need to know which.
-    Loader { id: netNative; source: "NetNative.qml" }
-    readonly property bool netNativeOn: netNative.status === Loader.Ready && netNative.item.netOk
-    // Quickshell's own Bluetooth gives up for good if bluetoothd wasn't
-    // running when the shell started, so when there's an adapter it isn't
-    // seeing (the service started later, from the tile), bluetoothctl does
-    readonly property bool btNativeOn: netNative.status === Loader.Ready && netNative.item.btOk
-                                       && (netNative.item.btHas || !BluetoothService.adapter)
-    Connections {
-        target: BluetoothService
-        function onStarted() { root.refreshBt() }
-    }
-    Binding { target: root; property: "wifiHas";   when: root.netNativeOn; value: netNative.item ? netNative.item.wifiHas : false; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "wifiOn";    when: root.netNativeOn; value: netNative.item ? netNative.item.wifiOn : false; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "wifiList";  when: root.netNativeOn; value: netNative.item ? netNative.item.wifiList : []; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "wifiBusy";  when: root.netNativeOn; value: netNative.item ? netNative.item.wifiBusy : ""; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "wifiAskPw"; when: root.netNativeOn; value: netNative.item ? netNative.item.wifiAskPw : ""; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "wifiError"; when: root.netNativeOn; value: netNative.item ? netNative.item.wifiError : ""; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "netKind";   when: root.netNativeOn; value: netNative.item ? netNative.item.netNow.kind : ""; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "netName";   when: root.netNativeOn; value: netNative.item ? netNative.item.netNow.name : ""; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "btHas";      when: root.btNativeOn; value: netNative.item ? netNative.item.btHas : false; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "btOn";       when: root.btNativeOn; value: netNative.item ? netNative.item.btOn : false; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "btList";     when: root.btNativeOn; value: netNative.item ? netNative.item.btList : []; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "btScanning"; when: root.btNativeOn; value: netNative.item ? netNative.item.btScanning : false; restoreMode: Binding.RestoreNone }
-    Binding { target: root; property: "btBusy";     when: root.btNativeOn; value: netNative.item ? netNative.item.btBusy : ""; restoreMode: Binding.RestoreNone }
-    // the password prompt, closed without joining
-    function wifiCancelPw() {
-        if (netNativeOn) netNative.item.wifiAskPw = ""
-        wifiAskPw = ""
-    }
-
-    // ---- Wi-Fi (NetworkManager, through nmcli: the fallback) --------------
-    // Lists are plain values.  Connecting runs nmcli with its arguments
-    // as a list, never through a shell, so a network name or password
-    // can't be mistaken for a command.
-    property bool wifiHas: false
-    property bool wifiOn: false
-    property var wifiList: []            // { ssid, signal, secure, active }
-    property string wifiBusy: ""         // the network being joined
-    property string wifiAskPw: ""        // the network that needs a password
-    property string wifiError: ""
-    function refreshWifi(rescan) {
-        if (netNativeOn) { netNative.item.refreshWifi(rescan); return }
-        wifiScan.command = ["sh", "-c",
-            "nmcli -t -f TYPE device | grep -qx wifi && echo HAS; " +
-            "echo \"RADIO $(nmcli radio wifi)\"; " +
-            "nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list --rescan " +
-            (rescan ? "yes" : "auto") + " 2>/dev/null | sed 's/^/NET /'"]
-        wifiScan.running = true
-    }
-    Process {
-        id: wifiScan
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let has = false, on = false
-                const seen = {}, out = []
-                for (const line of text.split("\n")) {
-                    if (line === "HAS") has = true
-                    else if (line.startsWith("RADIO ")) on = line.slice(6).trim() === "enabled"
-                    else if (line.startsWith("NET ")) {
-                        const f = root.nmFields(line.slice(4))
-                        if (f.length < 4 || !f[1]) continue
-                        const n = { active: f[0] === "*", ssid: f[1], signal: parseInt(f[2]) || 0,
-                                    secure: f[3] !== "" && f[3] !== "--" }
-                        if (seen[n.ssid] !== undefined) {
-                            const o = out[seen[n.ssid]]
-                            if (n.active || n.signal > o.signal) out[seen[n.ssid]] = n
-                            continue
-                        }
-                        seen[n.ssid] = out.length
-                        out.push(n)
-                    }
-                }
-                out.sort((a, b) => (b.active - a.active) || (b.signal - a.signal))
-                root.wifiHas = has
-                root.wifiOn = on
-                root.wifiList = out
-            }
-        }
-    }
-    Process {
-        id: wifiAct
-        stdout: StdioCollector { id: wifiActOut }
-        stderr: StdioCollector { id: wifiActErr }
-        onExited: code => {
-            const msg = (wifiActErr.text + " " + wifiActOut.text).toLowerCase()
-            if (code !== 0 && root.wifiBusy !== "") {
-                if (/secret|password|802-11-wireless-security/.test(msg)) root.wifiAskPw = root.wifiBusy
-                else root.wifiError = "Couldn't join " + root.wifiBusy
-            } else {
-                root.wifiAskPw = ""
-                root.wifiError = ""
-            }
-            root.wifiBusy = ""
-            root.refreshWifi(false)
-            netStatProc.running = true
-        }
-    }
-    // nmcli -t separates fields with ":" and escapes any inside a field
-    // (a network called "Cafe: 2" comes out as "Cafe\: 2")
-    function nmFields(line) {
-        const out = []
-        let cur = ""
-        for (let i = 0; i < line.length; i++) {
-            const c = line[i]
-            if (c === "\\" && i + 1 < line.length) { cur += line[++i]; continue }
-            if (c === ":") { out.push(cur); cur = ""; continue }
-            cur += c
-        }
-        out.push(cur)
-        return out
-    }
-    function wifiToggle() {
-        if (netNativeOn) { netNative.item.wifiToggle(); return }
-        wifiAct.command = ["nmcli", "radio", "wifi", wifiOn ? "off" : "on"]
-        wifiAct.running = true
-    }
-    function wifiConnect(ssid, pw) {
-        if (netNativeOn) { netNative.item.wifiConnect(ssid, pw); return }
-        wifiBusy = ssid
-        wifiError = ""
-        wifiAct.command = pw ? ["nmcli", "device", "wifi", "connect", ssid, "password", pw]
-                             : ["nmcli", "device", "wifi", "connect", ssid]
-        wifiAct.running = true
-    }
-    function wifiDisconnect(ssid) {
-        if (netNativeOn) { netNative.item.wifiDisconnect(ssid); return }
-        wifiAct.command = ["nmcli", "connection", "down", "id", ssid]
-        wifiAct.running = true
-    }
-
-    // ---- Bluetooth (through bluetoothctl: the fallback) ----------------------
-    property bool btHas: false
-    property bool btOn: false
-    property var btList: []              // { mac, name, paired, connected }
-    property bool btScanning: false
-    property string btBusy: ""
-    function refreshBt() {
-        if (btNativeOn) return                    // live: nothing to refresh
-        btRead.command = ["sh", "-c",
-            "bluetoothctl list 2>/dev/null | grep -q Controller && echo HAS; " +
-            "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && echo ON; " +
-            "bluetoothctl devices Paired 2>/dev/null | sed 's/^Device /PAIRED /'; " +
-            "bluetoothctl devices Connected 2>/dev/null | sed 's/^Device /CONN /'; " +
-            "bluetoothctl devices 2>/dev/null | sed 's/^Device /SEEN /'"]
-        btRead.running = true
-    }
-    Process {
-        id: btRead
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let has = false, on = false
-                const dev = {}, order = []
-                for (const line of text.split("\n")) {
-                    if (line === "HAS") { has = true; continue }
-                    if (line === "ON") { on = true; continue }
-                    const m = line.match(/^(PAIRED|CONN|SEEN) ([0-9A-F:]{17}) ?(.*)$/)
-                    if (!m) continue
-                    if (!dev[m[2]]) { dev[m[2]] = { mac: m[2], name: m[3] || m[2], paired: false, connected: false }; order.push(m[2]) }
-                    if (m[1] === "PAIRED") dev[m[2]].paired = true
-                    if (m[1] === "CONN") dev[m[2]].connected = true
-                }
-                // connected first, then paired, then everything else nearby;
-                // unnamed devices (just an address) are left out
-                const out = order.map(k => dev[k]).filter(d => d.paired || !/^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/i.test(d.name))
-                out.sort((a, b) => (b.connected - a.connected) || (b.paired - a.paired) || a.name.localeCompare(b.name))
-                root.btHas = has
-                root.btOn = on
-                root.btList = out
-            }
-        }
-    }
-    Process {
-        id: btAct
-        onExited: { root.btBusy = ""; root.refreshBt() }
-    }
-    Process {
-        id: btScanProc
-        command: ["bluetoothctl", "--timeout", "12", "scan", "on"]
-        onExited: { root.btScanning = false; root.refreshBt() }
-    }
-    Timer {
-        // while scanning, show devices as they're found
-        interval: 2000; repeat: true
-        running: root.btScanning
-        onTriggered: root.refreshBt()
-    }
-    function btToggle() {
-        if (btNativeOn) { netNative.item.btToggle(); return }
-        btAct.command = ["bluetoothctl", "power", btOn ? "off" : "on"]
-        btAct.running = true
-    }
-    function btScan() {
-        if (btNativeOn) { netNative.item.btScan(); return }
-        if (btScanning) return
-        btScanning = true
-        btScanProc.running = true
-    }
-    function btConnect(mac, paired) {
-        if (btNativeOn) { netNative.item.btConnect(mac, paired); return }
-        if (!/^[0-9A-F:]{17}$/i.test(mac)) return
-        btBusy = mac
-        btAct.command = paired ? ["bluetoothctl", "connect", mac]
-            : ["sh", "-c", "bluetoothctl pair \"$1\" && bluetoothctl trust \"$1\" && bluetoothctl connect \"$1\"", "sh", mac]
-        btAct.running = true
-    }
-    function btDisconnect(mac) {
-        if (btNativeOn) { netNative.item.btDisconnect(mac); return }
-        if (!/^[0-9A-F:]{17}$/i.test(mac)) return
-        btBusy = mac
-        btAct.command = ["bluetoothctl", "disconnect", mac]
-        btAct.running = true
-    }
-
-    // ---- synced lyrics (LRCLIB) -------------------------------------------
-    // Fetched from lrclib.net, a free lyrics database with no key, only
-    // while the media drawer is open and only once per song.  The artist
-    // and title go to curl as arguments, never pasted into a command.
-    // lyrics: [{ t: seconds, text }], plain values.
-    readonly property bool lyricsOn: cfg.lyricsShown !== false
-    property var lyrics: []
-    property string lyricsPlain: ""
-    property string lyricsState: ""        // loading, synced, plain, none
-    property string lyricsKey: ""
-    property var lyricsCache: ({})
-    readonly property string trackKey: player
-        ? (player.trackArtist || "") + "\u0001" + (player.trackTitle || "") : ""
-    // the line being sung: the last one that has started
-    readonly property int lyricIndex: {
-        if (lyricsState !== "synced" || !player) return -1
-        const pos = player.position + 0.25
-        let lo = 0, hi = lyrics.length - 1, ans = -1
-        while (lo <= hi) {
-            const mid = (lo + hi) >> 1
-            if (lyrics[mid].t <= pos) { ans = mid; lo = mid + 1 } else hi = mid - 1
-        }
-        return ans
-    }
-    function parseLrc(lrc) {
-        const out = []
-        for (const line of (lrc || "").split("\n")) {
-            const stamps = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g)
-            if (!stamps) continue
-            const text = line.replace(/\[[^\]]*\]/g, "").trim()
-            for (const st of stamps) {
-                const m = st.match(/\[(\d+):(\d+(?:\.\d+)?)\]/)
-                out.push({ t: parseInt(m[1]) * 60 + parseFloat(m[2]), text: text })
-            }
-        }
-        out.sort((a, b) => a.t - b.t)
-        return out
-    }
-    function showLyrics(entry) {
-        lyrics = entry.synced
-        lyricsPlain = entry.plain
-        lyricsState = entry.synced.length ? "synced" : entry.plain ? "plain" : "none"
-    }
-    function fetchLyrics() {
-        if (!player || trackKey === "" || !lyricsOn) return
-        if (trackKey === lyricsKey && lyricsState !== "") return
-        lyricsKey = trackKey
-        const hit = lyricsCache[trackKey]
-        if (hit) { showLyrics(hit); return }
-        lyrics = []
-        lyricsPlain = ""
-        lyricsState = "loading"
-        lyricsProc.key = trackKey
-        lyricsProc.command = ["sh", "-c",
-            'UA="Ether Shell (github.com/VHS33/ether-shell)"; ' +
-            'r=$(curl -s --max-time 8 -A "$UA" -G "https://lrclib.net/api/get" ' +
-            '--data-urlencode "artist_name=$1" --data-urlencode "track_name=$2" ' +
-            '--data-urlencode "album_name=$3" --data-urlencode "duration=$4"); ' +
-            'case "$r" in *yncedLyrics*|*lainLyrics*) printf "%s" "$r"; exit 0;; esac; ' +
-            'curl -s --max-time 8 -A "$UA" -G "https://lrclib.net/api/search" ' +
-            '--data-urlencode "track_name=$2" --data-urlencode "artist_name=$1"',
-            "sh", player.trackArtist || "", player.trackTitle || "", player.trackAlbum || "",
-            String(Math.round(player.length || 0))]
-        lyricsProc.running = true
-    }
-    Process {
-        id: lyricsProc
-        property string key: ""
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let entry = { synced: [], plain: "" }
-                try {
-                    let j = JSON.parse(text)
-                    // the search gives a list: prefer one with timings
-                    if (Array.isArray(j)) j = j.find(x => x && x.syncedLyrics) || j.find(x => x && x.plainLyrics) || {}
-                    entry = { synced: root.parseLrc(j.syncedLyrics || ""), plain: (j.plainLyrics || "").trim() }
-                } catch (e) {}
-                const c = Object.assign({}, root.lyricsCache)
-                c[lyricsProc.key] = entry
-                const keys = Object.keys(c)
-                if (keys.length > 40) delete c[keys[0]]
-                root.lyricsCache = c
-                if (lyricsProc.key === root.lyricsKey) root.showLyrics(entry)
-            }
-        }
-    }
-    // a new song, or the media drawer opening: fetch (once) after a beat
-    onTrackKeyChanged: { lyricsLater.restart(); trackIslandLater.restart() }
-    Timer {
-        id: lyricsLater
-        interval: 400
-        onTriggered: if (root.cardShown) root.fetchLyrics()
-    }
+    // ---- the network and Bluetooth: services/NetworkService.qml and
+    //      BluetoothService.qml (singletons; newer code uses them
+    //      directly).  Passed on under the old names. ----
+    readonly property var wifiHas: NetworkService.wifiHas
+    readonly property var wifiOn: NetworkService.wifiOn
+    readonly property var wifiList: NetworkService.wifiList
+    readonly property var wifiBusy: NetworkService.wifiBusy
+    readonly property var wifiAskPw: NetworkService.wifiAskPw
+    readonly property var wifiError: NetworkService.wifiError
+    readonly property var netKind: NetworkService.netKind
+    readonly property var netName: NetworkService.netName
+    readonly property var netNativeOn: NetworkService.netNativeOn
+    readonly property var btHas: BluetoothService.btHas
+    readonly property var btOn: BluetoothService.btOn
+    readonly property var btList: BluetoothService.btList
+    readonly property var btScanning: BluetoothService.btScanning
+    readonly property var btBusy: BluetoothService.btBusy
+    readonly property var btNativeOn: BluetoothService.btNativeOn
+    function refreshWifi(rescan) { NetworkService.refreshWifi(rescan) }
+    function wifiToggle() { NetworkService.wifiToggle() }
+    function wifiConnect(ssid, pw) { NetworkService.wifiConnect(ssid, pw) }
+    function wifiDisconnect(ssid) { NetworkService.wifiDisconnect(ssid) }
+    function wifiCancelPw() { NetworkService.wifiCancelPw() }
+    function refreshBt() { BluetoothService.refreshBt() }
+    function btToggle() { BluetoothService.btToggle() }
+    function btScan() { BluetoothService.btScan() }
+    function btConnect(mac, paired) { BluetoothService.btConnect(mac, paired) }
+    function btDisconnect(mac) { BluetoothService.btDisconnect(mac) }
 
     // ---- AI assistant -----------------------------------------------------
     // A chat with whichever provider the user picks in Settings: Anthropic,
@@ -1894,264 +1279,10 @@ ShellRoot {
         function open(): void { root.aiShown = true }
         function close(): void { root.aiShown = false }
     }
-    readonly property var aiProviders: ({
-        anthropic: { name: "Anthropic", product: "Claude", model: "claude-sonnet-5",
-                     keyUrl: "console.anthropic.com" },
-        gemini:    { name: "Google", product: "Gemini", model: "gemini-2.5-flash",
-                     keyUrl: "aistudio.google.com" },
-        openai:    { name: "OpenAI", product: "ChatGPT", model: "gpt-4.1-mini",
-                     keyUrl: "platform.openai.com" }
-    })
-    readonly property string aiProvider: aiProviders[cfg.aiProvider] ? cfg.aiProvider : "anthropic"
-    function aiModelFor(p) { return cfg["aiModel_" + p] || aiProviders[p].model }
-    readonly property string aiModel: aiModelFor(aiProvider)
-    readonly property string aiSystem:
-        "You are the assistant built into Ether Shell, a desktop shell on the user's Arch Linux " +
-        "computer running Hyprland. Be concise and practical. Use Markdown for lists and code. " +
-        "The user's shell is fish."
-
-    // which providers have a key saved
-    property var aiKeys: ({})
-    function refreshAiKeys() { aiKeyList.running = true }
-    Process {
-        id: aiKeyList
-        running: true
-        // (the project was called Aether; its folder is moved across once)
-        command: ["sh", "-c", "c=\"$HOME/.config\"; " +
-            "[ -d \"$c/aether\" ] && [ ! -e \"$c/ether\" ] && mv \"$c/aether\" \"$c/ether\"; " +
-            "ls \"$c/ether/ai\" 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const k = {}
-                for (const f of text.split("\n")) if (f.endsWith(".key")) k[f.slice(0, -4)] = true
-                root.aiKeys = k
-            }
-        }
-    }
-    property string aiKeyPending: ""
-    Process {
-        id: aiKeyWrite
-        stdinEnabled: true
-        onStarted: { write(root.aiKeyPending); root.aiKeyPending = ""; stdinEnabled = false }
-        onExited: { stdinEnabled = true; root.refreshAiKeys() }
-    }
-    function saveAiKey(p, key) {
-        key = (key || "").trim()
-        if (!aiProviders[p] || key === "") return
-        aiKeyPending = key
-        aiKeyWrite.command = ["sh", "-c",
-            'umask 077; d="$HOME/.config/ether/ai"; mkdir -p "$d"; cat > "$d/$1.key"', "sh", p]
-        aiKeyWrite.running = true
-    }
-    Process { id: aiKeyRemove; onExited: root.refreshAiKeys() }
-    function removeAiKey(p) {
-        if (!aiProviders[p]) return
-        aiKeyRemove.command = ["sh", "-c", 'rm -f "$HOME/.config/ether/ai/$1.key"', "sh", p]
-        aiKeyRemove.running = true
-    }
-
-    // the conversation: plain values; the reply being written is kept apart
-    // so the list doesn't rebuild on every word
-    property var aiMessages: []          // { role: "user" | "assistant", text, error }
-    property string aiStreaming: ""
-    property bool aiBusy: false
-    property string aiRaw: ""            // anything that wasn't a stream event (errors)
-    function aiNew() {
-        if (aiBusy) aiStop()
-        aiMessages = []
-        aiStreaming = ""
-    }
-    function aiStop() {
-        if (!aiBusy) return
-        aiProc.running = false
-    }
-    function aiBody() {
-        const p = aiProvider, msgs = aiMessages.filter(m => !m.error)
-        if (p === "gemini")
-            return JSON.stringify({
-                systemInstruction: { parts: [{ text: aiSystem }] },
-                contents: msgs.map(m => ({ role: m.role === "assistant" ? "model" : "user",
-                                           parts: [{ text: m.text }] })) })
-        if (p === "openai")
-            return JSON.stringify({ model: aiModel, stream: true,
-                messages: [{ role: "system", content: aiSystem }]
-                          .concat(msgs.map(m => ({ role: m.role, content: m.text }))) })
-        return JSON.stringify({ model: aiModel, max_tokens: 4096, stream: true, system: aiSystem,
-                                messages: msgs.map(m => ({ role: m.role, content: m.text })) })
-    }
-    function aiSend(text) {
-        text = (text || "").trim()
-        if (text === "" || aiBusy) return
-        aiMessages = aiMessages.concat([{ role: "user", text: text }])
-        aiStreaming = ""
-        aiRaw = ""
-        aiBusy = true
-        aiPendingBody = aiBody()
-        aiProc.command = ["sh", "-c",
-            'p="$1"; model="$2"; k=$(cat "$HOME/.config/ether/ai/$p.key" 2>/dev/null); ' +
-            '[ -n "$k" ] || { echo ETHER_NOKEY; exit 0; }; ' +
-            'h=$(mktemp); trap \'rm -f "$h"\' EXIT; ' +
-            'case "$p" in ' +
-            '  anthropic) printf "x-api-key: %s\\nanthropic-version: 2023-06-01\\ncontent-type: application/json\\n" "$k" > "$h"; ' +
-            '             url="https://api.anthropic.com/v1/messages";; ' +
-            '  openai)    printf "Authorization: Bearer %s\\ncontent-type: application/json\\n" "$k" > "$h"; ' +
-            '             url="https://api.openai.com/v1/chat/completions";; ' +
-            '  gemini)    printf "x-goog-api-key: %s\\ncontent-type: application/json\\n" "$k" > "$h"; ' +
-            '             url="https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse";; ' +
-            'esac; ' +
-            'curl -sN --max-time 180 -H @"$h" --data-binary @- "$url"',
-            "sh", aiProvider, /^[\w.:-]+$/.test(aiModel) ? aiModel : aiProviders[aiProvider].model]
-        aiProc.running = true
-    }
-    property string aiPendingBody: ""
-    Process {
-        id: aiProc
-        stdinEnabled: true
-        onStarted: { write(root.aiPendingBody); root.aiPendingBody = ""; stdinEnabled = false }
-        stdout: SplitParser {
-            onRead: line => {
-                if (line === "ETHER_NOKEY") {
-                    root.aiRaw = "ETHER_NOKEY"
-                    return
-                }
-                if (!line.startsWith("data:")) {
-                    if (line.trim() !== "" && !line.startsWith("event:")) root.aiRaw += line + "\n"
-                    return
-                }
-                const payload = line.slice(5).trim()
-                if (payload === "" || payload === "[DONE]") return
-                try {
-                    const j = JSON.parse(payload)
-                    let d = ""
-                    if (root.aiProvider === "anthropic") {
-                        if (j.type === "content_block_delta" && j.delta) d = j.delta.text || ""
-                        else if (j.type === "error") root.aiRaw += payload
-                    } else if (root.aiProvider === "openai") {
-                        d = j.choices && j.choices[0] && j.choices[0].delta ? (j.choices[0].delta.content || "") : ""
-                        if (j.error) root.aiRaw += payload
-                    } else {
-                        const parts = j.candidates && j.candidates[0] && j.candidates[0].content
-                                      ? (j.candidates[0].content.parts || []) : []
-                        d = parts.map(p => p.text || "").join("")
-                        if (j.error) root.aiRaw += payload
-                    }
-                    if (d) root.aiStreaming += d
-                } catch (e) {}
-            }
-        }
-        onExited: {
-            stdinEnabled = true
-            let msg = null
-            if (root.aiStreaming !== "") {
-                msg = { role: "assistant", text: root.aiStreaming }
-            } else if (root.aiRaw === "ETHER_NOKEY") {
-                msg = { role: "assistant", error: true,
-                        text: "No API key saved for " + root.aiProviders[root.aiProvider].name
-                              + ". Add one in Settings, under AI assistant." }
-            } else {
-                let why = ""
-                try {
-                    const j = JSON.parse(root.aiRaw.trim())
-                    why = (j.error && (j.error.message || j.error)) || j.message || ""
-                } catch (e) {
-                    why = root.aiRaw.trim().slice(0, 300)
-                }
-                msg = { role: "assistant", error: true,
-                        text: why ? "The request failed: " + why
-                                  : "No reply came back. Check your connection and API key." }
-            }
-            root.aiMessages = root.aiMessages.concat([msg])
-            root.aiStreaming = ""
-            root.aiBusy = false
-        }
-    }
-
     // ---- timer and stopwatch ---------------------------------------------
     // Times are kept against the clock (when it ends, when it started), not
     // counted by ticks, so they stay right even if the shell is busy.  The
     // tick only refreshes what's shown.
-    property double timerEnd: 0          // when a running timer ends (ms)
-    property int timerTotal: 0           // its length (s)
-    property int timerHeld: 0            // seconds left while paused
-    property int timerLeft: 0            // seconds left, for showing
-    readonly property bool timerOn: timerEnd > 0 || timerHeld > 0
-    readonly property bool timerPaused: timerEnd === 0 && timerHeld > 0
-    property double swStart: 0           // when the stopwatch last started (ms)
-    property double swBanked: 0          // time counted before that (ms)
-    property bool swRunning: false
-    property double swMs: 0              // elapsed, for showing
-    readonly property bool swOn: swRunning || swBanked > 0
-
-    function startTimer(sec) {
-        sec = Math.max(1, Math.round(sec))
-        timerTotal = sec
-        timerHeld = 0
-        timerEnd = Date.now() + sec * 1000
-        timerLeft = sec
-    }
-    function pauseTimer() {
-        if (timerEnd === 0) return
-        timerHeld = Math.max(1, Math.ceil((timerEnd - Date.now()) / 1000))
-        timerEnd = 0
-    }
-    function resumeTimer() {
-        if (timerHeld <= 0) return
-        timerEnd = Date.now() + timerHeld * 1000
-        timerHeld = 0
-    }
-    function cancelTimer() { timerEnd = 0; timerHeld = 0; timerLeft = 0; timerTotal = 0 }
-    function swToggle() {
-        if (swRunning) { swBanked += Date.now() - swStart; swRunning = false }
-        else { swStart = Date.now(); swRunning = true }
-        swMs = swBanked
-    }
-    function swReset() { swRunning = false; swBanked = 0; swMs = 0 }
-    // 75 -> "1:15", 3700 -> "1:01:40"
-    function fmtDur(sec) {
-        sec = Math.max(0, Math.floor(sec))
-        const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = sec % 60
-        const p = v => (v < 10 ? "0" : "") + v
-        return h > 0 ? h + ":" + p(m) + ":" + p(x) : m + ":" + p(x)
-    }
-    // "5m", "90s", "1h 30m", "2.5m" -> seconds; 0 when it isn't a length
-    function parseDur(t) {
-        let total = 0, found = false
-        const re = /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|m|min|mins|minutes?|s|sec|secs|seconds?)?/gi
-        let m
-        while ((m = re.exec(t)) !== null) {
-            if (m[0].trim() === "") { re.lastIndex++; continue }
-            const n = parseFloat(m[1]), u = (m[2] || "m").toLowerCase()
-            total += u.startsWith("h") ? n * 3600 : u.startsWith("s") ? n : n * 60
-            found = true
-        }
-        return found ? Math.round(total) : 0
-    }
-    Timer {
-        interval: 200
-        repeat: true
-        running: root.timerEnd > 0 || root.swRunning
-        onTriggered: {
-            const now = Date.now()
-            if (root.timerEnd > 0) {
-                root.timerLeft = Math.max(0, Math.ceil((root.timerEnd - now) / 1000))
-                if (now >= root.timerEnd) root.timerDone()
-            }
-            if (root.swRunning) root.swMs = root.swBanked + now - root.swStart
-        }
-    }
-    function timerDone() {
-        const len = timerTotal
-        cancelTimer()
-        // in the island if it's there (it says so itself); otherwise a notification
-        if (islandOn) showIsland({ kind: "timer", len: fmtDur(len) }, 10000)
-        timerAlert.command = ["sh", "-c",
-            (islandOn ? '' : 'notify-send -a Timer -u critical -i alarm "Time\'s up" "Your $1 timer has finished"; ') +
-            'for f in /usr/share/sounds/freedesktop/stereo/complete.oga /usr/share/sounds/freedesktop/stereo/bell.oga; do ' +
-            '[ -f "$f" ] && { pw-play "$f" 2>/dev/null || paplay "$f" 2>/dev/null; break; }; done',
-            "sh", fmtDur(len)]
-        timerAlert.running = true
-    }
-    Process { id: timerAlert }
 
     // ---- launcher --------------------------------------------------------
     // SUPER (tapped) or `qs ipc call launcher toggle`.  It grows out of the
@@ -2164,12 +1295,6 @@ ShellRoot {
         root.readClipboard()          // fresh clipboard history for ;
     }
     // how often each app has been opened from the launcher, for ranking
-    readonly property var launchCounts: cfg.launchCounts ?? ({})
-    function noteLaunch(id) {
-        const c = Object.assign({}, launchCounts)
-        c[id] = (c[id] || 0) + 1
-        setting("launchCounts", c)
-    }
     IpcHandler {
         target: "launcher"
         function toggle(): void { root.launcherShown = !root.launcherShown }
@@ -2193,43 +1318,8 @@ ShellRoot {
     property int launcherPrefillNow: 0
     onCalShownChanged: if (!calShown) { monthOffset = 0; selectedKey = "" }
 
-    function fmtTime(sec) {
-        if (!sec || sec < 0 || !isFinite(sec)) return "0:00"
-        const s = Math.floor(sec % 60)
-        const m = Math.floor(sec / 60) % 60
-        const h = Math.floor(sec / 3600)
-        const pad = n => (n < 10 ? "0" + n : "" + n)
-        return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s)
-    }
 
-    function run(cmd) {
-        launchProc.command = ["sh", "-c", cmd]
-        launchProc.running = true
-    }
 
-    function dismissNotif(id) {
-        const obj = root.notifRefs[id]
-        if (obj) {
-            try { obj.dismiss() } catch (e) {}
-        }
-        root.notifList = root.notifList.filter(n => n.id !== id)
-        root.popups = root.popups.filter(n => n.id !== id)
-    }
-
-    function clearNotifs() {
-        for (const k in root.notifRefs) {
-            try { root.notifRefs[k].dismiss() } catch (e) {}
-        }
-        root.notifRefs = ({})
-        root.notifList = []
-        root.popups = []
-    }
-
-    function saveMarks() {
-        saveProc.command = ["sh", "-c",
-            "printf '%s' '" + root.markedDays.join(",") + "' > '" + root.notesPath + "'"]
-        saveProc.running = true
-    }
 
     function toggleMark(key) {
         if (root.markedDays.indexOf(key) === -1)
@@ -2245,242 +1335,6 @@ ShellRoot {
         root.selectedKey = root.selectedKey === key ? "" : key
     }
 
-    // ---- holidays ----------------------------------------------------
-    // Major US holidays, worked out per year: fixed dates, "nth weekday
-    // of the month" ones, and Easter.  Keyed "MM-DD".
-    property var holCache: ({})
-    readonly property bool calHolidays: cfg.calHolidays !== false
-    readonly property int calWeekStart: cfg.calWeekStart === 1 ? 1 : 0   // 0 Sunday, 1 Monday
-    function holidaysFor(y) {
-        if (holCache[y]) return holCache[y]
-        const out = {}
-        const pad = n => (n < 10 ? "0" : "") + n
-        const add = (m, d, name) => {
-            const k = pad(m + 1) + "-" + pad(d)
-            out[k] = out[k] ? out[k] + " and " + name : name
-        }
-        // nth weekday (0 Sun .. 6 Sat) of month m; n = -1 for the last
-        const nth = (m, wd, n) => {
-            if (n > 0) {
-                const first = new Date(y, m, 1).getDay()
-                return 1 + (wd - first + 7) % 7 + (n - 1) * 7
-            }
-            const lastD = new Date(y, m + 1, 0).getDate()
-            const lastWd = new Date(y, m, lastD).getDay()
-            return lastD - (lastWd - wd + 7) % 7
-        }
-        // Easter Sunday (anonymous Gregorian algorithm)
-        const a = y % 19, b = Math.floor(y / 100), c = y % 100
-        const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25)
-        const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30
-        const i = Math.floor(c / 4), k = c % 4
-        const l = (32 + 2 * e + 2 * i - h - k) % 7
-        const mm = Math.floor((a + 11 * h + 22 * l) / 451)
-        const eMonth = Math.floor((h + l - 7 * mm + 114) / 31) - 1
-        const eDay = ((h + l - 7 * mm + 114) % 31) + 1
-
-        add(0, 1,  "New Year's Day")
-        add(0, nth(0, 1, 3),  "Martin Luther King Jr. Day")
-        add(1, 14, "Valentine's Day")
-        add(1, nth(1, 1, 3),  "Presidents' Day")
-        add(2, 17, "St. Patrick's Day")
-        add(eMonth, eDay, "Easter")
-        add(4, nth(4, 0, 2),  "Mother's Day")
-        add(4, nth(4, 1, -1), "Memorial Day")
-        add(5, nth(5, 0, 3),  "Father's Day")
-        add(5, 19, "Juneteenth")
-        add(6, 4,  "Independence Day")
-        add(8, nth(8, 1, 1),  "Labor Day")
-        add(9, nth(9, 1, 2),  "Indigenous Peoples' Day")
-        add(9, 31, "Halloween")
-        add(10, 11, "Veterans Day")
-        add(10, nth(10, 4, 4), "Thanksgiving")
-        add(11, 24, "Christmas Eve")
-        add(11, 25, "Christmas Day")
-        add(11, 31, "New Year's Eve")
-
-        // stored by mutation, not reassignment: this runs inside the
-        // calCells binding, and reassigning would make it re-run forever
-        holCache[y] = out
-        return out
-    }
-    function holidayOn(key) {
-        if (!calHolidays) return ""
-        return holidaysFor(parseInt(key.slice(0, 4)))[key.slice(5)] ?? ""
-    }
-
-    // ---- day notes ---------------------------------------------------
-    // ~/.config/quickshell/day-notes.json:
-    //   { "once":   { "2026-10-04": "Dentist" },
-    //     "yearly": { "04-02": "Anniversary of 2001: A Space Odyssey" } }
-    // A missing file starts with the April 2 note; once the file exists
-    // it's whatever you've kept.
-    readonly property var notesSeed: ({
-        once: {},
-        yearly: { "04-02": "Anniversary of 2001: A Space Odyssey (premiered 2 April 1968)" }
-    })
-    property var dayNotes: notesSeed
-
-    Process {
-        id: dayNotesRead
-        running: true
-        command: ["sh", "-c", "cat ~/.config/quickshell/day-notes.json 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                if (!t.length) return
-                try {
-                    const o = JSON.parse(t)
-                    root.dayNotes = { once: o.once || {}, yearly: o.yearly || {} }
-                } catch (e) {
-                    console.log("day-notes.json parse failed, keeping defaults:", e)
-                }
-            }
-        }
-    }
-    Process { id: dayNotesWrite }
-    function saveDayNotes() {
-        dayNotesWrite.command = ["sh", "-c",
-            'f="$HOME/.config/quickshell/day-notes.json"; printf "%s" "$1" > "$f.tmp" && mv "$f.tmp" "$f"',
-            "sh", JSON.stringify(dayNotes, null, 2) + "\n"]
-        dayNotesWrite.running = true
-    }
-
-    // every note on a day, yearly ones first: [{ text, yearly }]
-    function notesOn(key) {
-        const out = []
-        const y = dayNotes.yearly[key.slice(5)]
-        if (y) out.push({ text: y, yearly: true })
-        const o = dayNotes.once[key]
-        if (o) out.push({ text: o, yearly: false })
-        return out
-    }
-    function setDayNote(key, text, yearly) {
-        const t = text.trim()
-        if (t === "") return
-        const n = JSON.parse(JSON.stringify(dayNotes))
-        if (yearly) n.yearly[key.slice(5)] = t
-        else n.once[key] = t
-        dayNotes = n
-        saveDayNotes()
-    }
-    function deleteDayNote(key, yearly) {
-        const n = JSON.parse(JSON.stringify(dayNotes))
-        if (yearly) delete n.yearly[key.slice(5)]
-        else delete n.once[key]
-        dayNotes = n
-        saveDayNotes()
-    }
-
-    readonly property var calBase: {
-        const n = new Date()
-        return new Date(n.getFullYear(), n.getMonth() + root.monthOffset, 1)
-    }
-
-    readonly property var calCells: {
-        const base = root.calBase
-        const y = base.getFullYear(), mo = base.getMonth()
-        // days shown before the 1st, counting from the chosen week start
-        const firstDow = (new Date(y, mo, 1).getDay() - root.calWeekStart + 7) % 7
-        const inMonth = new Date(y, mo + 1, 0).getDate()
-        const prevLen = new Date(y, mo, 0).getDate()
-        const now = new Date()
-        const pad = n => (n < 10 ? "0" + n : "" + n)
-        const key = (yy, mm, dd) => yy + "-" + pad(mm + 1) + "-" + pad(dd)
-
-        const cells = []
-        for (let i = firstDow - 1; i >= 0; i--) {
-            const d = prevLen - i
-            const pm = mo === 0 ? 11 : mo - 1
-            const py = mo === 0 ? y - 1 : y
-            const kk = key(py, pm, d)
-            cells.push({ d: d, cur: false, today: false, key: kk,
-                         hol: holidayOn(kk), noted: notesOn(kk).length > 0 })
-        }
-        for (let i = 1; i <= inMonth; i++) {
-            const kk = key(y, mo, i)
-            cells.push({
-                d: i, cur: true,
-                today: i === now.getDate() && mo === now.getMonth() && y === now.getFullYear(),
-                key: kk, hol: holidayOn(kk), noted: notesOn(kk).length > 0
-            })
-        }
-        let nx = 1
-        while (cells.length < 42) {
-            const nm = mo === 11 ? 0 : mo + 1
-            const ny = mo === 11 ? y + 1 : y
-            const kk = key(ny, nm, nx)
-            cells.push({ d: nx, cur: false, today: false, key: kk,
-                         hol: holidayOn(kk), noted: notesOn(kk).length > 0 })
-            nx++
-        }
-        return cells
-    }
-
-    // manual overrides for apps whose window class doesn't match their
-    // .desktop file id
-    readonly property var iconOverrides: ({
-        "spotify":            "spotify",
-        "discord":            "discord",
-        "vesktop":            "vesktop",
-        "code":               "code",
-        "code-oss":           "code-oss",
-        "steam":              "steam",
-        "steam_app":          "steam",
-        "thunar":             "thunar",
-        "org.kde.dolphin":    "org.kde.dolphin",
-        "kitty":              "kitty",
-        "firefox":            "firefox",
-        "librewolf":          "librewolf",
-        "chromium":           "chromium",
-        "obsidian":           "obsidian",
-        "lutris":             "lutris",
-        "heroic":             "heroic",
-        "pavucontrol":        "pavucontrol",
-        "systemsettings":     "systemsettings"
-    })
-
-    function iconFor(cls) {
-        const raw = (cls || "").trim()
-        if (!raw) return Quickshell.iconPath("application-x-executable")
-        const low = raw.toLowerCase()
-
-        // 1. explicit override
-        const ov = root.iconOverrides[low]
-        if (ov) {
-            const e0 = DesktopEntries.byId(ov)
-            if (e0) return Quickshell.iconPath(e0.icon, true)
-            const p0 = Quickshell.iconPath(ov, true)
-            if (p0) return p0
-        }
-
-        // 2. straight desktop-entry lookups
-        const tries = [raw, low, low.replace(/_/g, "-"), low.split(".").pop()]
-        for (const t of tries) {
-            const e = DesktopEntries.byId(t)
-            if (e) return Quickshell.iconPath(e.icon, true)
-        }
-
-        // 3. scan every entry for a matching StartupWMClass or id tail
-        const all = DesktopEntries.applications?.values ?? []
-        for (const e of all) {
-            const sc = (e.startupClass || "").toLowerCase()
-            if (sc && sc === low) return Quickshell.iconPath(e.icon, true)
-        }
-        for (const e of all) {
-            const id = (e.id || "").toLowerCase()
-            if (id === low || id.endsWith("." + low))
-                return Quickshell.iconPath(e.icon, true)
-        }
-
-        // 4. icon theme by name, then generic
-        const p = Quickshell.iconPath(low, true)
-        if (p) return p
-        return Quickshell.iconPath("application-x-executable")
-    }
-
-    // kept so anything already calling `qs ipc call audio ...` still
-    // works: it opens Settings on the Output page
     IpcHandler {
         target: "audio"
         function toggle(): void {
@@ -2520,33 +1374,6 @@ ShellRoot {
         root.readClipboard()
     }
     // "[[ binary data 55 KiB png 1920x1080 ]]" -> { ext: "png", size: "1920x1080" }
-    function clipImageInfo(preview) {
-        const m = (preview || "").match(/^\[\[ binary data (.+?) (png|jpe?g|bmp|webp|gif)(?: (\d+x\d+))? \]\]$/i)
-        return m ? { ext: m[2].toLowerCase(), size: m[3] || "", bytes: m[1] } : null
-    }
-    readonly property string clipThumbDir: clipNativeOn ? nativeLoader.item.clipDir
-                                                         : Quickshell.env("HOME") + "/.cache/ether/clip"
-    property int clipThumbVer: 0
-    function makeClipThumbs() {
-        if (clipNativeOn) { clipThumbVer++; return }    // they're files already
-        const args = []
-        for (const c of clipItems.slice(0, 60)) {
-            const info = clipImageInfo(c.preview)
-            if (info && /^[0-9]+$/.test(c.id)) args.push(c.id + ":" + info.ext)
-        }
-        if (!args.length) return
-        clipThumbProc.command = ["sh", "-c",
-            'd="$HOME/.cache/ether/clip"; mkdir -p "$d"; ' +
-            'for x in "$@"; do id=${x%%:*}; ext=${x#*:}; ' +
-            '[ -s "$d/$id.$ext" ] || cliphist decode "$id" > "$d/$id.$ext" 2>/dev/null; done',
-            "sh"].concat(args)
-        clipThumbProc.running = true
-    }
-    Process {
-        id: clipThumbProc
-        onExited: root.clipThumbVer++
-    }
-
     IpcHandler {
         target: "overview"
         // Alt+Tab while it's already open steps to the next workspace
@@ -2595,7 +1422,6 @@ ShellRoot {
     Widgets { app: root }
     Popups { app: root }
 
-    PwObjectTracker { objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource] }
 
     // `clock` was an id, which the split modules cannot see; expose the
     // time as a root property instead so they can bind to app.now
@@ -2614,19 +1440,6 @@ ShellRoot {
         }
     }
 
-    Timer {
-        // the track position: every half second while a media view is
-        // open, every second otherwise, for the pill's progress line
-        // four times a second while lyrics are following along
-        interval: root.cardShown && root.lyricsState === "synced" && root.lyricsOn ? 250
-                : (root.cardShown || root.sidebarShown) ? 500 : 1000
-        // paused, the position doesn't move: only while playing (or while a
-        // media view is open, to follow a seek)
-        running: root.player !== null
-                 && (root.player.playbackState === MprisPlaybackState.Playing || root.cardShown || root.sidebarShown)
-        repeat: true; triggeredOnStart: true
-        onTriggered: root.player?.positionChanged()
-    }
 
     // ---- the native readers, when the plugin is installed ----
     // NativeStats.qml imports Ether.Native (built from native/ by the
@@ -2634,7 +1447,7 @@ ShellRoot {
     // readers above never start.  If not, it fails to load, and they do.
     Loader {
         id: nativeLoader
-        source: "NativeStats.qml"
+        source: "services/NativeStats.qml"
         onLoaded: { item.home = Quickshell.env("HOME"); item.app = root }
         onStatusChanged: if (status === Loader.Error) System.startFallbackReaders()
     }
@@ -2649,31 +1462,6 @@ ShellRoot {
         launcherShown = false
     }
 
-    Timer {
-        interval: 200; running: true; repeat: false
-        onTriggered: loadProc.running = true
-    }
-
-    Process { id: switchProc }
-    Process { id: wallApply }
-    Process { id: wallShow }
-
-    // list the wallpaper folder whenever the Wallpaper page opens, so
-    // newly added images show up without restarting the shell
-    Process {
-        id: wallList
-        running: root.settingsShown && root.settingsPage === 3
-        command: ["sh", "-c",
-            "find \"$HOME/Pictures/wallpapers\" -maxdepth 1 -type f "
-            + "\\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' "
-            + "-o -iname '*.webp' \\) | sort"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.trim().split("\n").filter(l => l.length)
-                root.wallpapers = lines
-            }
-        }
-    }
 
     // SUPER + N: quick settings.  SUPER + X: the power menu.
     IpcHandler {
@@ -2701,259 +1489,32 @@ ShellRoot {
         function reapply(): void { if (root.currentWall) root.applyWallpaper(root.currentWall) }
     }
 
-    // ---- each wallpaper's colours, for the swatches in the selector ----
-    // Worked out with matugen's --dry-run (nothing is changed), one
-    // wallpaper at a time in the background, for the current style,
-    // contrast, colour source and mode; cached in
-    // ~/.cache/ether/palettes.json, so they're only worked out once.
-    // wallPalettes: { path: [accent, secondary, tertiary, container, background] }
-    // "auto" stays "auto" here: each wallpaper's swatches are worked out with
-    // its own automatic choices (below), so they don't change with the
-    // current wallpaper (which made every swatch take the current one's look)
-    readonly property string paletteKey:
-        (cfg.themeScheme === "auto" ? "auto" : themeScheme) + "|" + themeContrast.toFixed(2) + "|"
-        + themePrefer + "|" + (cfg.themeMode === "auto" ? "auto" : (isLight ? "light" : "dark"))
-        + (cfg.accentStyle === "soft" ? "|soft" : "|vivid2")
-    property var paletteCache: ({})      // { key: { path: [...] } }
-    readonly property var wallPalettes: paletteCache[paletteKey] || ({})
-    property var paletteQueue: []
-    Process {
-        running: true
-        command: ["sh", "-c", "cat \"$HOME/.cache/ether/palettes.json\" 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: { try { const d = JSON.parse(text); if (d && typeof d === "object") root.paletteCache = d } catch (e) {} }
-        }
-    }
-    // the selector lists wallpapers when it opens: work out any missing
-    onWallpapersChanged: queuePalettes()
-    onPaletteKeyChanged: queuePalettes()
-    function queuePalettes() {
-        const have = paletteCache[paletteKey] || {}
-        paletteQueue = wallpapers.filter(p => !have[p])
-        if (!paletteProc.running) nextPalette()
-    }
-    function nextPalette() {
-        if (!paletteQueue.length) return
-        const path = paletteQueue[0]
-        paletteQueue = paletteQueue.slice(1)
-        // automatic choices: measure this wallpaper first, for its own light
-        // or dark and its own style
-        if ((cfg.themeScheme === "auto" || cfg.themeMode === "auto" || themePrefer === "smart") && nativeOk && nativeLoader.item) {
-            paletteProbeWait.path = path
-            paletteProbeWait.restart()
-            nativeLoader.item.probe(path)
-            return
-        }
-        runPalette(path, themeScheme, isLight ? "light" : "dark")
-    }
-    // the plugin has measured a wallpaper for its swatches (NativeStats.qml)
-    function paletteProbed(path, lightness, scheme, seed, second, why, third) {
-        if (!paletteProbeWait.running || paletteProbeWait.path !== path) return
-        paletteProbeWait.stop()
-        runPalette(path,
-                   cfg.themeScheme === "auto" ? (scheme || "scheme-tonal-spot") : themeScheme,
-                   cfg.themeMode === "auto" ? (lightness > 60 ? "light" : "dark") : (isLight ? "light" : "dark"),
-                   themePrefer === "smart" ? seed : "", themePrefer === "smart" ? second : "", why,
-                   themePrefer === "smart" ? third : "")
-    }
-    // a measurement that never arrives doesn't stall the queue
-    Timer {
-        id: paletteProbeWait
-        property string path: ""
-        interval: 3000
-        onTriggered: root.runPalette(path, root.cfg.themeScheme === "auto" ? "scheme-tonal-spot" : root.themeScheme,
-                                     root.cfg.themeMode === "auto" ? "dark" : (root.isLight ? "light" : "dark"))
-    }
-    function runPalette(path, scheme, mode, seed, second, why, third) {
-        paletteProc.path = path
-        paletteProc.second = second || ""
-        paletteProc.third = third || ""
-        paletteProc.seed = seed || ""
-        paletteProc.why = why || ""
-        paletteProc.scheme = scheme
-        paletteProc.key = paletteKey
-        paletteProc.mode = mode
-        // the smart colour: build from it; otherwise matugen picks from the image
-        const from = seed ? ["color", "hex", seed] : ["image", path]
-        const pick = seed ? [] : (themePrefer === "dominant" || themePrefer === "smart")
-                                 ? ["--source-color-index", "0"] : ["--prefer", themePrefer]
-        paletteProc.command = ["matugen"].concat(from).concat(["--dry-run", "-j", "hex", "-q",
-                               "--type", scheme, "--contrast", themeContrast.toFixed(2)]).concat(pick)
-                                .concat(["--mode", mode])
-        paletteProc.running = true
-    }
-    Process {
-        id: paletteProc
-        property string path: ""
-        property string key: ""
-        property string mode: "dark"
-        property string second: ""
-        property string third: ""
-        property string scheme: ""
-        property string seed: ""
-        property string why: ""
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const c = JSON.parse(text).colors
-                    const m = paletteProc.mode
-                    const pick = k => (c[k] && c[k][m] ? c[k][m].color : "")
-                    const colours = ["primary", "secondary", "tertiary", "primary_container", "surface"].map(pick)
-                    // the third dot as the shell will show it (thirdAccent), then
-                    // the first: the vivid accent, from this wallpaper's own colour
-                    if (colours.every(x => x)) {
-                        colours[2] = root.thirdAccent(colours[0], colours[2], paletteProc.second, paletteProc.scheme).toString()
-                        if (root.cfg.accentStyle !== "soft" && paletteProc.seed !== ""
-                                && paletteProc.scheme !== "scheme-monochrome" && paletteProc.scheme !== "scheme-neutral"
-                                && paletteProc.why !== "no strong colour")
-                        {
-                            colours[0] = root.readableAccent(paletteProc.seed, colours[4]).toString()
-                            // the picture's own second and third colours, as the theme will have them
-                            if (paletteProc.second) colours[1] = root.readableAccent(paletteProc.second, colours[4]).toString()
-                            if (paletteProc.third) colours[2] = root.readableAccent(paletteProc.third, colours[4]).toString()
-                        }
-                    }
-                    if (colours.every(x => x)) {
-                        const all = Object.assign({}, root.paletteCache)
-                        all[paletteProc.key] = Object.assign({}, all[paletteProc.key] || {})
-                        all[paletteProc.key][paletteProc.path] = colours
-                        root.paletteCache = all
-                        paletteSave.restart()
-                    }
-                } catch (e) {}
-            }
-        }
-        onExited: root.nextPalette()
-    }
-    Timer {
-        id: paletteSave
-        interval: 1500
-        onTriggered: {
-            // only the current settings' colours, and only wallpapers that still exist
-            const keep = {}
-            keep[root.paletteKey] = {}
-            const cur = root.paletteCache[root.paletteKey] || {}
-            for (const p of root.wallpapers) if (cur[p]) keep[root.paletteKey][p] = cur[p]
-            paletteWrite.command = ["sh", "-c",
-                'd="$HOME/.cache/ether"; mkdir -p "$d"; printf "%s" "$1" > "$d/palettes.json.tmp" && mv "$d/palettes.json.tmp" "$d/palettes.json"',
-                "sh", JSON.stringify(keep)]
-            paletteWrite.running = true
-        }
-    }
-    Process { id: paletteWrite }
-
-    // the wallpaper picked while a theme was still being applied: done next
-    property string wallPending: ""
+    // ---- wallpapers: services/Wallpaper.qml (a singleton; newer code uses
+    //      Wallpaper.<name> directly).  Passed on under the old names. ----
+    readonly property var currentWall: Wallpaper.currentWall
+    readonly property var loginBusy: Wallpaper.loginBusy
+    readonly property var loginDefault: Wallpaper.loginDefault
+    readonly property var loginError: Wallpaper.loginError
+    readonly property var loginFollows: Wallpaper.loginFollows
+    readonly property var themeBusy: Wallpaper.themeBusy
+    readonly property var wallBusy: Wallpaper.wallBusy
+    readonly property var wallPalettes: Wallpaper.wallPalettes
+    readonly property var wallpapers: Wallpaper.wallpapers
+    function applyWallpaper(path) { return Wallpaper.applyWallpaper(path) }
+    function paletteProbed(path, lightness, scheme, seed, second, why, third) { return Wallpaper.paletteProbed(path, lightness, scheme, seed, second, why, third) }
+    function previewLogin() { return Wallpaper.previewLogin() }
+    function publishLoginSoon() { return Wallpaper.publishLoginSoon() }
+    function randomWallpaper() { return Wallpaper.randomWallpaper() }
+    function setLoginBackground(path) { return Wallpaper.setLoginBackground(path) }
+    function setLoginFollow(on) { return Wallpaper.setLoginFollow(on) }
+    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) { return Wallpaper.wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) }
+    Binding { target: Wallpaper; property: "nativeItem"; value: root.nativeOk ? nativeLoader.item : null }
+    Binding { target: Wallpaper; property: "mainScreen"; value: root.mainScreen }
+    Binding { target: Wallpaper; property: "listing"; value: root.settingsShown && root.settingsPage === 3 }
     Connections {
-        target: wallApply
-        function onRunningChanged() {
-            if (!wallApply.running && root.wallPending !== "") {
-                const p = root.wallPending
-                root.wallPending = ""
-                root.applyWallpaperNow(p, true)      // already on screen: theme it
-            }
-        }
+        target: Wallpaper
+        function onWidgetsShouldMove() { arrangeLater.restart() }
     }
-    function applyWallpaper(path) {
-        if (!path) return
-        // still theming the one before: show this one now, theme it next
-        // (the last one picked always wins, rather than clicks being lost)
-        if (wallApply.running || wallWait.running) {
-            wallPending = path
-            root.currentWall = path
-            wallShow.command = [Quickshell.env("HOME") + "/.local/bin/setwall", "--show-only", path]
-            wallShow.running = true
-            if (wallWait.running) { wallWait.stop(); wallPending = ""; applyWallpaperNow(path, true) }
-            return
-        }
-        applyWallpaperNow(path)
-    }
-    function applyWallpaperNow(path, shown) {
-        root.currentWall = path
-        publishLoginSoon()
-        // show it straight away; the colours follow (they fade in)
-        if (!shown) {
-            wallShow.command = [Quickshell.env("HOME") + "/.local/bin/setwall", "--show-only", path]
-            wallShow.running = true
-        }
-        // the smart colour and automatic style need the wallpaper measured.
-        // Already measured (the plugin remembers wallpapers it has seen, and
-        // answers at once, before we'd even start waiting): theme it now.
-        // Otherwise wait for the measurement (wallMeasured), a moment at most.
-        const needsMeasure = (cfg.themeMode === "auto" || cfg.themeScheme === "auto" || themePrefer === "smart") && nativeOk
-        if (needsMeasure && wallMeasuredFor !== path) { wallWait.path = path; wallWait.restart(); return }
-        wallWait.stop()
-        runSetwall(path)
-    }
-    // setwall, with the theme settings written first (the mode may just
-    // have changed with the wallpaper)
-    // the theme settings, then setwall --theme-only: one command for both a
-    // new wallpaper (runSetwall) and a changed setting (flushTheme), so both
-    // use the smart colour and neither replays the wallpaper's transition
-    function setwallCommand(path) {
-        // measured: the plugin's reading is for this wallpaper.  Otherwise
-        // (it's late), no smart colour or automatic style from another
-        // wallpaper: this one is themed from its own image, and again,
-        // properly, when its measurement arrives (wallMeasured)
-        const measured = wallMeasuredFor === path
-        return ["sh", "-c",
-            'f="$HOME/.config/matugen/shell-theme"; ' +
-            // the smart colour's wallpaper, as a fingerprint (setwall runs this
-            // file as shell code, so no raw path goes in it)
-            'k=$(printf "%s" "$5" | md5sum | cut -c1-32); ' +
-            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\nSEED=%s\\nSEED_FOR=%s\\nVIVID=%s\\nSECOND=%s\\nTHIRD=%s\\n" "$1" "$2" "$3" "$4" "$6" "$k" "$7" "$8" "$9" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
-            'exec "$HOME/.local/bin/setwall" --theme-only "$5"',
-            "sh", measured ? themeScheme : (cfg.themeScheme === "auto" ? "scheme-tonal-spot" : themeScheme),
-            themeContrast.toFixed(2), themePrefer, isLight ? "light" : "dark", path,
-            measured && smartOn ? wallSeed : "", measured && vividOn ? "1" : "0",
-            measured && vividOn ? wallSecond : "", measured && vividOn ? wallThird : ""]
-    }
-    function runSetwall(path) {
-        lastThemed = path
-        lastThemedMeasured = wallMeasuredFor === path
-        wallApply.command = setwallCommand(path)
-        wallApply.running = true
-        themeWatchdog.restart()
-    }
-    // a theme job that never finishes mustn't hold every later one up: after
-    // 30 seconds it's stopped, and the queue moves on
-    Timer {
-        id: themeWatchdog
-        interval: 30000
-        onTriggered: {
-            if (wallApply.running) { console.log("theme: a job took over 30 s; stopped it"); wallApply.running = false }
-            if (themeProc.running) { console.log("theme: a settings job took over 30 s; stopped it"); themeProc.running = false }
-        }
-    }
-    // the plugin has measured the wallpaper (NativeStats.qml calls this)
-    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) {
-        wallLightness = lightness
-        wallScheme = scheme || ""
-        wallColourfulness = colourfulness
-        wallSeed = seed || ""
-        wallSecond = second || ""
-        wallThird = third || ""
-        wallWhy = why || ""
-        wallMeasuredFor = source || ""
-        // the wallpaper waiting for this: theme it now
-        if (wallWait.running && wallWait.path === wallMeasuredFor) {
-            wallWait.stop(); runSetwall(wallWait.path)
-            if (cfg.widgetsAuto === true) arrangeLater.restart()
-        }
-        // it came too late, and the wallpaper was themed from the image
-        // itself meanwhile: theme it again, properly, now (after the running
-        // job, if there is one)
-        else if (wallMeasuredFor === currentWall && lastThemed === currentWall && !lastThemedMeasured
-                 && (themePrefer === "smart" || cfg.themeScheme === "auto" || cfg.themeMode === "auto")) {
-            if (wallApply.running) wallPending = currentWall
-            else runSetwall(currentWall)
-        }
-    }
-    // which wallpaper the measurement above (wallSeed, wallScheme,
-    // wallLightness...) belongs to: only ever used for that one
-    property string wallMeasuredFor: ""
-    property string lastThemed: ""
-    property bool lastThemedMeasured: false
 
     // ---- widgets that keep clear of the wallpaper's subject ----
     // With cfg.widgetsAuto on, a new wallpaper moves the main screen's widgets
@@ -2989,145 +1550,14 @@ ShellRoot {
         if (n) setting("widgets", widgets.map(w => moves[w.id] ? Object.assign({}, w, { x: moves[w.id].x, y: moves[w.id].y }) : w))
         return n
     }
-    // measured or not, don't wait longer than this
-    Timer { id: wallWait; property string path: ""; interval: 2500; onTriggered: root.runSetwall(path) }
     // (Choosing Auto in Settings re-themes through the usual setting change;
     // a new wallpaper through wallWait above.  The first measurement at
     // startup changes nothing: the theme on disk already matches it.)
-    // ---- the login screen's background ----
-    // Its own, shown before anyone signs in, so never your desktop's: Ether
-    // Nightfall unless one is chosen here.  setwall copies it, with its
-    // colours, into the login screen's folder (/var/lib/ether-greeter once
-    // the login screen is installed; before that, where its preview looks).
-    property string loginDir: Quickshell.env("HOME") + "/.cache/ether/greeter"
-    Process {
-        running: true
-        command: ["test", "-w", "/var/lib/ether-greeter"]
-        onExited: code => { if (code === 0) root.loginDir = "/var/lib/ether-greeter" }
-    }
-    readonly property string loginDefault: Quickshell.env("HOME") + "/.config/ether-greeter/background.jpg"
-    // "Your wallpaper" (the default): the login screen shows the wallpaper and
-    // colours of whoever signed in last.  Each time this desktop's look
-    // changes, it's shared: the wallpaper and the theme's colours, copied into
-    // the login screen's folder.  "Its own" (a chosen picture) stops that.
-    readonly property bool loginFollows: cfg.loginFollow !== false
-    function publishLoginSoon() { if (loginFollows) loginPublish.restart() }
-    Timer {
-        id: loginPublish
-        interval: 1500                           // after the theme has settled
-        onTriggered: {
-            if (!root.loginFollows || !root.currentWall) return
-            loginShare.command = ["sh", "-c",
-                'd=$1; mkdir -p "$d" || exit 1; ' +
-                'cp "$2" "$d/background.tmp" && mv -f "$d/background.tmp" "$d/background" && ' +
-                'cp "$3" "$d/colors.tmp" && mv -f "$d/colors.tmp" "$d/colors.json" && ' +
-                // which monitor gets the sign-in card
-                'printf "{\\"mainScreen\\": \\"%s\\"}" "$4" > "$d/settings.tmp" && mv -f "$d/settings.tmp" "$d/settings.json" && ' +
-                'chmod 644 "$d/background" "$d/colors.json" "$d/settings.json"',
-                "sh", root.loginDir, root.currentWall, Quickshell.env("HOME") + "/.config/quickshell/colors.json",
-                root.mainScreen]
-            loginShare.running = true
-        }
-    }
-    Process { id: loginShare }
-    function setLoginFollow(on) {
-        setting("loginFollow", on)
-        if (on) loginPublish.restart()
-        else setLoginBackground(cfg.loginBackground || loginDefault)
-    }
-    property bool loginBusy: false
-    property string loginError: ""
-    function setLoginBackground(path) {
-        loginBusy = true
-        loginError = ""
-        loginProc.command = [Quickshell.env("HOME") + "/.local/bin/setwall", "--login-background", path, loginDir]
-        loginProc.running = true
-        setting("loginBackground", path === loginDefault ? "" : path)
-        if (cfg.loginFollow !== false) setting("loginFollow", false)     // a picture of its own
-    }
-    Process {
-        id: loginProc
-        onExited: code => {
-            root.loginBusy = false
-            if (code !== 0) root.loginError = "Couldn't set it: is the login screen's folder writable?"
-        }
-    }
-    Process { id: loginPreview }
-    function previewLogin() {
-        loginPreview.command = ["sh", "-c", "ETHER_GREETER_PREVIEW=1 setsid -f qs -p \"$HOME/.config/ether-greeter/greeter.qml\" >/dev/null 2>&1"]
-        loginPreview.running = true
-    }
-
-    function randomWallpaper() {
-        const pool = root.wallpapers.filter(p => p !== root.currentWall)
-        if (pool.length) applyWallpaper(pool[Math.floor(Math.random() * pool.length)])
-    }
-
-    // the wallpaper in use, as setwall recorded it
-    property string currentWall: ""
-    readonly property bool wallBusy: wallApply.running
-    Process {
-        id: wallCurrent
-        running: true
-        command: ["sh", "-c", "cat ~/.cache/wallpaper 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: root.currentWall = text.trim()
-        }
-    }
-
-    Process {
-        id: cavaProc
-        // the native reader does this when the plugin is installed
-        running: root.cardShown && !root.nativeOk
-        command: ["cava", "-p", Quickshell.env("HOME")
-                  + "/.config/cava/quickshell.conf"]
-        stdout: SplitParser {
-            onRead: line => {
-                const parts = line.split(";")
-                const out = []
-                for (let i = 0; i < 28; i++) {
-                    const v = parseInt(parts[i])
-                    out.push(isNaN(v) ? 0 : v)
-                }
-                root.cavaBars = out
-            }
-        }
-        onRunningChanged: {
-            if (!running) root.cavaBars = new Array(28).fill(0)
-        }
-    }
-
-    // read the matugen-generated palette at startup
-    Process {
-        id: palProc
-        running: true
-        command: ["sh", "-c",
-            "cat ~/.config/quickshell/colors.json 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                if (!t.length) return
-                try {
-                    root.pal = JSON.parse(t)
-                    if (!root.colourFade) fadeOn.start()
-                    root.publishLoginSoon()          // the login screen shows the new look too
-                } catch (e) {
-                    console.log("palette parse failed:", e)
-                }
-            }
-        }
-    }
-
     // ---- settings: common/Config.qml (a singleton; newer code reads
     //      Config.cfg directly).  Passed on under the old names. ----
     readonly property var cfgDefaults: Config.defaults
     readonly property var cfgUser: Config.user
     readonly property var cfg: Config.cfg
-    // a setting changed: pass it on to the programs that read it
-    Connections {
-        target: Config
-        function onSettingChanged(key) { root.applyExternal(key) }
-    }
 
     readonly property bool barStats: cfg.barStats !== false
     readonly property bool barGpu:   cfg.barGpu !== false
@@ -3171,239 +1601,155 @@ ShellRoot {
     // ~/.config/kitty/shell-settings.conf (included at the end of
     // kitty.conf) and reloads it on SIGUSR1; the live opacity change
     // needs `dynamic_background_opacity yes` in kitty.conf.
-    function applyExternal(key) {
-        if (key === "termOpacity" || key === "*") writeKitty()
-        if (key === "*" || key === "clock24h" || key === "clockSeconds" || key.startsWith("lock"))
-            lockDebounce.restart()
-        if (key === "*" || hyprKeys[key] !== undefined) hyprDebounce.restart()
-        if (key === "*" || key === "idleLockMin" || key === "idleScreenMin"
-                || key === "idleSleepMin")
-            idleDebounce.restart()
-        if (key === "*" || key === "themeScheme" || key === "themeContrast"
-                || key === "themePrefer" || key === "themeMode" || key === "accentStyle")
-            themeDebounce.restart()
+
+    // ---- the assistant, apps and the cheatsheet: services/Assistant.qml,
+    //      Apps.qml and Shortcuts.qml (singletons; newer code uses them
+    //      directly).  Passed on under the old names. ----
+    readonly property var aiBusy: Assistant.aiBusy
+    readonly property var aiKeys: Assistant.aiKeys
+    readonly property var aiMessages: Assistant.aiMessages
+    readonly property var aiModel: Assistant.aiModel
+    function aiNew() { return Assistant.aiNew() }
+    readonly property var aiProvider: Assistant.aiProvider
+    readonly property var aiProviders: Assistant.aiProviders
+    function aiSend(text) { return Assistant.aiSend(text) }
+    function aiStop() { return Assistant.aiStop() }
+    readonly property var aiStreaming: Assistant.aiStreaming
+    function refreshAiKeys() { return Assistant.refreshAiKeys() }
+    function removeAiKey(p) { return Assistant.removeAiKey(p) }
+    function saveAiKey(p, key) { return Assistant.saveAiKey(p, key) }
+    readonly property var appEnv: Apps.appEnv
+    readonly property var fileCount: Apps.fileCount
+    readonly property var fileLimit: Apps.fileLimit
+    readonly property var fileQuery: Apps.fileQuery
+    readonly property var fileResults: Apps.fileResults
+    readonly property var fileResultsFor: Apps.fileResultsFor
+    function iconFor(cls) { return Apps.iconFor(cls) }
+    readonly property var iconOverrides: Apps.iconOverrides
+    readonly property var launchCounts: Apps.launchCounts
+    function noteLaunch(id) { return Apps.noteLaunch(id) }
+    function run(cmd) { return Apps.run(cmd) }
+    readonly property var cheatBinds: Shortcuts.cheatBinds
+    Binding { target: Apps; property: "nativeItem"; value: root.nativeOk ? nativeLoader.item : null }
+
+    // ---- clipboard, timer and calendar: services/Clipboard.qml,
+    //      TimerService.qml and Calendar.qml (singletons; newer code uses
+    //      them directly).  Passed on under the old names. ----
+    function clipCopy(id) { return Clipboard.clipCopy(id) }
+    function clipDelete(id) { return Clipboard.clipDelete(id) }
+    function clipImageInfo(preview) { return Clipboard.clipImageInfo(preview) }
+    readonly property var clipItems: Clipboard.clipItems
+    readonly property var clipNativeOn: Clipboard.clipNativeOn
+    readonly property var clipThumbDir: Clipboard.clipThumbDir
+    readonly property var clipThumbVer: Clipboard.clipThumbVer
+    function clipWipe() { return Clipboard.clipWipe() }
+    function readClipboard() { return Clipboard.readClipboard() }
+    function cancelTimer() { return TimerService.cancelTimer() }
+    function fmtDur(sec) { return TimerService.fmtDur(sec) }
+    function parseDur(t) { return TimerService.parseDur(t) }
+    function pauseTimer() { return TimerService.pauseTimer() }
+    function resumeTimer() { return TimerService.resumeTimer() }
+    function startTimer(sec) { return TimerService.startTimer(sec) }
+    readonly property var swMs: TimerService.swMs
+    readonly property var swOn: TimerService.swOn
+    function swReset() { return TimerService.swReset() }
+    readonly property var swRunning: TimerService.swRunning
+    function swToggle() { return TimerService.swToggle() }
+    readonly property var timerHeld: TimerService.timerHeld
+    readonly property var timerLeft: TimerService.timerLeft
+    readonly property var timerOn: TimerService.timerOn
+    readonly property var timerPaused: TimerService.timerPaused
+    readonly property var timerTotal: TimerService.timerTotal
+    readonly property var calBase: Calendar.calBase
+    readonly property var calCells: Calendar.calCells
+    readonly property var calHolidays: Calendar.calHolidays
+    readonly property var calWeekStart: Calendar.calWeekStart
+    function deleteDayNote(key, yearly) { return Calendar.deleteDayNote(key, yearly) }
+    function holidayOn(key) { return Calendar.holidayOn(key) }
+    readonly property var markedDays: Calendar.markedDays
+    function notesOn(key) { return Calendar.notesOn(key) }
+    function saveMarks() { return Calendar.saveMarks() }
+    function setDayNote(key, text, yearly) { return Calendar.setDayNote(key, text, yearly) }
+    Binding { target: Clipboard; property: "nativeItem"; value: root.nativeOk ? nativeLoader.item : null }
+    Binding { target: Clipboard; property: "panelOpen"; value: root.clipShown }
+    Binding { target: TimerService; property: "islandOn"; value: root.islandOn }
+    Binding { target: Calendar; property: "monthOffset"; value: root.monthOffset }
+    Connections {
+        target: Clipboard
+        function onCopied() { root.sidebarShown = false; root.clipShown = false }
+    }
+    Connections {
+        target: TimerService
+        function onFinishedForIsland(len) { root.showIsland({ kind: "timer", len: len }, 10000) }
     }
 
-    // ---- brightness (DDC/CI) -----------------------------------------
-    // External monitors are set through their own controls with
-    // ddcutil.  `ddcutil detect` maps each connector to its I2C bus at
-    // startup, since bus numbers can change between boots.  Reads happen
-    // when the sidebar or Displays page opens; writes are queued so a
-    // drag only sends the latest value (each DDC command is slow).
-    property var monBus: ({})          // { "DP-1": 7, "DP-2": 8 }
-    property var bright: ({})          // { "DP-1": 90, ... } 0-100
-    readonly property bool brightOk: Object.keys(monBus).length > 0
-    readonly property int brightAvg: {
-        const v = Object.keys(bright).map(k => bright[k])
-        return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0
-    }
+    // ---- settings passed on to other programs, and shortcuts:
+    //      services/Session.qml and Shortcuts.qml (singletons; newer code
+    //      uses them directly).  Passed on under the old names. ----
+    function checkMango() { return Session.checkMango() }
+    function copyText(t) { return Session.copyText(t) }
+    function entryCmd(e) { return Session.entryCmd(e) }
+    readonly property var gameHud: Session.gameHud
+    readonly property var idleLockMin: Session.idleLockMin
+    readonly property var idleScreenMin: Session.idleScreenMin
+    readonly property var idleSleepMin: Session.idleSleepMin
+    readonly property var lockBlur: Session.lockBlur
+    readonly property var lockDim: Session.lockDim
+    readonly property var lockGreetMode: Session.lockGreetMode
+    readonly property var lockGreetText: Session.lockGreetText
+    readonly property var lockMedia: Session.lockMedia
+    readonly property var mangoOk: Session.mangoOk
+    function refreshXdg() { return Session.refreshXdg() }
+    function setDefaultApp(role, entry) { return Session.setDefaultApp(role, entry) }
+    readonly property var termCmd: Session.termCmd
+    function writeHypr() { return Session.writeHypr() }
+    readonly property var xdgDefaults: Session.xdgDefaults
+    function captureKeys(on) { return Shortcuts.captureKeys(on) }
+    readonly property var keybinds: Shortcuts.keybinds
+    readonly property var keysCapturing: Shortcuts.keysCapturing
+    function resetKeybind(id) { return Shortcuts.resetKeybind(id) }
+    function resetKeybinds() { return Shortcuts.resetKeybinds() }
+    function setKeybind(id, combo) { return Shortcuts.setKeybind(id, combo) }
+    Binding { target: Session; property: "autoGame"; value: root.autoGame }
+    Binding { target: Session; property: "termOpacity"; value: root.termOpacity }
 
-    // `ddcutil detect` probes every bus (a few seconds), and the answer is
-    // nearly always the same on the same machine.  So it's saved with each
-    // monitor's fingerprint (its EDID's checksum) and each bus's name, and at
-    // start-up those are checked instead (a few small files, milliseconds).
-    // The same monitors on the same buses: the saved answer.  Anything
-    // different (a monitor swapped, added or removed; buses renumbered):
-    // ddcutil detect, as before, and its answer saved for next time.
-    //   ~/.cache/ether/ddc-map: connector|bus|edid md5|bus name, a line each
-    readonly property string ddcMapFile: Quickshell.env("HOME") + "/.cache/ether/ddc-map"
-    Process {
-        id: ddcDetect
-        running: true
-        command: ["sh", "-c", root.ddcCheckScript, "sh", root.ddcMapFile]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const map = {}
-                if (text.startsWith("SAVED\n")) {
-                    for (const line of text.split("\n").slice(1)) {
-                        const f = line.split("|")
-                        if (f.length >= 2 && /^\d+$/.test(f[1])) map[f[0]] = parseInt(f[1])
-                    }
-                } else {
-                    for (const block of text.split(/\n(?=Display \d)/)) {
-                        const bus = /I2C bus:\s*\/dev\/i2c-(\d+)/.exec(block)
-                        const con = /DRM_connector:\s*card\d+-(\S+)/.exec(block)
-                        if (bus && con) map[con[1]] = parseInt(bus[1])
-                    }
-                    root.saveDdcMap(map)
-                }
-                root.monBus = map
-                root.readBrightness()
-            }
-        }
-    }
-    // (SYS: for testing, a pretend /sys)
-    readonly property string ddcCheckScript:
-        'f=$1; sys=${ETHER_SYSFS:-/sys}; ' +
-        // each monitor that's connected now, and its EDID checksum
-        'now=""; for st in "$sys"/class/drm/card*-*/status; do ' +
-        '  [ "$(cat "$st" 2>/dev/null)" = connected ] || continue; d=${st%/status}; c=${d##*/}; c=${c#card*-}; ' +
-        '  now="$now$c|$(md5sum < "$d/edid" 2>/dev/null | cut -c1-32)\n"; done; ' +
-        'if [ -s "$f" ]; then ok=1; saved=""; ' +
-        '  while IFS="|" read -r con bus edid name; do ' +
-        '    [ -n "$con" ] || continue; saved="$saved$con|$edid\n"; ' +
-        '    [ "$bus" = - ] || [ "$(cat "$sys/bus/i2c/devices/i2c-$bus/name" 2>/dev/null)" = "$name" ] || ok=0; ' +
-        '  done < "$f"; ' +
-        // the same monitors, with the same fingerprints, and the same buses
-        '  a=$(printf "$now" | sort); b=$(printf "$saved" | sort); ' +
-        '  if [ "$ok" = 1 ] && [ -n "$a" ] && [ "$a" = "$b" ]; then echo SAVED; cat "$f"; exit 0; fi; ' +
-        'fi; ddcutil detect 2>/dev/null'
-    // the answer, saved with each monitor's fingerprint and its bus's name
-    Process { id: ddcSave }
-    function saveDdcMap(map) {
-        const pairs = Object.keys(map).map(c => c + ":" + map[c])
-        if (!pairs.length) return                       // nothing found: ask again next time
-        ddcSave.command = ["sh", "-c",
-            // every connected monitor: its bus, or "-" for one without
-            // brightness control (a laptop's own screen), so it doesn't look
-            // like a change at every start
-            'f=$1; shift; sys=${ETHER_SYSFS:-/sys}; mkdir -p "$(dirname "$f")"; : > "$f.tmp"; ' +
-            'for st in "$sys"/class/drm/card*-*/status; do ' +
-            '  [ "$(cat "$st" 2>/dev/null)" = connected ] || continue; d=${st%/status}; c=${d##*/}; c=${c#card*-}; ' +
-            '  b=-; for p in "$@"; do [ "${p%%:*}" = "$c" ] && b=${p##*:}; done; ' +
-            '  e=$(md5sum < "$d/edid" 2>/dev/null | cut -c1-32); ' +
-            '  n=""; [ "$b" = - ] || n=$(cat "$sys/bus/i2c/devices/i2c-$b/name" 2>/dev/null); ' +
-            '  printf "%s|%s|%s|%s\n" "$c" "$b" "$e" "$n" >> "$f.tmp"; done; mv "$f.tmp" "$f"',
-            "sh", ddcMapFile].concat(pairs)
-        ddcSave.running = true
-    }
-
-    // ---- the native route: the plugin talks to the monitors directly ----
-    // Much faster than a ddcutil run per change (about 50 ms, the protocol's
-    // own pace), so the slider follows a drag.  A monitor it doesn't work
-    // for (no access to its bus, no answer) is marked, and uses ddcutil from
-    // then on, with the value you asked for sent again.
-    property var ddcBad: ({})           // { bus: true }
-    function ddcNative(bus) { return nativeOk && nativeLoader.item !== null && !ddcBad[bus] }
-    function monOfBus(bus) { return Object.keys(monBus).find(n => monBus[n] === bus) }
-    function ddcGotBrightness(bus, percent) {
-        const name = monOfBus(bus)
-        if (name === undefined) return
-        const b = Object.assign({}, bright); b[name] = percent; bright = b
-    }
-    function ddcFailed(bus) {
-        const bad = Object.assign({}, ddcBad); bad[bus] = true; ddcBad = bad
-        const name = monOfBus(bus)
-        if (name === undefined) return
-        console.log("brightness: the direct route doesn't work for " + name + " (bus " + bus + "); using ddcutil for it")
-        // what you'd asked for, sent the slow way; then read it back
-        if (bright[name] !== undefined) { const p = Object.assign({}, brightPending); p[name] = bright[name]; brightPending = p; brightDebounce.restart() }
-        else readBrightness()
-    }
-
-    function readBrightness() {
-        if (!brightOk) return
-        const slow = Object.keys(monBus).filter(n => !ddcNative(monBus[n]))
-        for (const n of Object.keys(monBus)) if (ddcNative(monBus[n])) nativeLoader.item.ddcGet(monBus[n])
-        if (!slow.length || ddcRead.running) return
-        const cmds = slow.map(n =>
-            'printf "%s " ' + n + '; ddcutil --bus ' + monBus[n] + ' getvcp 10 --brief 2>/dev/null || echo')
-        ddcRead.command = ["sh", "-c", cmds.join("; ")]
-        ddcRead.running = true
-    }
-    Process {
-        id: ddcRead
-        stdout: StdioCollector {
-            onStreamFinished: {
-                // lines look like "DP-1 VCP 10 C 90 100"
-                const b = Object.assign({}, root.bright)
-                for (const line of text.split("\n")) {
-                    const m = /^(\S+) VCP 10 C (\d+) (\d+)/.exec(line.trim())
-                    if (m) b[m[1]] = Math.round(100 * parseInt(m[2]) / Math.max(1, parseInt(m[3])))
-                }
-                root.bright = b
-            }
-        }
-    }
-
-    property var brightPending: ({})
-    function setBright(name, v) {
-        if (monBus[name] === undefined) return
-        v = Math.max(0, Math.min(100, Math.round(v)))
-        const b = Object.assign({}, bright); b[name] = v; bright = b
-        // direct: straight to the plugin, which sends only the newest value
-        if (ddcNative(monBus[name])) { nativeLoader.item.ddcSet(monBus[name], v); return }
-        const p = Object.assign({}, brightPending); p[name] = v; brightPending = p
-        brightDebounce.restart()
-    }
-    function setAllBright(v) {
-        for (const n of Object.keys(monBus)) setBright(n, v)
-        showOsdOf("brightness", brightAvg / 100, false)
-    }
-    Timer {
-        id: brightDebounce
-        interval: 120
-        onTriggered: root.flushBright()
-    }
-    function flushBright() {
-        const names = Object.keys(brightPending)
-        if (!names.length || ddcWrite.running) return
-        const cmds = names.map(n =>
-            "ddcutil --bus " + monBus[n] + " setvcp 10 " + brightPending[n] + " --noverify 2>/dev/null")
-        brightPending = ({})
-        ddcWrite.command = ["sh", "-c", cmds.join("; ")]
-        ddcWrite.running = true
-    }
-    Process {
-        id: ddcWrite
-        onExited: root.flushBright()
-    }
-
-    // ---- night light -------------------------------------------------
-    // On runs hyprsunset at a fixed warmth; off stops it, which puts
-    // the normal colours back.  Remembered across restarts.
-    readonly property bool nightLight: cfg.nightLight === true
-    readonly property int nightTemp: 4000
-    Process { id: nightProc }
-    function applyNight() {
-        nightProc.command = ["sh", "-c", nightLight
-            ? "pgrep -x hyprsunset >/dev/null || setsid -f hyprsunset -t " + nightTemp + " >/dev/null 2>&1"
-            : "pkill -x hyprsunset; true"]
-        nightProc.running = true
-    }
+    // ---- screens: services/Displays.qml and Brightness.qml (singletons;
+    //      newer code uses them directly).  Passed on under the old names. ----
+    readonly property var monBus: Brightness.monBus
+    readonly property var bright: Brightness.bright
+    readonly property var brightOk: Brightness.brightOk
+    readonly property var brightAvg: Brightness.brightAvg
+    readonly property var nightLight: Brightness.nightLight
+    readonly property var monInfo: Displays.monInfo
+    readonly property var revertLeft: Displays.revertLeft
+    readonly property var monProfiles: Displays.monProfiles
+    readonly property var screensNowList: Displays.screensNowList
+    readonly property var screensNow: Displays.screensNow
+    readonly property var profileNowInUse: Displays.profileNowInUse
+    readonly property var profilesAuto: Displays.profilesAuto
+    function readBrightness() { Brightness.readBrightness() }
+    function setBright(name, v) { Brightness.setBright(name, v) }
+    function setAllBright(v) { Brightness.setAllBright(v) }
+    function ddcGotBrightness(bus, percent) { Brightness.ddcGotBrightness(bus, percent) }
+    function ddcFailed(bus) { Brightness.ddcFailed(bus) }
     function toggleNight() {
-        setting("nightLight", !nightLight)
-        applyNight()
+        Brightness.toggleNight()
         showOsdOf("night", nightLight ? 1 : 0, !nightLight)
     }
-    Component.onCompleted: {
-        if (nightLight) applyNight()
+    function refreshMonitors() { Displays.refreshMonitors() }
+    function applyDisplays(monitors, arrange) { Displays.applyDisplays(monitors, arrange) }
+    function keepDisplays() { Displays.keepDisplays() }
+    function revertDisplays() { Displays.revertDisplays() }
+    function saveMonProfile(name, monitors) { return Displays.saveMonProfile(name, monitors) }
+    function deleteMonProfile(name) { Displays.deleteMonProfile(name) }
+    function useMonProfile(p) { Displays.useMonProfile(p) }
+    Binding { target: Brightness; property: "nativeItem"; value: root.nativeOk ? nativeLoader.item : null }
+    Binding { target: Displays; property: "mainScreen"; value: root.mainScreen }
+    Binding { target: Displays; property: "secondScreen"; value: root.secondScreen }
+    Connections {
+        target: Brightness
+        function onAllChanged() { root.showOsdOf("brightness", Brightness.brightAvg / 100, false) }
     }
-
-    // ---- displays ----------------------------------------------------
-    // monInfo: plain values from `hyprctl monitors all -j`, refreshed
-    // whenever the Displays page opens.  Never live objects.
-    property var monInfo: []
-    Process {
-        id: monProc
-        command: ["hyprctl", "monitors", "all", "-j"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    root.monInfo = JSON.parse(text).map(m => ({
-                        name:  m.name,
-                        desc:  ((m.make || "") + " " + (m.model || "")).trim() || m.description || "",
-                        w:     m.width,
-                        h:     m.height,
-                        hz:    m.refreshRate,
-                        scale: m.scale,
-                        x:     m.x,
-                        y:     m.y,
-                        transform: (m.transform || 0) % 4,
-                        // Hyprland reports whether it's on right now; the
-                        // setting (on, off, games only) is what was saved
-                        vrr:   (root.cfg.monitors && root.cfg.monitors[m.name] && typeof root.cfg.monitors[m.name].vrr === "number")
-                               ? root.cfg.monitors[m.name].vrr : (m.vrr ? 1 : 0),
-                        modes: (m.availableModes || []).map(x => String(x))
-                    }))
-                } catch (e) {
-                    console.log("hyprctl monitors parse failed:", e)
-                }
-            }
-        }
-    }
-    function refreshMonitors() { monProc.running = true }
-    // the Displays page reads modes and brightness each time it opens
     onSettingsShownChanged: {
         if (settingsShown && settingsPage === 9) { refreshMonitors(); readBrightness() }
         if (settingsShown && settingsPage === 18) refreshAbout()
@@ -3415,558 +1761,18 @@ ShellRoot {
         if (settingsShown && settingsPage === 21) refreshXdg()
     }
 
-    // Apply, then keep or revert.  The countdown lives here rather than
-    // in the panel, so it still runs if the screen showing the panel
-    // goes dark.
-    property var displayBackup: undefined
-    property bool displayHadUser: false
-    property int revertLeft: 0
-
-    property var arrangeBackup: undefined
-    function applyDisplays(monitors, arrange) {
-        if (revertLeft === 0) {
-            displayHadUser = cfgUser.monitors !== undefined
-            displayBackup = displayHadUser
-                ? JSON.parse(JSON.stringify(cfgUser.monitors)) : undefined
-            arrangeBackup = cfgUser.monitorsArrange
-        }
-        setting("monitorsArrange", arrange)
-        setting("monitors", monitors)
-        revertLeft = 15
-        revertTimer.restart()
-    }
-    function keepDisplays() {
-        revertTimer.stop()
-        revertLeft = 0
-        displayBackup = undefined
-        refreshMonitors()
-    }
-    function revertDisplays() {
-        revertTimer.stop()
-        revertLeft = 0
-        if (arrangeBackup === undefined) resetSetting("monitorsArrange")
-        else setting("monitorsArrange", arrangeBackup)
-        if (displayHadUser) setting("monitors", displayBackup)
-        else resetSetting("monitors")
-        displayBackup = undefined
-        monRefreshLater.restart()
-    }
-    Timer {
-        id: revertTimer
-        interval: 1000
-        repeat: true
-        onTriggered: {
-            root.revertLeft -= 1
-            if (root.revertLeft <= 0) root.revertDisplays()
-        }
-    }
-    // Hyprland needs a moment after the reload before it reports the
-    // restored modes
-    Timer {
-        id: monRefreshLater
-        interval: 1200
-        onTriggered: root.refreshMonitors()
-    }
-
-    // ---- monitor profiles (Settings, Displays) ----
-    // A saved layout for one set of connected screens (lib/profiles.mjs).
-    // When the screens connected change (a monitor plugged in or out, or a
-    // change while the PC was off: the last set is saved), the profile for
-    // the new set is used, with a notice.  Changing the layout by hand on
-    // the same screens is never undone: only a change of screens switches.
-    readonly property var monProfiles: Profiles.readProfiles(cfg.monitorProfiles)
-    readonly property var screensNowList: Quickshell.screens.map(s => ({ name: s.name, model: s.model, serial: s.serialNumber }))
-    readonly property string screensNow: Profiles.screensKey(screensNowList)
-    readonly property var profileNow: Profiles.findProfile(monProfiles, screensNow)
-    readonly property bool profileNowInUse: profileNow !== null && Profiles.profileInUse(profileNow, cfg.monitors, mainScreen)
-    readonly property bool profilesAuto: cfg.monitorProfilesAuto !== false
-
-    // save the layout now (the Displays page's, as applied) for these
-    // screens.  -> what happened, in words
-    function saveMonProfile(name, monitors) {
-        const p = Profiles.makeProfile(name, screensNowList, monitors, mainScreen, secondScreen)
-        if (!p) return "Give it a name first."
-        const r = Profiles.addProfile(monProfiles, p)
-        if (!r) return "There's room for " + Profiles.MAX_PROFILES + " profiles: delete one first."
-        setting("monitorProfiles", r.list)
-        setting("monitorsLastScreens", screensNow)
-        return r.replaced.length ? "Saved, replacing \u201c" + r.replaced.join("\u201d and \u201c") + "\u201d."
-                                 : "Saved. It's used whenever these screens are connected."
-    }
-    function deleteMonProfile(name) { setting("monitorProfiles", Profiles.removeProfile(monProfiles, name)) }
-    function useMonProfile(p) {
-        if (!p || p.key !== screensNow) return
-        setting("monitors", Profiles.profileMonitors(p, cfg.monitors))
-        setting("monitorsArrange", "custom")
-        if (p.main) setting("mainScreen", p.main)
-        if (p.second) setting("secondScreen", p.second)
-        monRefreshLater.restart()
-    }
-    // the screens changed: wait for them to settle (a monitor waking can
-    // come and go a few times), then switch if there's a profile for them
-    onScreensNowChanged: screensSettle.restart()
-    Timer {
-        id: screensSettle
-        interval: 2500
-        running: true                          // once at start, too
-        onTriggered: root.screensChangedTo(root.screensNow)
-    }
-    function screensChangedTo(key) {
-        if (key === "" || key === cfg.monitorsLastScreens) return
-        setting("monitorsLastScreens", key)
-        const p = profileNow
-        if (!profilesAuto || !p || profileNowInUse || revertLeft > 0) return
-        useMonProfile(p)
-        Quickshell.execDetached(["notify-send", "-a", "Ether Shell", "-i", "video-display",
-                                 "Screens changed", "Using your \u201c" + p.name + "\u201d layout."])
-    }
-
-    // ---- default apps --------------------------------------------------
-    // Terminal and file manager feed hyprland.lua's SUPER+T / SUPER+E
-    // (through shell-settings.lua); the file manager and browser also
-    // become the system defaults through xdg-mime / xdg-settings.
-    readonly property string termCmd: cfg.appTerminalCmd || "kitty"
-
-    // what xdg currently calls the default, read when the page opens
-    property var xdgDefaults: ({ files: "", browser: "" })
-    Process {
-        id: xdgRead
-        command: ["sh", "-c",
-            'echo "files=$(xdg-mime query default inode/directory 2>/dev/null)"; '
-            + 'echo "browser=$(xdg-settings get default-web-browser 2>/dev/null)"']
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const o = { files: "", browser: "" }
-                for (const line of text.split("\n")) {
-                    const i = line.indexOf("=")
-                    if (i > 0) o[line.slice(0, i)] = line.slice(i + 1).trim()
-                }
-                root.xdgDefaults = o
-            }
-        }
-    }
-    function refreshXdg() { xdgRead.running = true }
-
-    // a desktop entry's command, without the %u / %F placeholders
-    function entryCmd(e) {
-        return String(e.execString || "").replace(/%[fFuUdDnNickvm]/g, "").replace(/\s+/g, " ").trim()
-    }
-
-    Process { id: xdgWrite }
-    function setDefaultApp(role, entry) {
-        const id = entry.id.endsWith(".desktop") ? entry.id : entry.id + ".desktop"
-        if (role === "terminal") Config.update({ appTerminal: id, appTerminalCmd: entry.cmd })
-        else if (role === "files") Config.update({ appFiles: id, appFilesCmd: entry.cmd })
-        else Config.update({ appBrowser: id })
-        if (role === "terminal" || role === "files") hyprDebounce.restart()
-        if (role === "files")
-            xdgWrite.command = ["xdg-mime", "default", id, "inode/directory"]
-        else if (role === "browser")
-            xdgWrite.command = ["xdg-settings", "set", "default-web-browser", id]
-        if (role !== "terminal") xdgWrite.running = true
-        xdgRefreshLater.restart()
-    }
-    Timer {
-        id: xdgRefreshLater
-        interval: 500
-        onTriggered: root.refreshXdg()
-    }
-
-    // ---- lock screen ---------------------------------------------------
-    // hyprlock.conf sources ~/.config/hypr/hyprlock-settings.conf, which
-    // the panel rewrites: clock command (follows the bar's 12/24-hour and
-    // seconds settings), blur, dimming, greeting and now-playing line.
-    readonly property int lockBlur: {
-        const v = Number(cfg.lockBlur)
-        return cfg.lockBlur !== undefined && isFinite(v) ? Math.max(0, Math.min(12, Math.round(v))) : 8
-    }
-    readonly property int lockDim: {
-        const v = Number(cfg.lockDim)
-        return cfg.lockDim !== undefined && isFinite(v) ? Math.max(20, Math.min(100, Math.round(v))) : 55
-    }
-    readonly property string lockGreetMode:
-        ["time", "custom", "off"].indexOf(cfg.lockGreetMode) >= 0 ? cfg.lockGreetMode : "time"
-    readonly property string lockGreetText: cfg.lockGreetText || ""
-    readonly property bool lockMedia: cfg.lockMedia !== false
-
-    function lockText() {
-        const secs = cfg.clockSeconds === true ? ":%S" : ""
-        const clock = cfg.clock24h === true
-            ? "echo \"<span font_weight='200'>$(date +'%H:%M" + secs + "')</span>\""
-            : "echo \"<span font_weight='200'>$(date +'%-I:%M" + secs + "')</span>"
-              + "<span font_size='30pt' font_weight='400'> $(date +'%p')</span>\""
-        // a custom greeting goes inside echo "...", so anything that would
-        // end the string, expand, or start a hyprlang comment is dropped
-        const safe = lockGreetText.replace(/["`$\\#\n\r]/g, "").trim()
-        const who = "$(whoami)"
-        const greet = lockGreetMode === "off" ? "true"
-            : lockGreetMode === "custom" ? "echo \"" + (safe || "Welcome back") + "\""
-            : "case $(date +%H) in 0[5-9]|1[01]) echo \"Good morning, " + who + "\";; "
-              + "1[2-6]) echo \"Good afternoon, " + who + "\";; "
-              + "1[7-9]|2[01]) echo \"Good evening, " + who + "\";; "
-              + "*) echo \"Good night, " + who + "\";; esac"
-        const media = lockMedia
-            ? "playerctl metadata --format '{{title}}   {{artist}}' 2>/dev/null"
-            : "true"
-        return "# written by the quickshell settings panel (Desktop > Lock screen);\n"
-             + "# change it there, hand edits are replaced.\n"
-             + "$clock_cmd   = " + clock + "\n"
-             + "$blur_passes = " + (lockBlur === 0 ? 0 : 3) + "\n"
-             + "$blur_size   = " + Math.max(1, lockBlur) + "\n"
-             + "$dim         = " + (lockDim / 100).toFixed(2) + "\n"
-             + "$greet_cmd   = " + greet + "\n"
-             + "$media_cmd   = " + media + "\n"
-    }
-
-    Timer {
-        id: lockDebounce
-        interval: 300
-        onTriggered: {
-            lockWrite.command = ["sh", "-c",
-                'f="$HOME/.config/hypr/hyprlock-settings.conf"; printf "%s" "$1" > "$f.tmp" && mv "$f.tmp" "$f"',
-                "sh", root.lockText()]
-            lockWrite.running = true
-        }
-    }
-    Process { id: lockWrite }
-
-    // ---- idle --------------------------------------------------------
-    // hypridle can't reload its config, so the panel regenerates the
-    // whole of ~/.config/hypr/hypridle.conf and restarts it.  Only
-    // written when an idle setting changes; minutes, 0 = never.
-    function idleMin(key, def) {
-        const v = Number(cfg[key])
-        return isFinite(v) ? Math.max(0, Math.min(240, Math.round(v))) : def
-    }
-    readonly property int idleLockMin:   idleMin("idleLockMin", 5)
-    readonly property int idleScreenMin: idleMin("idleScreenMin", 10)
-    readonly property int idleSleepMin:  idleMin("idleSleepMin", 0)
-
-    function idleText() {
-        const dpms = s => "hyprctl dispatch 'hl.dsp.dpms(\"" + s + "\")'"
-        let t = "# written by the quickshell settings panel (Desktop > Idle);\n"
-              + "# change it there, hand edits are replaced.  hyprlang, like hyprlock\n\n"
-              + "general {\n"
-              + "    lock_cmd         = pidof hyprlock || hyprlock\n"
-              + "    before_sleep_cmd = loginctl lock-session\n"
-              + "    after_sleep_cmd  = " + dpms("on") + "\n"
-              + "}\n"
-        if (idleLockMin > 0)
-            t += "\n# lock\nlistener {\n"
-               + "    timeout    = " + idleLockMin * 60 + "\n"
-               + "    on-timeout = loginctl lock-session\n}\n"
-        if (idleScreenMin > 0)
-            t += "\n# screens off\nlistener {\n"
-               + "    timeout    = " + idleScreenMin * 60 + "\n"
-               + "    on-timeout = " + dpms("off") + "\n"
-               + "    on-resume  = " + dpms("on") + "\n}\n"
-        if (idleSleepMin > 0)
-            t += "\n# sleep\nlistener {\n"
-               + "    timeout    = " + idleSleepMin * 60 + "\n"
-               + "    on-timeout = systemctl suspend\n}\n"
-        return t
-    }
-
-    Timer {
-        id: idleDebounce
-        interval: 600
-        onTriggered: root.writeIdle()
-    }
-
-    property string pendingIdle: ""
-    function writeIdle() {
-        pendingIdle = idleText()
-        if (!idleWrite.running) flushIdle()
-    }
-    function flushIdle() {
-        if (pendingIdle === "") return
-        idleWrite.command = ["sh", "-c",
-            'f="$HOME/.config/hypr/hypridle.conf"; ' +
-            'printf "%s" "$1" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
-            'pkill -x hypridle; sleep 0.3; setsid -f hypridle >/dev/null 2>&1; true',
-            "sh", pendingIdle]
-        pendingIdle = ""
-        idleWrite.running = true
-    }
-    Process {
-        id: idleWrite
-        onExited: root.flushIdle()
-    }
-
     // ---- theme -------------------------------------------------------
     // The panel writes ~/.config/matugen/shell-theme (TYPE= and
     // CONTRAST=, sourced by setwall) and re-runs setwall on the current
     // wallpaper.  matugen's quickshell post_hook calls `theme reload`,
     // which re-reads colors.json in place instead of restarting.
-    readonly property var themeSchemes: [
-        "scheme-tonal-spot", "scheme-vibrant", "scheme-expressive",
-        "scheme-fidelity", "scheme-content", "scheme-fruit-salad",
-        "scheme-rainbow", "scheme-neutral", "scheme-monochrome",
-        "scheme-smart"
-    ]
-    // "auto": Ether Shell picks the style for each wallpaper (monochrome,
-    // neutral, fidelity or tonal spot, from how colourful it is and how much
-    // of its colour is one hue; measured by the native plugin)
-    readonly property string themeScheme:
-        cfg.themeScheme === "auto" ? (wallScheme || "scheme-tonal-spot")
-        : themeSchemes.indexOf(cfg.themeScheme) >= 0 ? cfg.themeScheme : "scheme-tonal-spot"
-    property string wallScheme: ""
     // Ether Shell's own choice of colour (the colour source "smart", the
     // default): the plugin's pick, the picture's second colour family if it
     // has one, and what the pick is (the subject, the backdrop...)
     // ---- file search (the launcher asks, the native plugin answers) ----
-    property string fileQuery: ""
-    property int fileLimit: 8
-    readonly property var fileResults: nativeLoader.item ? nativeLoader.item.fileResults : []
-    readonly property string fileResultsFor: nativeLoader.item ? nativeLoader.item.fileResultsFor : ""
-    readonly property int fileCount: nativeLoader.item ? nativeLoader.item.fileCount : 0
-    property string wallSeed: ""
-    property string wallSecond: ""
-    property string wallThird: ""
-    property string wallWhy: ""
-    readonly property bool smartOn: themePrefer === "smart" && nativeOk
-    property real wallColourfulness: -1
-    readonly property var themePrefers: [ "smart", "dominant", 
-        "saturation", "less-saturation", "darkness", "lightness", "value"
-    ]
-    readonly property string themePrefer:
-        themePrefers.indexOf(cfg.themePrefer) >= 0 ? cfg.themePrefer : "smart"
-    readonly property real themeContrast:
-        Math.max(-1, Math.min(1, Number(cfg.themeContrast) || 0))
-    property bool themeBusy: false
-
-    // a contrast drag settles before matugen runs; each run re-renders
-    // every app's colours, so it should happen once, not per pixel
-    Timer {
-        id: themeDebounce
-        interval: 400
-        onTriggered: root.applyTheme()
-    }
-
-    property bool themePending: false
-    function applyTheme() {
-        themePending = true
-        if (!themeProc.running) flushTheme()
-    }
-    function flushTheme() {
-        if (!themePending) return
-        themePending = false
-        themeBusy = true
-        if (!currentWall) { themeBusy = false; return }
-        themeProc.command = setwallCommand(currentWall)
-        themeProc.running = true
-        themeWatchdog.restart()
-    }
-    Process {
-        id: themeProc
-        onExited: {
-            // re-read the palette even if the post_hook didn't
-            palProc.running = true
-            root.themeBusy = root.themePending
-            root.flushTheme()
-        }
-    }
-
-    // Hyprland reads ~/.config/hypr/shell-settings.lua, a plain
-    // `return { ... }` table, near the top of hyprland.lua.  Only keys
-    // the user has changed are written; hyprland.lua's own defaults
-    // cover the rest.  It doesn't watch dofile()d files, so every
-    // write is followed by `hyprctl reload`, debounced so a slider
-    // drag reloads a few times rather than on every pixel.
-    readonly property var hyprKeys: ({
-        gapsIn: "gaps_in", gapsOut: "gaps_out", borderSize: "border_size",
-        rounding: "rounding", winActive: "active_opacity",
-        winInactive: "inactive_opacity", blurSize: "blur_size",
-        blurPasses: "blur_passes", animations: "animations",
-        animSpeed: "anim_speed", gameMode: "game_mode", wsAnim: "ws_anim",
-        vrr: "vrr", directScanout: "direct_scanout",
-        repeatRate: "repeat_rate", repeatDelay: "repeat_delay",
-        sensitivity: "sensitivity", accelFlat: "accel_flat",
-        naturalScroll: "natural_scroll", followMouse: "follow_mouse",
-        monitors: "monitors",
-        mainScreen: "main_output", secondScreen: "second_output",
-        wsMain: "main_workspaces", wsSecond: "second_workspaces",
-        appTerminalCmd: "terminal", appFilesCmd: "file_manager",
-        keybinds: "keybinds"
-    })
-
-    // ---- the in-game overlay (Settings, Game overlay) ----
-    // MangoHud, drawn inside games: its MangoHud.conf is written from the
-    // settings and the theme (lib/overlay.mjs), again whenever either
-    // changes.  A MangoHud.conf of your own is set aside once, as
-    // MangoHud.conf.before-ether, and put back when the overlay is off.
-    // "All Steam games": a copy of Steam's launcher entry, in
-    // ~/.local/share/applications, starting it with MANGOHUD=1 (MangoHud
-    // leaves Steam's own windows alone).  An entry of your own is left be.
-    readonly property string gameHud: ["off", "steam", "choose"].indexOf(cfg.gameHud) >= 0 ? cfg.gameHud : "off"
-    property bool mangoOk: false
-    Process {
-        id: mangoCheck
-        running: true
-        command: ["sh", "-c", "ls /usr/share/vulkan/implicit_layer.d/*[Mm]ango[Hh]ud*.json >/dev/null 2>&1 && echo yes"]
-        stdout: StdioCollector { onStreamFinished: root.mangoOk = text.trim() === "yes" }
-    }
-    function checkMango() { mangoCheck.running = true }
-    readonly property string mangoConf: gameHud === "off" ? "" : Overlay.mangoConfig({
-        layout: cfg.gameHudLayout, position: cfg.gameHudPos, size: cfg.gameHudSize, hidden: cfg.gameHudHidden === true,
-        colours: { bg: String(cBg), fg: String(cFg), accent: String(cBlue), second: String(cPeach),
-                   third: String(cGreen), red: String(cRed), yellow: String(cYellow) } })
-    onMangoConfChanged: mangoLater.restart()
-    onGameHudChanged: steamLater.restart()
-    Timer { id: mangoLater; interval: 400; onTriggered: { mangoWrite.command = ["sh", "-c", root.mangoScript, "sh", root.mangoConf]; mangoWrite.running = true } }
-    Timer { id: steamLater; interval: 400; onTriggered: { steamWrite.command = ["sh", "-c", root.steamScript, "sh", root.gameHud]; steamWrite.running = true } }
-    Process { id: mangoWrite }
-    Process { id: steamWrite }
-    readonly property string mangoScript:
-        'd="${ETHER_MANGO_DIR:-$HOME/.config/MangoHud}"; f="$d/MangoHud.conf"; ours="Written by Ether Shell"; ' +
-        // off: ours goes, and yours comes back
-        'if [ -z "$1" ]; then ' +
-        '  if [ -f "$f" ] && head -1 "$f" | grep -q "$ours"; then rm -f "$f"; [ -f "$f.before-ether" ] && mv "$f.before-ether" "$f"; fi; exit 0; ' +
-        'fi; mkdir -p "$d"; ' +
-        // yours, kept (once)
-        'if [ -f "$f" ] && ! head -1 "$f" | grep -q "$ours" && [ ! -e "$f.before-ether" ]; then mv "$f" "$f.before-ether"; fi; ' +
-        'printf "%s" "$1" > "$f.tmp"; ' +
-        // the shell's own font, if it can be found
-        'font=$(fc-match -f "%{file}" "Inter:weight=500" 2>/dev/null); ' +
-        'case "$font" in *Inter*.ttf|*Inter*.otf|*Inter*.TTF|*Inter*.OTF) printf "font_file=%s\n" "$font" >> "$f.tmp" ;; esac; ' +
-        'mv "$f.tmp" "$f"'
-    readonly property string steamScript:
-        'o="${ETHER_APPS_DIR:-$HOME/.local/share/applications}/steam.desktop"; src="${ETHER_STEAM_ENTRY:-/usr/share/applications/steam.desktop}"; ' +
-        'if [ "$1" = steam ]; then ' +
-        '  [ -f "$src" ] || exit 0; ' +
-        // one of your own: left be
-        '  if [ -f "$o" ] && ! grep -q "^X-Ether-Overlay=true" "$o"; then exit 0; fi; ' +
-        '  mkdir -p "$(dirname "$o")"; ' +
-        // (no backslashes: they'd be eaten on the way to sed)
-        '  [ "$(head -1 "$src")" = "[Desktop Entry]" ] || exit 0; ' +
-        '  { echo "[Desktop Entry]"; echo "X-Ether-Overlay=true"; ' +
-        '    tail -n +2 "$src" | sed -e "s|^Exec=env MANGOHUD=1 |Exec=|" -e "s|^Exec=|Exec=env MANGOHUD=1 |"; ' +
-        '  } > "$o.tmp" && mv "$o.tmp" "$o"; ' +
-        'else ' +
-        '  if [ -f "$o" ] && grep -q "^X-Ether-Overlay=true" "$o"; then rm -f "$o"; fi; ' +
-        'fi'
-    // copying a command for you to paste (Settings, Game overlay)
-    function copyText(t) { Quickshell.execDetached(["wl-copy", "--", String(t)]) }
-
-    // ---- keybinds (Settings, Keybinds) ----
-    // Only changes are saved, by each shortcut's name (lib/keybinds.mjs);
-    // Hyprland reads them from shell-settings.lua (key() in hyprland.lua).
-    readonly property var keybinds: cfg.keybinds && typeof cfg.keybinds === "object" ? cfg.keybinds : ({})
-    function setKeybind(id, combo) {
-        const o = Object.assign({}, keybinds)
-        const n = Keybinds.normalise(combo)
-        const c = Keybinds.CATALOG.find(x => x.id === id)
-        if (!c || !n) return
-        if (n === c.def) delete o[id]; else o[id] = n
-        setting("keybinds", o)
-    }
-    function resetKeybind(id) {
-        const o = Object.assign({}, keybinds); delete o[id]
-        if (Object.keys(o).length) setting("keybinds", o); else resetSetting("keybinds")
-    }
-    function resetKeybinds() { resetSetting("keybinds") }
-    // While Settings waits for a new shortcut, Hyprland uses its empty keymap
-    // ("ether-keys"), so the keys reach Settings.  keysCapturing turns false
-    // if something else switches it back (Escape, in that keymap).
-    property bool keysCapturing: false
-    function captureKeys(on) {
-        keysCapturing = on
-        Hyprland.dispatch(on ? 'hl.dsp.submap("ether-keys")' : 'hl.dsp.submap("reset")')
-    }
-    Connections {
-        target: Hyprland
-        enabled: root.keysCapturing
-        function onRawEvent(event) {
-            if (event.name === "submap" && String(event.data || "") !== "ether-keys") root.keysCapturing = false
-        }
-    }
-
-    // plain values to Lua: booleans, finite numbers, simple strings and
-    // tables of them (the monitors table); anything else is dropped
-    function luaVal(v) {
-        if (typeof v === "boolean") return v ? "true" : "false"
-        if (typeof v === "number") return isFinite(v) ? String(v) : null
-        if (typeof v === "string")
-            return /^[\w .@:+\/=,-]*$/.test(v) ? JSON.stringify(v) : null
-        if (Array.isArray(v)) {
-            const nums = v.filter(x => Number.isInteger(x))
-            return "{ " + nums.join(", ") + " }"
-        }
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-            const parts = []
-            for (const k in v) {
-                const inner = luaVal(v[k])
-                if (inner !== null && /^[\w-]+$/.test(k))
-                    parts.push("[" + JSON.stringify(k) + "] = " + inner)
-            }
-            return "{ " + parts.join(", ") + " }"
-        }
-        return null
-    }
-
-    function hyprText() {
-        const lines = []
-        for (const k in hyprKeys) {
-            const v = cfgUser[k]
-            if (v === undefined) continue
-            const lv = luaVal(v)
-            if (lv === null) continue
-            lines.push("    " + hyprKeys[k] + " = " + lv + ",")
-        }
-        // automatic game mode, while a game runs (a later key wins in Lua)
-        if (autoGame) lines.push("    game_mode = true,   -- a game is running")
-        return "-- written by the quickshell settings panel; change values there\n"
-             + "return {\n" + lines.join("\n") + (lines.length ? "\n" : "") + "}\n"
-    }
-
-    Timer {
-        id: hyprDebounce
-        interval: 150
-        onTriggered: root.writeHypr()
-    }
-
-    property string pendingHypr: ""
-    function writeHypr() {
-        pendingHypr = hyprText()
-        if (!hyprWrite.running) flushHypr()
-    }
-    function flushHypr() {
-        if (pendingHypr === "") return
-        hyprWrite.command = ["sh", "-c",
-            'f="$HOME/.config/hypr/shell-settings.lua"; ' +
-            'printf "%s" "$1" > "$f.tmp" && mv "$f.tmp" "$f" && hyprctl reload >/dev/null; true',
-            "sh", pendingHypr]
-        pendingHypr = ""
-        hyprWrite.running = true
-    }
-    Process {
-        id: hyprWrite
-        onExited: root.flushHypr()
-    }
-
-    property string pendingKitty: ""
-    function writeKitty() {
-        pendingKitty = termOpacity.toFixed(2)
-        if (!kittyWrite.running) flushKitty()
-    }
-    function flushKitty() {
-        if (pendingKitty === "") return
-        kittyWrite.command = ["sh", "-c",
-            'f="$HOME/.config/kitty/shell-settings.conf"; ' +
-            'printf "# written by the quickshell settings panel; change it there\\nbackground_opacity %s\\n" "$1" > "$f.tmp" ' +
-            '&& mv "$f.tmp" "$f" && pkill -USR1 -x kitty; true',
-            "sh", pendingKitty]
-        pendingKitty = ""
-        kittyWrite.running = true
-    }
-    Process {
-        id: kittyWrite
-        onExited: root.flushKitty()
-    }
-
     IpcHandler {
         target: "theme"
-        function reload(): void { palProc.running = true }
+        function reload(): void { Theme.reloadPalette() }
     }
 
     IpcHandler {
@@ -3976,96 +1782,15 @@ ShellRoot {
         function close(): void { root.settingsShown = false }
         function reload(): void { Config.reload() }
         function sync(): void {
-            root.writeHypr()
-            root.writeKitty()
-            lockDebounce.restart()
+            Session.syncAll()
         }
     }
 
-    Process { id: launchProc; environment: root.appEnv }
-    Process { id: saveProc }
 
-    Process {
-        id: loadProc
-        command: ["sh", "-c", "cat '" + root.notesPath + "' 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                root.markedDays = t.length ? t.split(",").filter(s => s.length) : []
-            }
-        }
-    }
 
     onPowerShownChanged: if (powerShown) System.refreshUptime()
 
     // real notification daemon — owns org.freedesktop.Notifications
-    NotificationServer {
-        id: notifServer
-
-        keepOnReload: true
-        actionsSupported: true
-        bodySupported: true
-        bodyMarkupSupported: false
-        imageSupported: true
-        persistenceSupported: true
-        inlineReplySupported: true
-
-        onNotification: notif => {
-            notif.tracked = true
-
-            const crit = (notif.urgency === NotificationUrgency.Critical) ? 2 : 1
-            // actions are copied out as plain values; the live objects stay
-            // behind in notifRefs and are looked up by id when clicked
-            const acts = []
-            for (const a of (notif.actions || []))
-                acts.push({ key: String(a.identifier), text: String(a.text || "") })
-            const n = {
-                id: ++root.notifSeq,
-                app: notif.appName || "notification",
-                icon: notif.appIcon || "",
-                desktop: notif.desktopEntry || "",
-                summary: notif.summary || "",
-                body: notif.body || "",
-                urgency: crit,
-                image: notif.image || "",
-                actions: acts,
-                // apps that accept a typed reply (KDE Connect, some chat
-                // clients); Discord doesn't offer one
-                replyable: notif.hasInlineReply === true,
-                replyHint: notif.inlineReplyPlaceholder || "",
-                ts: Date.now(),
-                when: Qt.formatDateTime(new Date(), root.cfg.clock24h === true ? "HH:mm" : "h:mm AP")
-            }
-
-            const id = n.id
-            const refs = root.notifRefs
-            refs[id] = notif
-            root.notifRefs = refs
-
-            // when the server drops it, forget the object immediately so
-            // nothing can reach a destroyed pointer through notifRefs
-            notif.closed.connect(() => {
-                const r = root.notifRefs
-                delete r[id]
-                root.notifRefs = r
-            })
-
-            root.notifList = [n].concat(root.notifList).slice(0, 100)
-            if (!root.quickShown && !root.sidebarShown) root.notifUnseen++
-            if (!root.quietNow) {
-                // the island shows it; ones with buttons or a reply box still
-                // get their pop-up too, since the island has no room for those
-                const needsPopup = !root.islandNotifs || n.replyable
-                    || (n.actions || []).some(a => a.key !== "default")
-                if (needsPopup) root.popups = root.popups.concat([n]).slice(-4)
-                if (root.islandNotifs)
-                    root.showIsland({ kind: "notif", id: n.id, app: n.app, summary: n.summary, body: n.body,
-                                      icon: root.notifIcon(n), urgent: n.urgency >= 2,
-                                      canOpen: (n.actions || []).some(a => a.key === "default") },
-                                    n.urgency >= 2 ? 8000 : 4500)
-            }
-        }
-    }
 
 }
 
