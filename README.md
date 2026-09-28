@@ -9,11 +9,6 @@ lock screen, a login screen and a full settings app. Everything takes its colour
 wallpaper, and fades to the new ones when you change it: the shell, terminal,
 prompt, window borders, lock screen, GTK and KDE apps, and more.
 
-It's light: around 440 MB and well under 1% of one CPU core while idle, with
-the continuous work (system stats, the GPU, the visualiser, the clipboard,
-file search, monitor brightness, wallpaper colours) done in a small C++
-plugin.
-
 Everything is configured from the settings panel. You shouldn't need to
 open a config file to make Ether Shell yours.
 
