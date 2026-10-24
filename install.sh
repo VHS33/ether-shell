@@ -50,12 +50,18 @@ if [ ! -d "$HERE/config/quickshell" ]; then
         echo "git isn't installed; installing it first."
         sudo pacman -S --needed --noconfirm git
     fi
-    if [ -d "$SRC/.git" ]; then
-        git -C "$SRC" pull --ff-only
-    else
-        mkdir -p "$(dirname "$SRC")"
-        git clone --depth 1 "$REPO_URL" "$SRC"
+    # The same folder holds Ether Shell's own data (the clipboard history,
+    # in clipboard/), so it may already be there without being a git
+    # checkout: then it becomes one in place, and that data is left alone.
+    # Either way it ends up exactly at the latest release (it's only the
+    # installer's copy, so nothing in it is yours to keep).
+    mkdir -p "$SRC"
+    if [ ! -d "$SRC/.git" ]; then
+        git -C "$SRC" init -q
+        git -C "$SRC" remote add origin "$REPO_URL"
     fi
+    git -C "$SRC" fetch -q --depth 1 origin main || { echo "Couldn't fetch Ether Shell from $REPO_URL"; exit 1; }
+    git -C "$SRC" checkout -q -f -B main FETCH_HEAD || { echo "Couldn't set up $SRC"; exit 1; }
     if has_tty; then
         exec bash "$SRC/install.sh" "$@" < /dev/tty
     else

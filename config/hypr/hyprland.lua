@@ -71,9 +71,12 @@ local function monitor(output, def)
     hl.monitor(rule)
 end
 
--- Only monitors set up on the Displays page get a rule.  Any other
--- monitor gets Hyprland's own default: its preferred mode, placed
--- automatically.  So a fresh install works on any set of screens.
+-- Any monitor not set up on the Displays page: its preferred mode, placed
+-- automatically, at 100%.  (Without a rule Hyprland chooses the scale
+-- itself, 150% on many high-density screens.)  A rule of its own, from the
+-- Displays page, takes precedence over this one.  So a fresh install works
+-- on any set of screens, and starts at 100%.
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 for output, _ in pairs(M) do
     if type(output) == "string" and output:match("^[%w%-]+$") then
         monitor(output, { mode = "preferred", position = "auto", scale = 1 })

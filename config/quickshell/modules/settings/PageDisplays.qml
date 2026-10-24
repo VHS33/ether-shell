@@ -21,13 +21,14 @@ ColumnLayout {
         visible: app.revertLeft > 0
         color: Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.18)
         title: "Keep these display settings?"
-        desc: "Reverting to the previous settings in " + app.revertLeft
+        desc: "Going back to the previous settings in " + app.revertLeft
               + (app.revertLeft === 1 ? " second." : " seconds.")
         trailing: [
             Seg {
                 app: settingsRoot.app
-                options: ["Revert", "Keep"]
-                current: 1
+                // neither looks chosen: Keep is something to press
+                options: ["Go back", "Keep"]
+                current: -1
                 onPicked: i => i === 1 ? app.keepDisplays() : app.revertDisplays()
             }
         ]

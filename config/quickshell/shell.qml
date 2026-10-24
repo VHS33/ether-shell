@@ -1462,6 +1462,7 @@ ShellRoot {
     Osd { app: root }
     Cheatsheet { app: root }
     SettingsPanel { app: root }
+    DisplayConfirm { app: root }          // "Keep these display settings?" after Apply
     VolumePop { app: root }
     // under the islands, so a click outside one closes it
     CenterIsland { app: root }
