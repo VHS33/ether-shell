@@ -41,6 +41,13 @@ if [ -n "$luac" ]; then
     done
 else skip "luac isn't installed"; fi
 
+echo "fish (the terminal additions and ether's completions)"
+if have fish; then
+    for f in $(find config/fish -name '*.fish' | sort); do
+        out=$(fish -n "$f" 2>&1) && ok "$f" || { bad "$f"; echo "$out"; }
+    done
+else skip "fish isn't installed"; fi
+
 echo "Logic (Node's test runner)"
 if have node; then
     out=$(node --test tests/*.test.mjs 2>&1)
@@ -95,7 +102,7 @@ else bad "ether perf got these wrong: $(echo "$missing" | tr '\n' ';')"; echo "$
 printf '%s\n' "$out" | grep -q "Thread" && bad "ether perf showed an idle thread as busy"
 rm -rf "$fp"
 
-echo "every app.<name> used exists on the shell; no service reuses its id as a local"
+echo "every app.<name> used exists on the shell; no service reuses its id as a local; every Connections handler has something to hear"
 if have python3; then
     if out=$(python3 tests/app-names.py 2>&1); then ok "all there"; else bad "missing:"; echo "$out" | head -10; fi
 else skip "python3 isn't installed"; fi
@@ -105,6 +112,41 @@ if out=$(gawk -f tests/dup-handlers.awk config/quickshell/*.qml config/quickshel
     ok "no handler set twice"
 else
     bad "a handler set twice: $out"
+fi
+
+echo "only scripts are executable: the bit is set exactly on files starting #!"
+if have git && git rev-parse --git-dir >/dev/null 2>&1; then
+    wrong=$(git ls-files -co --exclude-standard | while IFS= read -r f; do
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        if [ "$(head -c2 "$f")" = "#!" ]; then [ -x "$f" ] || echo "$f (a script, not executable)"
+        else [ -x "$f" ] && echo "$f (executable, not a script)"; fi
+    done)
+    if [ -z "$wrong" ]; then ok "all right"
+    else bad "$(printf '%s\n' "$wrong" | wc -l) file(s):"; printf '%s\n' "$wrong" | head -10; fi
+else skip "not a git checkout"; fi
+
+echo "the installer's old-layout list: no current file in it, every released file that's gone"
+list=$(sed -n '/^old_layout=(/,/^)/p' install.sh | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)
+if [ -z "$list" ]; then
+    bad "no old_layout list in install.sh"
+else
+    n=$(printf '%s\n' "$list" | wc -l)
+    live=$(printf '%s\n' "$list" | while IFS= read -r f; do [ -e "config/quickshell/$f" ] && echo "$f"; done)
+    tags=$(git tag -l 'v*' 2>/dev/null)
+    missed=""
+    if [ -n "$tags" ]; then
+        tmp=$(mktemp -d)
+        printf '%s\n' "$list" > "$tmp/list"
+        git ls-files config/quickshell | sed 's#^config/quickshell/##' | sort > "$tmp/now"
+        for t in $tags; do git ls-tree -r --name-only "$t" config/quickshell; done \
+            | sed 's#^config/quickshell/##' | sort -u > "$tmp/ever"
+        missed=$(comm -23 "$tmp/ever" "$tmp/now" | comm -23 - "$tmp/list")
+        rm -rf "$tmp"
+    fi
+    if [ -n "$live" ]; then bad "install.sh would move files that exist now: $(echo "$live" | tr '\n' ' ')"
+    elif [ -n "$missed" ]; then bad "gone since a release but not in the list: $(echo "$missed" | tr '\n' ' ')"
+    elif [ -n "$tags" ]; then ok "$n names, none exist now, none missed (against $(echo "$tags" | wc -l) releases)"
+    else ok "$n names, none exist now (no release tags here to check what's missed)"; fi
 fi
 
 echo "Qt's JavaScript engine runs the same modules"

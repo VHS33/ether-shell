@@ -109,6 +109,7 @@ Variants {
         // separate invisible full-screen window on every monitor.)  The bar's
         // sections are windows of their own, above this one, so clicking
         // another section still switches drawers.
+        // (not the assistant: it stays open while you click elsewhere)
         readonly property bool modalOpen: app.cardShown || app.quickShown || app.sysShown
                                           || app.launcherShown || app.clipShown
         property Region drawerMask: Region {
@@ -119,10 +120,12 @@ Variants {
         }
         property Region allMask: Region { width: strip.width; height: strip.height }
         mask: modalOpen ? allMask : drawerMask
-        // Keyboard: the drawers take it when clicked into (a Wi-Fi password,
-        // say).
+        // Keyboard: an open drawer takes it at once, for Escape and for typing
+        // in it (a Wi-Fi password, say); never the assistant's, which has its
+        // own window.
         WlrLayershell.keyboardFocus: !strip.active ? WlrKeyboardFocus.None
-            : app.drawerNow !== "" && app.drawerNow !== "island" ? WlrKeyboardFocus.OnDemand
+            // exclusive while a drawer is open, so Escape works at once
+            : app.drawerNow !== "" && app.drawerNow !== "island" && !app.aiShown ? WlrKeyboardFocus.Exclusive
             : WlrKeyboardFocus.None
 
         // ---- the drawer's growth ----
@@ -290,6 +293,7 @@ Variants {
                 app.cardShown = false
                 app.quickShown = false
                 app.sysShown = false
+                app.aiShown = false
                 app.launcherShown = false
             }
 
@@ -387,8 +391,11 @@ Variants {
                         readonly property string k: islandHost.d.osdKind || "volume"
                         readonly property real v: islandHost.d.value || 0
                         readonly property bool off: islandHost.d.muted === true
+                        // on/off kinds (night light, game mode): no level bar, no percent.
+                        // (Not called onOff: next to `off`, QML takes that for a handler.)
+                        readonly property bool toggleKind: k === "night" || k === "game"
                         readonly property color tint: k === "brightness" || k === "night" ? app.cYellow
-                                                    : k === "mic" ? app.cTeal : app.cBlue
+                                                    : k === "mic" ? app.cTeal : k === "game" ? app.cGreen : app.cBlue
                         Rectangle {
                             implicitWidth: 36
                             implicitHeight: 36
@@ -399,6 +406,7 @@ Variants {
                                 readonly property var row: parent.parent
                                 text: row.k === "mic" ? (row.off ? "mic_off" : "mic")
                                     : row.k === "night" ? (row.off ? "light_mode" : "dark_mode")
+                                    : row.k === "game" ? "sports_esports"
                                     : row.k === "brightness" ? (row.v < 0.34 ? "brightness_low" : row.v < 0.67 ? "brightness_medium" : "brightness_high")
                                     : row.off ? "volume_off" : row.v === 0 ? "volume_mute" : row.v < 0.5 ? "volume_down" : "volume_up"
                                 color: row.off ? app.cDim : app.cOnAccent
@@ -410,6 +418,7 @@ Variants {
                             readonly property var row: parent
                             text: row.k === "mic" ? (row.off ? "Microphone muted" : "Microphone")
                                 : row.k === "night" ? (row.off ? "Night light off" : "Night light on")
+                                : row.k === "game" ? (row.off ? "Game mode off" : "Game mode on")
                                 : row.k === "brightness" ? "Brightness"
                                 : row.off ? "Muted" : "Volume"
                             color: app.cFg
@@ -419,7 +428,7 @@ Variants {
                         }
                         Rectangle {
                             Layout.fillWidth: true
-                            visible: parent.k !== "night"
+                            visible: !parent.toggleKind
                             implicitHeight: 8
                             radius: 4
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
@@ -431,9 +440,9 @@ Variants {
                                 Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                             }
                         }
-                        Item { Layout.fillWidth: true; visible: parent.k === "night" }
+                        Item { Layout.fillWidth: true; visible: parent.toggleKind }
                         Text {
-                            visible: parent.k !== "night"
+                            visible: !parent.toggleKind
                             text: parent.off ? "" : Math.round(parent.v * 100) + "%"
                             color: app.cDim
                             font.family: "Inter"

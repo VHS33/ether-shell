@@ -385,12 +385,13 @@ Variants {
         visible: modelData.name === app.mainScreen
         readonly property bool open: app.sidebarShown
 
-        // the full height between the bar and the dock
+        // the full height below the bar; above the dock only if the dock
+        // reaches this far right
         anchors { top: true; right: true; bottom: true }
         margins {
             top: app.barBottom + 6
             right: app.gap
-            bottom: app.gap + app.dockSpace
+            bottom: app.gap + app.dockSpaceRight(winS.modelData.width, winS.implicitWidth)
         }
         implicitWidth: 400
         exclusionMode: ExclusionMode.Ignore

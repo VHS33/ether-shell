@@ -117,8 +117,6 @@ local function app(c) return LAUNCH .. c end
 
 local terminal    = cmd(S.terminal, "kitty")
 local fileManager = cmd(S.file_manager, "dolphin")
--- SUPER + R: rofi, kept as a fallback launcher
-local menu        = "sh -c 'pkill rofi || rofi -show drun -theme ~/.config/rofi/launcher.rasi'"
 
 
 -------------------
@@ -463,8 +461,6 @@ hl.bind(key("terminal", mainMod .. " + T"), hl.dsp.exec_cmd(app(terminal)),
         { description = "Terminal" })
 hl.bind(key("files", mainMod .. " + E"), hl.dsp.exec_cmd(app(fileManager)),
         { description = "File manager" })
-hl.bind(key("app_menu", mainMod .. " + R"), hl.dsp.exec_cmd(menu),
-        { description = "App menu" })
 
 -- the shell's own launcher: apps, maths, emoji, clipboard, commands
 hl.bind("SUPER_L", hl.dsp.exec_cmd("qs ipc call launcher toggle"),
@@ -538,6 +534,8 @@ hl.bind(key("overview", "ALT + Tab"), hl.dsp.exec_cmd("qs ipc call overview togg
 -- the clipboard panel, down the right side
 hl.bind(key("clipboard", mainMod .. " + V"), hl.dsp.exec_cmd("qs ipc call clipboard toggle"),
         { description = "Clipboard history" })
+hl.bind(key("game_mode", mainMod .. " + G"), hl.dsp.exec_cmd("qs ipc call gamemode toggle"),
+        { description = "Game mode on/off" })
 hl.bind(key("ai", mainMod .. " + A"), hl.dsp.exec_cmd("qs ipc call ai toggle"),
         { description = "AI assistant" })
 hl.bind(key("cheatsheet", mainMod .. " + slash"), hl.dsp.exec_cmd("qs ipc call cheatsheet toggle"),
@@ -729,6 +727,14 @@ hl.config({
         no_warps = true,
     },
 })
+
+-- Your own additions: ~/.config/hypr/user.lua, if you make one (window
+-- rules, binds, settings).  Ether Shell's updates never touch it, while
+-- this file is replaced by them.  Loaded after everything above, so it can
+-- change any of it (border colours excepted: colors.lua comes last).  A
+-- mistake in it is skipped rather than breaking this config; check it with
+-- `luac -p ~/.config/hypr/user.lua`.
+pcall(dofile, os.getenv("HOME") .. "/.config/hypr/user.lua")
 
 -- MUST stay last: whatever sets general.col last wins.  pcall so a
 -- missing colors.lua (before the first setwall) can't break the config.

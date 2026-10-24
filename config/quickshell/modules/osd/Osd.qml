@@ -54,11 +54,12 @@ Variants {
 
         readonly property color accent:
             kind === "brightness" || kind === "night" ? app.cYellow
-            : kind === "mic" ? app.cTeal : app.cMauve
+            : kind === "mic" ? app.cTeal : kind === "game" ? app.cGreen : app.cMauve
 
         readonly property string glyph: {
             if (kind === "mic") return off ? "mic_off" : "mic"
             if (kind === "night") return off ? "light_mode" : "dark_mode"
+            if (kind === "game") return "sports_esports"
             if (kind === "brightness")
                 return value < 0.34 ? "brightness_low" : value < 0.67 ? "brightness_medium" : "brightness_high"
             if (off) return "volume_off"
@@ -68,6 +69,7 @@ Variants {
         readonly property string title: {
             if (kind === "mic") return off ? "Microphone muted" : "Microphone on"
             if (kind === "night") return off ? "Night light off" : "Night light on"
+            if (kind === "game") return off ? "Game mode off" : "Game mode on"
             if (kind === "brightness") return "Brightness"
             return off ? "Muted" : "Volume"
         }

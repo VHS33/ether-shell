@@ -37,6 +37,17 @@ Singleton {
         }
         return list[0]
     }
+    // A web browser's player (YouTube and the like).  Hovering a video's
+    // thumbnail plays a preview, which a browser reports as a new song.
+    // Judged by the app's own name and desktop file; the D-Bus name only if
+    // it gives neither (Electron music apps, like Cider, report a
+    // "chromium" D-Bus name but their own name).
+    readonly property var browserNames: /firefox|librewolf|waterfox|floorp|\bzen\b|chrom(e|ium)|\bbrave\b|vivaldi|\bopera\b|\bedge\b|msedge|epiphany|qutebrowser|falkon|midori/i
+    function isBrowser(p) {
+        if (!p) return false
+        const own = [p.identity || "", p.desktopEntry || ""].join(" ").trim()
+        return browserNames.test(own !== "" ? own : (p.dbusName || ""))
+    }
     // every player, as plain values for the card's switcher
     readonly property var playerList: (Mpris.players.values || []).map(p => ({
         key: p.dbusName, name: p.identity || p.dbusName,

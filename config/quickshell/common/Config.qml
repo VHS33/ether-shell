@@ -78,6 +78,18 @@ Singleton {
     // key: the one that changed, or "*" for all of them
     signal settingChanged(string key)
 
+    // ---- keeping the file safe ----
+    // settings.json is read in the background at start-up.  Until that read
+    // has finished, `loaded` is false and nothing is written: a change made
+    // that early is kept here and merged with the file once it's read (the
+    // change wins), so an early save can never replace the file with an
+    // almost empty one.  A file that can't be understood is never written
+    // over: it's renamed settings.json.broken-<date> and you're told.
+    property bool loaded: false
+    property bool earlyChanges: false      // something changed before `loaded`
+    property var earlyResets: []           // keys reset before `loaded`
+    property bool earlyResetAll: false
+
     function setting(key, value) {
         const o = Object.assign({}, user)
         o[key] = value
@@ -89,11 +101,13 @@ Singleton {
         const o = Object.assign({}, user)
         delete o[key]
         user = o
+        if (!loaded) earlyResets = earlyResets.concat([key])
         save()
         settingChanged(key)
     }
     function resetAll() {
         user = ({})
+        if (!loaded) { earlyResetAll = true; earlyResets = [] }
         save()
         settingChanged("*")
     }
@@ -107,6 +121,7 @@ Singleton {
     // slider being dragged never leaves a half-written file behind
     property string pending: ""
     function save() {
+        if (!loaded) { earlyChanges = true; return }
         pending = JSON.stringify(user, null, 2) + "\n"
         if (!settingsWrite.running) flush()
     }
@@ -122,23 +137,96 @@ Singleton {
         id: settingsWrite
         onExited: config.flush()
     }
+
+    // the first read: the file's settings, then the early changes on top
+    function afterFirstRead(fromFile) {
+        let u = earlyResetAll ? ({}) : Object.assign({}, fromFile)
+        for (const k of earlyResets) delete u[k]
+        u = Object.assign(u, user)
+        const changed = earlyChanges
+        earlyChanges = false; earlyResets = []; earlyResetAll = false
+        user = u
+        loaded = true
+        if (changed) save()
+    }
+    function tell(title, body) {
+        Quickshell.execDetached(["notify-send", "-a", "Ether Shell", "-u", "critical",
+                                 "-i", "dialog-warning", title, body])
+    }
+
+    // The first line says what happened: NONE (no file yet: a first run),
+    // OK (the file follows), or ERR (it's there but couldn't be read).
+    // A file that doesn't parse is moved aside before anything is saved.
     Process {
         id: settingsRead
         running: true
         command: ["sh", "-c",
-            "cat ~/.config/quickshell/settings.json 2>/dev/null || true"]
+            'f="$HOME/.config/quickshell/settings.json"; ' +
+            'if [ ! -e "$f" ]; then echo NONE; ' +
+            'elif c=$(cat "$f" 2>/dev/null); then printf "OK\\n%s" "$c"; ' +
+            'else echo ERR; fi']
         stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                if (!t.length) { config.user = ({}); return }
-                try {
-                    const o = JSON.parse(t)
-                    if (o && typeof o === "object" && !Array.isArray(o))
-                        config.user = o
-                } catch (e) {
-                    console.log("settings.json parse failed, using defaults:", e)
-                }
-            }
+            onStreamFinished: config.readDone(text)
         }
+    }
+    // the rename finishes before anything is saved, so it can only ever
+    // move the broken file, never a newly saved one
+    Process {
+        id: setAside
+        onExited: {
+            if (!config.loaded) config.afterFirstRead({})
+            else config.save()
+        }
+    }
+    function readDone(text) {
+        const nl = text.indexOf("\n")
+        const head = (nl < 0 ? text : text.slice(0, nl)).trim()
+        const body = nl < 0 ? "" : text.slice(nl + 1).trim()
+
+        if (head === "NONE") {
+            if (!loaded) afterFirstRead({})
+            else user = ({})
+            return
+        }
+        if (head !== "OK") {
+            // there, but unreadable (permissions?).  At start-up: leave it
+            // alone and don't save over it (`loaded` stays false); on a
+            // reload: keep the settings already in use.
+            console.log("settings.json couldn't be read")
+            tell("Settings couldn't be read",
+                 loaded ? "~/.config/quickshell/settings.json couldn't be opened. The settings already in use were kept."
+                        : "~/.config/quickshell/settings.json is there but couldn't be opened. "
+                          + "Using defaults for now; changes won't be saved until the shell restarts and can read it.")
+            return
+        }
+
+        let o = null
+        if (body.length) {
+            try {
+                const p = JSON.parse(body)
+                if (p && typeof p === "object" && !Array.isArray(p)) o = p
+            } catch (e) {
+                console.log("settings.json parse failed:", e)
+            }
+        } else o = {}
+
+        if (o !== null) {
+            if (!loaded) afterFirstRead(o)
+            else user = o
+            return
+        }
+
+        // Not valid settings: keep the file as it is under a new name, so
+        // nothing in it is lost, then carry on (defaults at start-up, or
+        // the settings already in use after a reload) and save those.
+        setAside.command = ["sh", "-c",
+            'f="$HOME/.config/quickshell/settings.json"; ' +
+            'mv "$f" "$f.broken-$(date +%Y%m%d-%H%M%S)"']
+        setAside.running = true
+        tell("Settings file couldn't be understood",
+             "It was kept as settings.json.broken-<date> in ~/.config/quickshell. "
+             + (loaded ? "The settings already in use were kept."
+                       : "Using defaults for now. To get yours back, fix that file, "
+                         + "rename it to settings.json and run: qs ipc call settings reload"))
     }
 }

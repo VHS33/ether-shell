@@ -71,21 +71,38 @@ Variants {
             openai: "https://platform.openai.com/api-keys"
         })
 
-        anchors { top: true; bottom: true; left: true }
-        margins { top: app.barBottom + app.gap; bottom: app.gap; left: app.gap }
-        implicitWidth: 500
+        // Inside the left pill's drawer: the pill grows into this panel's
+        // shape (LeftIsland.qml) and this window draws the contents in it,
+        // at the place LeftIsland publishes (app.aiArea).  Above the bar's
+        // windows (overlay), so clicks and typing reach it, not the glass.
+        readonly property var area: app.aiArea || ({ x: app.gap, y: app.barBottom + app.gap, w: 560,
+                                                     h: modelData.height - app.barBottom - 2 * app.gap })
+        anchors { top: true; left: true }
+        margins { top: area.y; left: area.x }
+        implicitWidth: area.w
+        implicitHeight: area.h
+        WlrLayershell.layer: WlrLayer.Overlay
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
-        WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        // It stays open while you work elsewhere (copying, say): clicks
+        // outside go to your apps and don't close it.  The keyboard: taken
+        // at once when it opens (to type and for Escape straight away), then
+        // held only while you use it, so Ctrl+C in another window reaches
+        // that window; click back into it to type again.
+        property bool grabbing: false
+        Timer { id: grabEnd; interval: 500; onTriggered: aw.grabbing = false }
+        WlrLayershell.keyboardFocus: !open ? WlrKeyboardFocus.None
+            : grabbing ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
 
         property Region shownMask: Region { item: panel }
         property Region hiddenMask: Region { width: 0; height: 0 }
         mask: open ? shownMask : hiddenMask
 
         onOpenChanged: {
-            if (open) { if (showSetup) keyIn.forceActiveFocus(); else input.forceActiveFocus() }
-            else setup = false
+            if (open) { revealLater.restart(); grabbing = true; grabEnd.restart() }
+            else { shownFull = false; setup = false; grabbing = false }
         }
+        Component.onCompleted: if (open) { revealLater.restart(); grabbing = true; grabEnd.restart() }   // built already open
 
         // it scrolls to the newest message as the reply grows
         function toBottom() { Qt.callLater(() => chat.positionViewAtEnd()) }
@@ -95,19 +112,31 @@ Variants {
             function onAiStreamingChanged() { aw.toBottom() }
         }
 
+        // the contents arrive once the shape has mostly grown, and go at once
+        property bool shownFull: false
+        Timer {
+            id: revealLater
+            interval: Math.round(app.animSlow * 0.45)
+            onTriggered: aw.shownFull = aw.open
+        }
+        onShownFullChanged: if (shownFull) { if (showSetup) keyIn.forceActiveFocus(); else input.forceActiveFocus() }
+
+        // the contents, cut to the pill's shape as it grows and shrinks
+        Item {
+            id: clipper
+            width: Math.min(aw.width, app.aiClip ? app.aiClip.w : aw.width)
+            height: Math.min(aw.height, app.aiClip ? app.aiClip.h : aw.height)
+            clip: true
+
         Rectangle {
             id: panel
-            width: parent.width
-            height: parent.height
-            x: aw.open ? 0 : -width - 24
-            opacity: aw.open ? 1 : 0
+            width: aw.width
+            height: aw.height
+            opacity: aw.shownFull ? 1 : 0
             visible: opacity > 0
-            Behavior on x { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
-            Behavior on opacity { NumberAnimation { duration: app.animNormal } }
-            radius: 26
-            color: app.cBg
-            border.width: 1
-            border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.45)
+            Behavior on opacity { NumberAnimation { duration: aw.shownFull ? app.animNormal : app.animQuick } }
+            // the glass is the pill's own shape, underneath
+            color: "transparent"
 
             Keys.onEscapePressed: app.aiShown = false
 
@@ -759,7 +788,9 @@ Variants {
                 Rectangle {
                     Layout.fillWidth: true
                     visible: !aw.showSetup
-                    implicitHeight: Math.min(160, input.implicitHeight + 24)
+                    // never shorter than the send button and its margins, so
+                    // the button sits centred in a one-line box
+                    implicitHeight: Math.min(160, Math.max(input.implicitHeight + 24, sendBtn.height + 14))
                     radius: 22
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                     border.width: input.activeFocus ? 1 : 0
@@ -773,8 +804,9 @@ Variants {
                         anchors.bottom: parent.bottom
                         anchors.leftMargin: 16
                         anchors.rightMargin: 8
-                        anchors.topMargin: 12
-                        anchors.bottomMargin: 12
+                        // one line: centred in the box; more: 12 above and below
+                        anchors.topMargin: Math.max(12, (parent.height - input.implicitHeight) / 2)
+                        anchors.bottomMargin: Math.max(12, (parent.height - input.implicitHeight) / 2)
                         contentHeight: input.implicitHeight
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
@@ -855,6 +887,8 @@ Variants {
                     font.pixelSize: app.fs(10)
                 }
             }
+        }
+
         }
 
         Process { id: copier }

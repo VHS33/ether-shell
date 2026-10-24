@@ -8,7 +8,6 @@ export const CATALOG = [
     // apps
     { id: "terminal",       group: "Apps",        label: "Terminal",                  def: "SUPER + T" },
     { id: "files",          group: "Apps",        label: "File manager",              def: "SUPER + E" },
-    { id: "app_menu",       group: "Apps",        label: "App menu (rofi)",           def: "SUPER + R" },
     // windows
     { id: "close",          group: "Windows",     label: "Close window",              def: "SUPER + Q" },
     { id: "close_alt",      group: "Windows",     label: "Close window (second key)", def: "SUPER + C" },
@@ -34,6 +33,7 @@ export const CATALOG = [
     { id: "overview",       group: "Ether Shell", label: "Workspace overview",        def: "ALT + Tab" },
     { id: "clipboard",      group: "Ether Shell", label: "Clipboard history",         def: "SUPER + V" },
     { id: "ai",             group: "Ether Shell", label: "AI assistant",              def: "SUPER + A" },
+    { id: "game_mode",      group: "Ether Shell", label: "Game mode on/off",          def: "SUPER + G" },
     { id: "cheatsheet",     group: "Ether Shell", label: "Keybind cheatsheet",        def: "SUPER + slash" },
     { id: "quick",          group: "Ether Shell", label: "Quick settings",            def: "SUPER + N" },
     { id: "settings",       group: "Ether Shell", label: "Settings",                  def: "SUPER + comma" },

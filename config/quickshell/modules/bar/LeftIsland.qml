@@ -185,16 +185,44 @@ Variants {
                       flush: "left" })
         }
 
-        readonly property bool open: app.sysShown
+        // open as the system drawer, or as the assistant: the same shape
+        // grows out of the pill either way.  The assistant's own window
+        // (modules/ai/AiPanel.qml) draws its contents into it (app.aiArea).
+        readonly property bool open: app.sysShown || app.aiShown
+        readonly property bool aiPage: app.aiShown
+        // the assistant runs down to the bottom of the screen, on any screen
+        readonly property real fullH: modelData.height - (att ? app.barBottom : app.gap) - app.gap
 
         readonly property real pillW: leftRow.implicitWidth + 12
         // On the long bar, worked out as if the title pill were at its widest,
         // so it stays the same whatever's focused, and is never narrower than
         // the section (the drawer grows out of the bar's left end, and would
         // otherwise shrink as it opened).
-        readonly property real openW: att ? Math.max(560, pillW - awGroup.implicitWidth + awGroup.maxW)
+        // The assistant keeps its own width (the long bar's system drawer
+        // spans the window-title area, which is far too wide for a chat);
+        // in the islands style it's never narrower than the pill it grows from.
+        readonly property real openW: aiPage ? (att ? 560 : Math.max(560, pillW))
+                                    : att ? Math.max(560, pillW - awGroup.implicitWidth + awGroup.maxW)
                                           : Math.max(560, pillW)
-        readonly property real openH: panel.implicitHeight
+        readonly property real openH: aiPage ? fullH : panel.implicitHeight
+        // where the assistant's contents go, in screen coordinates
+        Binding {
+            target: app
+            property: "aiArea"
+            restoreMode: Binding.RestoreNone
+            when: isl3.visible && isl3.modelData.name === app.mainScreen
+            value: ({ x: isl3.att ? isl3.finalX : app.gap, y: isl3.att ? app.barBottom : app.gap,
+                      w: isl3.openW, h: isl3.fullH })
+        }
+        // and how much of it the growing (or shrinking) shape covers right
+        // now, so the assistant's contents never show outside the glass
+        Binding {
+            target: app
+            property: "aiClip"
+            restoreMode: Binding.RestoreNone
+            when: isl3.visible && isl3.modelData.name === app.mainScreen
+            value: ({ w: isl3.att ? app.drawerCurW : shape.width, h: isl3.att ? app.drawerCurH : shape.height })
+        }
 
         // extra room to the right and below, for the open panel's shadow
         readonly property int shadowRoom: 36
@@ -218,7 +246,10 @@ Variants {
         color: "transparent"
         // on the long bar the drawer lives in BarStrip's window, which takes
         // the keyboard; this window only needs it for the islands style
-        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        // While open it takes the keyboard straight away (exclusive), so
+        // Escape closes it without clicking into it first; the drawer is
+        // modal anyway (a click outside closes it).
+        WlrLayershell.keyboardFocus: open && !att && !aiPage ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         // only the shape takes clicks, whatever size it is right now
         mask: Region {
@@ -715,7 +746,8 @@ Variants {
                 y: 0
                 width: isl3.openW
                 implicitHeight: sCol.implicitHeight + 32
-                opacity: isl3.open ? 1 : 0
+                // the system drawer's contents; not while it's the assistant
+                opacity: isl3.open && !isl3.aiPage ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
 
@@ -992,7 +1024,7 @@ Variants {
                                     }
                                     Text {
                                         Layout.fillWidth: true
-                                        text: app.autoGame ? "Playing now: game mode is on" : "Playing now"
+                                        text: app.gameMode ? "Playing now: game mode is on" : "Playing now"
                                         color: app.cOnPrimC
                                         font.family: "Inter"
                                         font.pixelSize: app.fs(11)

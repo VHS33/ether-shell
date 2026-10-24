@@ -147,6 +147,10 @@ PACKAGES=(
     noto-fonts-emoji
     # apps the shell opens
     kitty rofi dolphin btop pavucontrol nm-connection-editor
+    # the terminal, for fish users: a prompt in the wallpaper's colours,
+    # history search (Ctrl+R) and folder jumping (z); fish itself isn't made
+    # your login shell
+    fish starship fzf zoxide
     # sound and media
     pipewire wireplumber pipewire-pulse libpulse playerctl cava
     # screenshots and clipboard
@@ -309,12 +313,58 @@ while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/local/}"
     place "$f" "$HOME/.local/$rel"
 done < <(find "$HERE/local" -type f -print0)
+
+# Files that earlier versions put in ~/.config/quickshell itself and that
+# now live in its subfolders (v0.5.2's layout: modules/, services/).  Left
+# beside the new ones, the old copy's name can be picked up instead of the
+# new file, so they go into the backup folder.  Only these names and only
+# in that folder: settings.json, your own files and anything else there
+# are left alone.  (tests/run.sh checks this list against the releases.)
+old_layout=(
+    AiPanel.qml BarCenter.qml BarLeft.qml BarRight.qml BarStrip.qml
+    CenterIsland.qml Cheatsheet.qml ClipPanel.qml Dock.qml GameWatch.qml
+    IslandCatcher.qml Launcher.qml LeftIsland.qml MediaBody.qml MediaCard.qml
+    MonitorLayout.qml NativeStats.qml NetNative.qml Osd.qml Overview.qml
+    PluginApi.qml PluginBarItems.qml PluginHost.qml Popups.qml PowerMenu.qml
+    RightIsland.qml Scenes.qml SettingsPanel.qml Sidebar.qml Spacer.qml
+    VolumePop.qml Widgets.qml WsPreview.qml
+)
+moved=0
+for n in "${old_layout[@]}"; do
+    f="$HOME/.config/quickshell/$n"
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    run mkdir -p "$BACKUP/.config/quickshell"
+    run mv "$f" "$BACKUP/.config/quickshell/$n"
+    moved=$((moved + 1))
+done
 # ~/.local/bin on the PATH (for `ether` by name): the env file is yours once
 # it exists, so the line is added to it only if it isn't there
 ue="$HOME/.config/uwsm/env"
 if [ -f "$ue" ] && ! grep -q '.local/bin' "$ue"; then
     info "Adding ~/.local/bin to the session's PATH (in $ue), for the ether command"
     [ "$DRY" = 0 ] && printf '\n# Ether Shell'"'"'s commands (ether, setwall...) by name, in every terminal and the launcher\ncase ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac\n' >> "$ue"
+fi
+# Your own Hyprland additions: hyprland.lua loads ~/.config/hypr/user.lua
+# last, and updates never touch it.  A starting point if there isn't one.
+uh="$HOME/.config/hypr/user.lua"
+if [ ! -e "$uh" ]; then
+    if [ "$DRY" = 1 ]; then info "[dry run] would create $uh (your own Hyprland additions)"
+    else
+        cat > "$uh" << 'USERLUA'
+-- Your own Hyprland additions.  Ether Shell's updates never touch this file;
+-- hyprland.lua loads it near the end, so anything here can change what's
+-- set there.  A mistake here is skipped and the rest still loads; check it
+-- with:  luac -p ~/.config/hypr/user.lua
+--
+-- For example, to have Steam's own windows (not its games) open floating:
+-- hl.window_rule({
+--     name  = "float-steam",
+--     match = { class = "^steam$" },
+--     float = true,
+-- })
+USERLUA
+        info "Made ~/.config/hypr/user.lua for your own Hyprland rules (updates never touch it)"
+    fi
 fi
 # the plugin guide that earlier versions put here is no longer part of
 # Ether Shell
@@ -332,9 +382,12 @@ fi
 run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
     "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.local/bin/ether" "$HOME/.config/ether-greeter/start"
 
+if [ "$moved" -gt 0 ]; then
+    info "Moved $moved file(s) left from an earlier version's layout into $BACKUP"
+fi
 if [ "$backed" -gt 0 ]; then
     info "Replaced $backed existing file(s); the old versions are in $BACKUP"
-else
+elif [ "$moved" = 0 ]; then
     info "Nothing needed backing up."
 fi
 
@@ -397,7 +450,8 @@ if ! systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
 fi
 
 # folders matugen writes themes into, so it needn't create them itself
-run mkdir -p "$HOME/.cache/ether" "$HOME/.config/btop/themes"
+# (~/.config/ether: fzf's colours, read by the terminal additions)
+run mkdir -p "$HOME/.cache/ether" "$HOME/.config/btop/themes" "$HOME/.config/ether"
 
 # btop: use the wallpaper's colours (the theme matugen writes)
 bt="$HOME/.config/btop/btop.conf"
@@ -453,6 +507,8 @@ ${G}${B}Ether Shell is installed.${N}
      - Weather: search for your city.
      - Displays: pick your main monitor and set modes.
   3. Press SUPER + / to see every keybind.
+  4. Your own Hyprland rules go in ~/.config/hypr/user.lua: updates never
+     replace it.
 
   To undo, copy the files back from:
     ${BACKUP}

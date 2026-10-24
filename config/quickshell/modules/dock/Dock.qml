@@ -445,6 +445,11 @@ Variants {
 
         Rectangle {
             id: card
+            // its width, for the sidebar and pop-ups to know if it's under them
+            readonly property bool reports: !winD.vertical && winD.modelData.name === winD.app.mainScreen
+            onWidthChanged: if (reports) winD.app.dockCardW = width
+            onReportsChanged: if (reports) winD.app.dockCardW = width
+            Component.onCompleted: if (reports) winD.app.dockCardW = width
             // centred along its edge; slid off the screen when hidden
             x: winD.edge === "left"  ? (winD.shown ? winD.bottomPad : -width - 8)
              : winD.edge === "right" ? (winD.shown ? winD.width - width - winD.bottomPad : winD.width + 8)

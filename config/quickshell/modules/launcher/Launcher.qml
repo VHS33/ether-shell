@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
+import Quickshell.Hyprland
 import "../../lib/text.mjs" as TextLib
 import "../../lib/plugins.mjs" as Plugins
 import "../../lib/models.mjs" as Models
@@ -42,15 +43,35 @@ Variants {
         // Built the first time it's opened, then kept for instant opening:
         // nothing sits in memory for a panel that's never used.
         property bool used: false
-        active: modelData.name === app.mainScreen && (used || app.launcherShown)
+        // only on the monitor it opens on (app.launcherScreen); opening it
+        // on another one swaps it there
+        active: modelData.name === app.launcherScreen && (used || app.launcherShown)
         onActiveChanged: if (active) used = true
 
     PanelWindow {
         id: lw
         readonly property var modelData: perScreen.modelData
         screen: modelData
-        visible: modelData.name === app.mainScreen
+        visible: modelData.name === app.launcherScreen
         readonly property bool open: app.launcherShown
+        // On the main monitor a click outside closes it through the bar's
+        // full-screen catcher; other monitors have no bar, so there a
+        // Hyprland focus grab does it (as the dock's menu does).  The grab
+        // starts a moment after it opens, once the window is on screen: a
+        // grab begun as the window appears could be cleared at once by
+        // Hyprland, closing the launcher as it opened.
+        property bool grabReady: false
+        Timer {
+            id: grabDelay
+            interval: 150
+            onTriggered: lw.grabReady = lw.open
+        }
+        Component.onCompleted: if (open) grabDelay.restart()   // built already open
+        HyprlandFocusGrab {
+            windows: [ lw ]
+            active: lw.open && lw.grabReady && lw.modelData.name !== app.mainScreen
+            onCleared: app.launcherShown = false
+        }
         // (built because it was just opened, it still runs its opening
         // setup: the change to open counts as it's created)
         // Its own floating card, centred a little above the middle of the
@@ -82,6 +103,8 @@ Variants {
         mask: open && !att ? shownMask : hiddenMask
 
         onOpenChanged: {
+            grabReady = false
+            if (open) grabDelay.restart()
             if (open) {
                 search.text = app.launcherPrefill
                 sel = 0
@@ -369,7 +392,10 @@ Variants {
                 runner.command = ["xdg-open", r.path]
                 runner.running = true
             } else if (r.kind === "web") {
-                sh("xdg-open 'https://duckduckgo.com/?q=" + encodeURIComponent(q.trim()) + "'")
+                // the address goes to xdg-open as it is, not through sh: an
+                // apostrophe in the search ("don't") used to end sh's quotes
+                runner.command = ["xdg-open", "https://duckduckgo.com/?q=" + encodeURIComponent(q.trim())]
+                runner.running = true
             } else if (r.kind === "scene") {
                 app.sceneRestore(r.name)
             } else if (r.kind === "scenesave") {

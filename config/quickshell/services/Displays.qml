@@ -151,6 +151,8 @@ Singleton {
         onTriggered: displaysSvc.screensChangedTo(displaysSvc.screensNow)
     }
     function screensChangedTo(key) {
+        // compare with the saved screens only once the settings are read
+        if (!Config.loaded) { screensSettle.restart(); return }
         if (key === "" || key === Config.cfg.monitorsLastScreens) return
         Config.setting("monitorsLastScreens", key)
         const p = profileNow

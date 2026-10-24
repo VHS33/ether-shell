@@ -1,5 +1,5 @@
 # Every push and pull request: the same checks as tests/run.sh on your own
-# machine (shell scripts, QML, the Hyprland configs, the logic tests, Qt's
+# machine (shell scripts, QML, the Hyprland configs, fish, the logic tests, Qt's
 # JavaScript engine against Node, and the plugin build).
 name: Checks
 
@@ -17,7 +17,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gawk --no-install-recommends \
-            shellcheck lua5.4 cmake g++ pkg-config \
+            shellcheck lua5.4 fish cmake g++ pkg-config \
             qt6-base-dev qt6-declarative-dev qt6-declarative-dev-tools \
             qml-qt6 qml6-module-qtquick qml6-module-qtqml-workerscript \
             libpipewire-0.3-dev libwayland-dev libwayland-bin libgl-dev

@@ -77,4 +77,54 @@ for f in sorted(glob.glob(os.path.join(q, "*.qml")) + glob.glob(os.path.join(q, 
             for b in re.finditer(r"(?:^|[;{\s])([a-z]\w*)\s*:\s*\1\s*(?=;|$|\})", m.group(1)):
                 selfbound.append("%s:%d binds %s: %s" % (os.path.relpath(f, q), i, b.group(1), b.group(1)))
 for b_ in selfbound: print(b_)
-sys.exit(1 if (missing or shadowed or unimported or broken or selfbound) else 0)
+
+# A Connections handler must match something its target really has:
+# function onFoo() needs a signal foo, onFooChanged a property foo (or a
+# signal fooChanged).  One that matches nothing loads with only a warning
+# and never runs (v0.5.2: CenterIsland's onTrackKeyChanged on app, after
+# trackKey moved to Media, so new songs stopped scrolling).  Checked for
+# targets whose members are known here: app (shell.qml) and the services.
+def members(t):
+    return set(re.findall(r"^\s*(?:readonly\s+)?(?:required\s+)?(?:default\s+)?property\s+[\w<>.]+\s+(\w+)", t, re.M)) \
+         | set(re.findall(r"^\s*signal\s+(\w+)", t, re.M))
+known = {"app": members(s)}
+for f in glob.glob(os.path.join(q, "services", "*.qml")) + glob.glob(os.path.join(q, "common", "*.qml")):
+    t = open(f).read()
+    if re.search(r"^pragma Singleton", t, re.M): known[os.path.basename(f)[:-4]] = members(t)
+def block(t, i):                                   # the text inside the { at i
+    d = 0
+    for j in range(i, len(t)):
+        if t[j] == "{": d += 1
+        elif t[j] == "}":
+            d -= 1
+            if d == 0: return t[i + 1:j]
+    return t[i + 1:]
+unheard = []
+for f in sorted(glob.glob(os.path.join(q, "**", "*.qml"), recursive=True)):
+    t = "\n".join("" if l.strip().startswith("//") else l for l in open(f).read().split("\n"))
+    for m in re.finditer(r"\bConnections\s*\{", t):
+        body = block(t, m.end() - 1)
+        tg = re.search(r"^\s*target\s*:\s*(\w+)\s*$", body, re.M)
+        if not tg or tg.group(1) not in known: continue
+        have = known[tg.group(1)]
+        for h in re.findall(r"\bfunction\s+on([A-Z]\w*)\s*\(", body):
+            n = h[0].lower() + h[1:]
+            if n in have or (n.endswith("Changed") and n[:-7] in have): continue
+            unheard.append("%s:%d: on%s never runs: %s has no %s" % (os.path.relpath(f, q), t.count("\n", 0, m.start()) + 1, h, tg.group(1),
+                           n[:-7] if n.endswith("Changed") else n))
+for u in unheard: print(u)
+
+# No property may be named like a handler (on + capital letter).  QML reads
+# `onFoo` as the handler for foo whenever the object has a property foo, and
+# then the property never holds its value: PluginApi's onAccent beside
+# accent gave plugins #000000, and step 182's first onOff beside off gave
+# the island a level bar for night light (Qt 6.4 and 6.11 alike).  Whether a
+# Qt type has a property of that name isn't knowable here, so the rule is
+# simply: don't.
+handlerish = []
+for f in sorted(glob.glob(os.path.join(q, "**", "*.qml"), recursive=True)):
+    for i, l in enumerate(open(f).read().split("\n"), 1):
+        m = re.match(r"\s*(?:readonly\s+|required\s+|default\s+)*property\s+[\w<>.]+\s+(on[A-Z]\w*)", l)
+        if m: handlerish.append("%s:%d: property %s is named like a handler; rename it" % (os.path.relpath(f, q), i, m.group(1)))
+for h in handlerish: print(h)
+sys.exit(1 if (missing or shadowed or unimported or broken or selfbound or unheard or handlerish) else 0)

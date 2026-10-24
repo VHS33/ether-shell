@@ -5,7 +5,7 @@ import "../../lib/plugins.mjs" as Plugins
 // Everything a plugin needs to fit in and to do things, without reaching into
 // the shell itself, so Ether Shell can change inside without breaking plugins.
 //
-//   colours    ether.accent, onAccent, second, third, fg, dim, faint,
+//   colours    ether.accent, textOnAccent, second, third, fg, dim, faint,
 //              bg, card, surface, red           (they follow the theme)
 //   text       ether.font, monoFont, iconFont, ether.fs(px) (sized as in
 //              Settings)
@@ -22,7 +22,9 @@ QtObject {
     readonly property int version: 1
 
     readonly property color accent:   app.cBlue
-    readonly property color onAccent: app.cOnAccent
+    // text and icons on an accent fill.  (Was `onAccent`, which QML reads as
+    // a handler beside `accent`: plugins got #000000.  Renamed in step 184.)
+    readonly property color textOnAccent: app.cOnAccent
     readonly property color second:   app.cPeach
     readonly property color third:    app.cGreen
     readonly property color fg:       app.cFg

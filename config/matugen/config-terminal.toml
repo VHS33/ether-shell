@@ -43,6 +43,13 @@ post_hook   = "sh -c 'rm -f \"$HOME/.config/fish/conf.d/ether-colors.fish\"; com
 input_path  = "~/.config/matugen/templates/btop.theme"
 output_path = "~/.config/btop/themes/ether.theme"
 
+# fzf (Ctrl+R history, Ctrl+T files in fish), read by fzf each time it
+# runs, so a new wallpaper applies at once.  Not in ~/.cache: fzf refuses
+# to start if the file it's pointed at is missing.
+[templates.fzf]
+input_path  = "~/.config/matugen/templates/fzf-colors"
+output_path = "~/.config/ether/fzf-colors"
+
 # your starship prompt, in the wallpaper's colours (fish is pointed at it)
 [templates.starship]
 input_path  = "~/.config/matugen/templates/starship.toml"

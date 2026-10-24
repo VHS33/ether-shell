@@ -158,10 +158,13 @@ ShellRoot {
     // bar and the open drawer as one outline; the section's own window
     // draws the drawer's contents, clipped to the same growing shape.
     property var leftGeom: null
+    // the assistant's place inside the left drawer (LeftIsland publishes it)
+    property var aiArea: null
+    property var aiClip: null         // the shape's size right now, as it grows
     property var centerGeom: null
     property var rightGeom: null
     readonly property string drawerNow: !barAttached ? ""
-        : cardShown ? "center" : quickShown ? "right" : sysShown ? "left"
+        : cardShown ? "center" : quickShown ? "right" : (sysShown || aiShown) ? "left"
         : islandShown ? "island" : ""
     readonly property var drawerNowGeom:
         drawerNow === "island" ? islandGeom
@@ -202,7 +205,7 @@ ShellRoot {
     readonly property real mainScreenW: Quickshell.screens.find(s => s.name === mainScreen)?.width ?? 1920
     readonly property real mainScreenH: Quickshell.screens.find(s => s.name === mainScreen)?.height ?? 1080
     function showIsland(d, ms) {
-        if (!islandOn || cardShown || quickShown || sysShown || launcherShown) return
+        if (!islandOn || cardShown || quickShown || sysShown || aiShown || launcherShown) return
         const w = d.kind === "notif" ? 460 : d.kind === "track" ? 420 : d.kind === "timer" ? 380
                 : d.kind === "game" ? 440 : d.kind === "scene" ? 400 : 330
         // a different kind of event folds the island away and grows it again
@@ -223,13 +226,16 @@ ShellRoot {
         else if (islandShown) { islandHide.interval = 1500; islandHide.restart() }
     }
     Timer { id: islandHide; onTriggered: root.islandShown = false }
-    // the next song: once it has settled, and only while something plays
+    // the next song: once it has settled, and only while something plays.
+    // Not for a browser: hovering YouTube thumbnails plays previews, each
+    // reported as a new song, which popped this up over and over.
     Timer {
         id: trackIslandLater
         interval: 700
         onTriggered: {
             const p = root.player
             if (!p || !root.osdLive || root.cardShown || root.gameRunning || p.playbackState !== MprisPlaybackState.Playing) return
+            if (Media.isBrowser(p)) return
             if (!(p.trackTitle || "")) return
             root.showIsland({ kind: "track", title: p.trackTitle || "", artist: p.trackArtist || "",
                               art: p.trackArtUrl || "", app: p.identity || "" }, 3500)
@@ -266,6 +272,7 @@ ShellRoot {
             root.cardShown = false
             root.quickShown = false
             root.sysShown = false
+            root.aiShown = false
             root.launcherShown = false
             root.drawerTo = 0
             root.drawerP = 0
@@ -532,6 +539,15 @@ ShellRoot {
     // space the dock takes at the bottom, for things that sit above it
     // (none when it's down a side)
     readonly property int dockSpace: (dockEnabled && !dockAutoHide && dockEdge === "bottom") ? dockIcon + 28 + gap : 0
+    // the dock's width on the main screen (Dock.qml reports it)
+    property real dockCardW: 0
+    // dockSpace for something `w` wide at the bottom right of a screen
+    // `screenW` wide: only if the centred dock reaches under it, otherwise
+    // it can go all the way down
+    function dockSpaceRight(screenW, w) {
+        if (dockSpace === 0) return 0
+        return screenW / 2 + dockCardW / 2 > screenW - gap - w ? dockSpace : 0
+    }
     // desktop entry ids, without ".desktop"
     readonly property var dockPinned: Array.isArray(cfg.dockPinned) ? cfg.dockPinned : []
 
@@ -913,7 +929,7 @@ ShellRoot {
         root.osdMuted = muted
         if (!root.osdLive) return
         // in the island when it can take it; otherwise the usual pop-up
-        if (root.islandOsd && !root.cardShown && !root.quickShown && !root.sysShown && !root.launcherShown) {
+        if (root.islandOsd && !root.cardShown && !root.quickShown && !root.sysShown && !root.aiShown && !root.launcherShown) {
             root.showIsland({ kind: "osd", osdKind: kind, value: root.osdValue, muted: muted }, root.osdMs)
             return
         }
@@ -1175,12 +1191,12 @@ ShellRoot {
 
     // one island open at a time: opening one closes the others
     onCardShownChanged: if (cardShown) {
-        quickShown = false; sysShown = false; launcherShown = false
+        quickShown = false; sysShown = false; aiShown = false; launcherShown = false
         Media.fetchLyricsSoon()
     }
     onQuickShownChanged: if (quickShown) {
         BluetoothService.check()             // an adapter plugged in since?
-        cardShown = false; sysShown = false; launcherShown = false
+        cardShown = false; sysShown = false; aiShown = false; launcherShown = false
         Notifications.notifUnseen = 0
         quickSettle.restart()
     }
@@ -1203,13 +1219,15 @@ ShellRoot {
     // awake: holds a systemd idle inhibitor, which hypridle honours, so
     // the screen doesn't lock or blank while it's on.
     // ---- games (GameWatch.qml) ------------------------------------------
-    // gameRunning: a game is running now.  Automatic game mode then applies
-    // everything Game mode does, without changing the user's own setting;
-    // notifications are held (still kept in history) without touching Do
-    // not disturb.  Both can be switched off in Settings > Windows > Gaming.
+    // gameRunning: a game is running now.  Automatic game mode, if switched
+    // on in Settings > Windows > Gaming (off unless you do), then applies
+    // everything Game mode does, without changing your own setting.
+    // Otherwise game mode is yours: SUPER + G or the quick settings tile.
+    // Notifications are held while a game runs (still kept in history)
+    // without touching Do not disturb; that has its own switch there.
     property bool gameRunning: false
     property var playWeek: []                 // this week's games, for the playtime card
-    readonly property bool autoGame: gameRunning && cfg.autoGameMode !== false
+    readonly property bool autoGame: gameRunning && cfg.autoGameMode === true
     readonly property bool quietNow: dnd || (gameRunning && cfg.gameQuiet !== false)
     function markGame() { gameWatch.markFocused() }
 
@@ -1228,7 +1246,30 @@ ShellRoot {
     }
 
     readonly property bool gameMode: cfg.gameMode === true || autoGame
-    function toggleGameMode() { setting("gameMode", !gameMode) }
+    // shows what it's become (automatic game mode can keep it on)
+    function toggleGameMode() {
+        setting("gameMode", !gameMode)
+        showOsdOf("game", gameMode ? 1 : 0, !gameMode)
+    }
+    // SUPER + G (`qs ipc call gamemode toggle`)
+    IpcHandler {
+        target: "gamemode"
+        function toggle(): void {
+            root.toggleGameMode()
+            root.ignoreTapUntil = Date.now() + 4000
+        }
+    }
+    // Game mode reaches Hyprland by rewriting shell-settings.lua and
+    // reloading it, while SUPER is still held.  The reload makes Hyprland
+    // forget G was pressed, so letting go of SUPER counts as a tap and asks
+    // for the launcher.  That one request, if it comes within 4 s of the key
+    // (not the tile: no SUPER is held then), is ignored.
+    property double ignoreTapUntil: 0
+    function tapIgnored() {
+        if (Date.now() >= ignoreTapUntil) return false
+        ignoreTapUntil = 0
+        return true
+    }
     property bool keepAwake: false
     Process {
         running: root.keepAwake
@@ -1272,7 +1313,7 @@ ShellRoot {
     // through stdin, so they never show up in a process list.  Requests
     // stream, so replies appear as they're written.
     property bool aiShown: false
-    onAiShownChanged: if (aiShown) { sysShown = false; refreshAiKeys() }
+    onAiShownChanged: if (aiShown) { sysShown = false; cardShown = false; quickShown = false; launcherShown = false; refreshAiKeys() }
     IpcHandler {
         target: "ai"
         function toggle(): void { root.aiShown = !root.aiShown }
@@ -1291,14 +1332,17 @@ ShellRoot {
     property bool launcherShown: false
     property var launcherGeom: null
     onLauncherShownChanged: if (launcherShown) {
-        cardShown = false; quickShown = false; sysShown = false
+        cardShown = false; quickShown = false; sysShown = false; aiShown = false
         root.readClipboard()          // fresh clipboard history for ;
     }
     // how often each app has been opened from the launcher, for ranking
     IpcHandler {
         target: "launcher"
-        function toggle(): void { root.launcherShown = !root.launcherShown }
-        function open(): void { root.launcherShown = true }
+        function toggle(): void {
+            if (root.tapIgnored()) return
+            if (root.launcherShown) root.launcherShown = false; else root.openLauncher()
+        }
+        function open(): void { if (!root.launcherShown) root.openLauncher() }
         function close(): void { root.launcherShown = false }
         // SUPER + V: straight into clipboard history (the launcher's ; mode)
         function clipboard(): void { root.launcherInMode(";") }
@@ -1313,7 +1357,17 @@ ShellRoot {
         if (launcherShown && launcherPrefill === prefix) { launcherShown = false; return }
         launcherPrefill = prefix
         if (launcherShown) launcherPrefillNow++
-        else launcherShown = true
+        else openLauncher()
+    }
+    // The monitor the launcher opens on: the focused one (with Hyprland's
+    // follow-mouse, the one the pointer is on), chosen as it opens and kept
+    // while it's open.  Set before launcherShown, so the launcher is built
+    // straight on that monitor rather than on the main one first.
+    property string launcherScreen: mainScreen
+    function openLauncher() {
+        const f = Hyprland.focusedMonitor?.name ?? ""
+        launcherScreen = Quickshell.screens.some(s => s.name === f) ? f : mainScreen
+        launcherShown = true
     }
     property int launcherPrefillNow: 0
     onCalShownChanged: if (!calShown) { monthOffset = 0; selectedKey = "" }
@@ -1430,13 +1484,22 @@ ShellRoot {
     // The time only moves on when the minute changes (or every second if
     // the clock shows seconds): everything built from it, the calendars
     // included, would otherwise be worked out again every second.
+    // Without seconds the timer also sleeps until just after the next
+    // minute starts, but never more than 5 s: Qt's timers stop while the
+    // PC is asleep, so after a suspend (or a clock change) the time is at
+    // most 5 s behind.  About 12 wake-ups a minute instead of 60.
+    readonly property bool clockSecs: cfg.clockSeconds === true
+    onClockSecsChanged: { clockTick.interval = 1000; clockTick.restart() }
     Timer {
+        id: clockTick
         interval: 1000; running: true; repeat: true
         onTriggered: {
             const d = new Date()
-            if (root.cfg.clockSeconds === true || d.getMinutes() !== root.now.getMinutes()
+            if (root.clockSecs || d.getMinutes() !== root.now.getMinutes()
                     || d.getHours() !== root.now.getHours() || d.getDate() !== root.now.getDate())
                 root.now = d
+            const toNextMinute = 60000 - d.getSeconds() * 1000 - d.getMilliseconds()
+            interval = root.clockSecs ? 1000 : Math.max(100, Math.min(5000, toNextMinute + 100))
         }
     }
 

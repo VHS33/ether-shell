@@ -181,14 +181,14 @@ ColumnLayout {
     Card {
         app: settingsRoot.app
         title: "Automatic game mode"
-        desc: app.cfg.autoGameMode !== false
+        desc: app.cfg.autoGameMode === true
               ? "When a game starts, animations and blur switch off and the shell does less in the background; everything comes back when it closes. Your own Game mode setting isn't touched. Steam games are recognised by themselves; mark others from the playtime card in the system drawer."
-              : "Games are still recognised and their playtime kept, but the desktop doesn't change for them."
+              : "Game mode only comes on when you switch it on: SUPER + G, or the tile in quick settings. Games are still recognised and their playtime kept."
         trailing: [
             Seg {
                 app: settingsRoot.app
                 options: ["Off", "On"]
-                current: app.cfg.autoGameMode !== false ? 1 : 0
+                current: app.cfg.autoGameMode === true ? 1 : 0
                 onPicked: i => app.setting("autoGameMode", i === 1)
             }
         ]

@@ -85,7 +85,10 @@ Variants {
         color: "transparent"
         // on the long bar the drawer lives in BarStrip's window, which takes
         // the keyboard; this window only needs it for the islands style
-        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        // While open it takes the keyboard straight away (exclusive), so
+        // Escape closes it without clicking into it first; the drawer is
+        // modal anyway (a click outside closes it).
+        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         // only the shape takes clicks, whatever size it is right now
         mask: Region {
@@ -326,12 +329,6 @@ Variants {
                         HoverHandler {
                             id: mqHov
                             onHoveredChanged: if (hovered && marquee.canScroll && !scroller.running) scroller.start()
-                        }
-                        Connections {
-                            target: app
-                            function onTrackKeyChanged() {
-                                Qt.callLater(() => { if (marquee.canScroll) scroller.restart() })
-                            }
                         }
                         // wait, scroll to the end at an even pace, wait, glide back
                         SequentialAnimation {

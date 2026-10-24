@@ -35,9 +35,9 @@ Variants {
         screen: modelData
         visible: modelData.name === app.mainScreen && app.popups.length > 0
 
-        // bottom right, clearing the dock
+        // bottom right, clearing the dock if it reaches this far
         anchors { bottom: true; right: true }
-        margins { bottom: app.gap + app.dockSpace; right: app.gap }
+        margins { bottom: app.gap + app.dockSpaceRight(winN.modelData.width, winN.implicitWidth); right: app.gap }
         implicitWidth: 420
         implicitHeight: popCol.implicitHeight + 16
         exclusionMode: ExclusionMode.Ignore

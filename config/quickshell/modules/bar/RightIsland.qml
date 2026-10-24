@@ -240,18 +240,18 @@ Variants {
             anchors.fill: parent
             preventStealing: true
             cursorShape: Qt.PointingHandCursor
-            property bool onIcon: false
+            property bool pressedOnIcon: false
             function set(x) {
                 if (!vr.au) return
                 vr.au.volume = Math.max(0, Math.min(1, x / width))
                 if (vr.au.muted) vr.au.muted = false
             }
             onPressed: m => {
-                onIcon = m.x < 38
-                if (!onIcon) set(m.x)
+                pressedOnIcon = m.x < 38
+                if (!pressedOnIcon) set(m.x)
             }
-            onPositionChanged: m => { if (pressed && !onIcon) set(m.x) }
-            onReleased: m => { if (onIcon && m.x < 38 && vr.au) vr.au.muted = !vr.au.muted }
+            onPositionChanged: m => { if (pressed && !pressedOnIcon) set(m.x) }
+            onReleased: m => { if (pressedOnIcon && m.x < 38 && vr.au) vr.au.muted = !vr.au.muted }
             onWheel: w => {
                 if (!vr.au) return
                 vr.au.volume = Math.max(0, Math.min(1, vr.au.volume + (w.angleDelta.y > 0 ? 0.02 : -0.02)))
@@ -360,6 +360,10 @@ Variants {
         readonly property real pillW: rightRow.implicitWidth + 12
         readonly property real openW: 500
         readonly property real openH: panel.implicitHeight
+        // open, it reaches down to the bottom of the screen (a gap above the
+        // edge), its buttons at the foot; from just under the bar, or from
+        // the top gap in the islands style
+        readonly property real fullH: modelData.height - (att ? app.barBottom : app.gap) - app.gap
 
         // extra room to the left and below, for the open panel's shadow
         readonly property int shadowRoom: 36
@@ -373,12 +377,15 @@ Variants {
         // drawn in the glass window (BarStrip), so a drawer-tall window here
         // only held bigger buffers and redraw area for nothing.
         implicitHeight: att ? app.barBottom + 6
-                            : Math.max(openH, app.pillH) + shadowRoom
+                            : Math.min(Math.max(openH, app.pillH) + shadowRoom, modelData.height - app.gap)
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
         // on the long bar the drawer lives in BarStrip's window, which takes
         // the keyboard; this window only needs it for the islands style
-        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        // While open it takes the keyboard straight away (exclusive), so
+        // Escape closes it without clicking into it first; the drawer is
+        // modal anyway (a click outside closes it).
+        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         // only the shape takes clicks, whatever size it is right now
         mask: Region {
@@ -855,17 +862,27 @@ Variants {
                 x: isr.att ? isr.finalX - app.drawerCurX : shape.width - isr.openW
                 y: 0
                 width: isr.openW
-                implicitHeight: qCol.implicitHeight + 32
+                // down to the bottom of the screen on any screen: the
+                // contents scroll if they don't fit, the buttons stay put
+                implicitHeight: isr.fullH
                 opacity: isr.open ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
 
+                Flickable {
+                    id: qFlick
+                    anchors { left: parent.left; right: parent.right; top: parent.top; bottom: actions.top; bottomMargin: 8 }
+                    contentWidth: width
+                    contentHeight: qCol.implicitHeight + 16
+                    interactive: contentHeight > height
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
+
                 ColumnLayout {
                     id: qCol
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 16
+                    x: 16
+                    y: 16
+                    width: qFlick.width - 32
                     spacing: 12
 
                     // header: the time, and the arrow that shrinks it back
@@ -2004,7 +2021,10 @@ Variants {
                     Flickable {
                         id: notifFlick
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(groupCol.implicitHeight, 340)
+                        // the rest of the drawer, down to the buttons (it's the
+                        // last thing in it); at least 340 on short screens,
+                        // where the whole drawer scrolls instead
+                        Layout.preferredHeight: Math.min(groupCol.implicitHeight, Math.max(340, qFlick.height - 16 - y))
                         visible: app.notifCount > 0
                         contentHeight: groupCol.implicitHeight
                         clip: true
@@ -2217,48 +2237,50 @@ Variants {
                         }
                     }
 
-                    // ---- actions ----
-                    RowLayout {
-                        Layout.fillWidth: true
-                        opacity: isr.revealed > 6 ? 1 : 0
-                        transform: Translate { y: isr.revealed > 6 ? 0 : 10
-                            Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } } }
-                        Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-                        Layout.topMargin: 4
-                        spacing: 0
-                        Item { Layout.fillWidth: true }
-                        RoundBtn {
-                            app: rootV.app
-                            glyph: "screenshot_region"
-                            onClicked: { app.quickShown = false; app.run("sleep 0.4; $HOME/.local/bin/shot") }
-                        }
-                        Item { Layout.fillWidth: true }
-                        RoundBtn {
-                            app: rootV.app
-                            glyph: "wallpaper"
-                            onClicked: { app.quickShown = false; app.settingsPage = 3; app.settingsShown = true }
-                        }
-                        Item { Layout.fillWidth: true }
-                        RoundBtn {
-                            app: rootV.app
-                            glyph: "settings"
-                            onClicked: { app.quickShown = false; app.settingsShown = true }
-                        }
-                        Item { Layout.fillWidth: true }
-                        RoundBtn {
-                            app: rootV.app
-                            glyph: "lock"
-                            onClicked: { app.quickShown = false; app.run("sleep 0.3; loginctl lock-session") }
-                        }
-                        Item { Layout.fillWidth: true }
-                        RoundBtn {
-                            app: rootV.app
-                            glyph: "power_settings_new"
-                            danger: true
-                            onClicked: { app.quickShown = false; app.powerShown = true }
-                        }
-                        Item { Layout.fillWidth: true }
+                }
+                }
+
+                // ---- actions: always at the foot ----
+                RowLayout {
+                    id: actions
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 16 }
+                    opacity: isr.revealed > 6 ? 1 : 0
+                    transform: Translate { y: isr.revealed > 6 ? 0 : 10
+                        Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } } }
+                    Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+                    spacing: 0
+                    Item { Layout.fillWidth: true }
+                    RoundBtn {
+                        app: rootV.app
+                        glyph: "screenshot_region"
+                        onClicked: { app.quickShown = false; app.run("sleep 0.4; $HOME/.local/bin/shot") }
                     }
+                    Item { Layout.fillWidth: true }
+                    RoundBtn {
+                        app: rootV.app
+                        glyph: "wallpaper"
+                        onClicked: { app.quickShown = false; app.settingsPage = 3; app.settingsShown = true }
+                    }
+                    Item { Layout.fillWidth: true }
+                    RoundBtn {
+                        app: rootV.app
+                        glyph: "settings"
+                        onClicked: { app.quickShown = false; app.settingsShown = true }
+                    }
+                    Item { Layout.fillWidth: true }
+                    RoundBtn {
+                        app: rootV.app
+                        glyph: "lock"
+                        onClicked: { app.quickShown = false; app.run("sleep 0.3; loginctl lock-session") }
+                    }
+                    Item { Layout.fillWidth: true }
+                    RoundBtn {
+                        app: rootV.app
+                        glyph: "power_settings_new"
+                        danger: true
+                        onClicked: { app.quickShown = false; app.powerShown = true }
+                    }
+                    Item { Layout.fillWidth: true }
                 }
             }
         }
