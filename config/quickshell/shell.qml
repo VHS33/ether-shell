@@ -34,6 +34,7 @@ import qs.modules.games
 import qs.modules.plugins
 import qs.modules.scenes
 import qs.modules.widgets
+import qs.modules.backdrop
 
 ShellRoot {
     id: root
@@ -1474,6 +1475,7 @@ ShellRoot {
     ClipPanel { app: root }
     GameWatch { id: gameWatch; app: root }
     Scenes { id: scenesObj; app: root }
+    Backdrop { app: root }                // the wallpaper, sliding as workspaces change
     Widgets { app: root }
     Popups { app: root }
 

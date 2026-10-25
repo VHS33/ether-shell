@@ -176,6 +176,22 @@ ColumnLayout {
         }
     }
 
+    Card {
+        app: settingsRoot.app
+        title: "Wallpaper moves too"
+        desc: app.cfg.wsWallSlide !== false
+              ? "When you switch workspaces the wallpaper gives a little bounce the way you went (left going 1 to 2, right going back), so you can see you've moved even on an empty one."
+              : "The wallpaper stays still when you switch workspaces."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Off", "On"]
+                current: app.cfg.wsWallSlide !== false ? 1 : 0
+                onPicked: i => app.setting("wsWallSlide", i === 1)
+            }
+        ]
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Gaming" }
 
     Card {

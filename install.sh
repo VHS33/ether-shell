@@ -304,6 +304,19 @@ if [ -f "$kc" ] && [ ! -e "$HOME/.config/kitty/user.conf" ] && grep -qE '^[[:spa
           grep -E '^[[:space:]]*shell[[:space:]]' "$kc"; } > "$HOME/.config/kitty/user.conf"
     fi
 fi
+# kitty starts fish, where the terminal additions live (the prompt in your
+# colours, Ctrl+R history, z), unless you've chosen a shell yourself.  Only
+# kitty: your login shell stays as it is.
+uc="$HOME/.config/kitty/user.conf"
+fishp="$(command -v fish 2>/dev/null || true)"
+if [ -n "$fishp" ] && ! grep -qsE '^[[:space:]]*shell[[:space:]]' "$HOME"/.config/kitty/user*.conf; then
+    info "kitty will start fish (the prompt, Ctrl+R history, z); change it in ~/.config/kitty/user.conf"
+    if [ "$DRY" = 0 ]; then
+        mkdir -p "$HOME/.config/kitty"
+        [ -f "$uc" ] || echo "# your own kitty settings: read last, never touched by updates" > "$uc"
+        printf 'shell %s\n' "$fishp" >> "$uc"
+    fi
+fi
 while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/config/}"
     # written by the Settings panel: only a starting point, never
@@ -497,6 +510,12 @@ if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && [ -n "$first" ]; then
     info "Generating colours from $(basename "$first")"
     run "$HOME/.local/bin/setwall" "$first" < /dev/null || warn "setwall failed; run it after logging in."
     run hyprctl reload >/dev/null || true
+    # A running shell reloads itself as files change, so while they were
+    # being copied it may have caught a mix of old and new: start it afresh.
+    if pgrep -x quickshell >/dev/null 2>&1; then
+        info "Restarting the shell, so it runs the new files together"
+        run "$HOME/.local/bin/ether-shell"
+    fi
 else
     info "Not inside Hyprland right now, so this waits until you log in."
     info "After logging in, run:  setwall ~/Pictures/wallpapers/ether-nightfall.jpg"

@@ -151,14 +151,17 @@ ArtColors::Result ArtColors::analyse(const QImage &img) {
     r.detail = detailOf(img);
     const Smart sm = smartAnalyse(img);
     r.smartSeed = sm.seed; r.smartSecond = sm.second; r.smartThird = sm.third; r.why = sm.why; r.skin = sm.skin;
-    // A vivid subject colour in a mostly dark or grey picture (red poppies
+    // A clear subject colour in a mostly dark or grey picture (red poppies
     // in the gloom): Auto style mustn't call it monochrome or neutral and
     // throw that colour away.  One colour, so content if it's most of the
     // picture's colour; tonal spot otherwise.
     if (sm.seed.isValid() && sm.why != QLatin1String("no strong colour")
             && (r.scheme == QLatin1String("scheme-monochrome") || r.scheme == QLatin1String("scheme-neutral"))) {
         const Lab o = toOklab(sm.seed.rgb());
-        if (std::hypot(o.A, o.B) >= 0.06)
+        // judged against its lightness: a deep green or purple is plainly
+        // coloured even though, being dark, it has little colour to measure
+        const double c = std::hypot(o.A, o.B);
+        if (c >= 0.06 || (c >= 0.03 && c / std::max(0.05, o.L) >= 0.15))
             r.scheme = r.hueFocus > 0.6 ? QStringLiteral("scheme-content") : QStringLiteral("scheme-tonal-spot");
     }
     r.aspect = double(img.width()) / std::max(1, img.height());
@@ -425,6 +428,8 @@ void ArtColors::apply(const QColor &seed) {
 //        win on detail alone);
 //     5. no real colour: the picture's own tint (a greyish seed), unless a
 //        small vivid colour is clearly the subject (a red cape on white).
+//        Near-black and deep shadow don't count against colour: a dark
+//        city with lit windows themes from the windows, not the night.
 //   Tested against matugen on 40 real wallpapers (portraits, anime,
 //   landscapes, cities, flowers, paintings) before it went in.
 // ---------------------------------------------------------------------------
@@ -561,7 +566,13 @@ ArtColors::Smart ArtColors::smartAnalyse(const QImage &src) {
         for (const Cand &m : merged) if (hueDist(c.hue, m.hue) < 25) { far = false; break; }
         if (far) merged.push_back(c);
     }
-    const double colourShare = colW / std::max(1e-9, total);
+    // the share of colour among what can carry colour: deep shadow and
+    // near-black (a night sky, a dark room) can't, so a dark picture with
+    // lit windows or neon counts those as most of its colour, instead of
+    // its gloom outvoting them and the theme coming out black
+    double canW = 0;
+    for (size_t i = 0; i < N; ++i) if (coloured[i] || L[i] >= 0.22) canW += weight[i];
+    const double colourShare = colW / std::max(1e-9, canW);
     bool vividSubject = false;
     for (const Cand &c : merged) if (c.C >= 0.06 && c.subj >= 1.3 && c.share >= 0.004) vividSubject = true;
     // 5. no real colour

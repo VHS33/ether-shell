@@ -8,12 +8,15 @@
 
 [config]
 
-# The terminal's colours: real red, green, yellow, blue, magenta and cyan,
-# each gently turned towards the wallpaper's hue ("blend", Material's
-# harmonising) so they belong with it but keep their meaning.  matugen
-# gives each the full set of roles (red, on_red, red_container,
-# on_red_container, ...), toned for dark or light, readable on the
-# background (checked: at least 6:1 in light mode, 10:1 in dark).
+# The terminal's colours.  Red, green and yellow keep their meaning
+# (errors, success, warnings): real colours, gently turned towards the
+# wallpaper's hue ("blend", Material's harmonising).  Blue, magenta and
+# cyan are the wallpaper's own: setwall replaces the three below with its
+# colours, or soft shades of its main colour, so nothing shows that isn't in
+# the picture (these stay only for a wallpaper with no colour at all, made
+# soft there too).  matugen gives each the full set of roles (red, on_red,
+# red_container, on_red_container, ...), toned for dark or light, readable
+# on the background (checked: at least 6:1 in light mode, 10:1 in dark).
 [config.custom_colors]
 red     = { color = "#e5484d", blend = true }
 green   = { color = "#46a758", blend = true }
