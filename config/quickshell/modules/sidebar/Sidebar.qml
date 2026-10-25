@@ -619,7 +619,7 @@ Variants {
                     RoundBtn {
                         app: rootV.app
                         glyph: "lock"
-                        onClicked: winS.closeThen("loginctl lock-session")
+                        onClicked: winS.closeThen("\"$HOME/.local/bin/lock\" || loginctl lock-session")
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {

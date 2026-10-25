@@ -92,7 +92,7 @@ ColumnLayout {
             Seg {
                 app: settingsRoot.app
                 options: ["Lock now"]
-                onPicked: { app.settingsShown = false; app.run("sleep 0.4; loginctl lock-session") }
+                onPicked: { app.settingsShown = false; app.run("sleep 0.4; \"$HOME/.local/bin/lock\" || loginctl lock-session") }
             }
         ]
     }
@@ -202,7 +202,7 @@ ColumnLayout {
     Card {
         app: settingsRoot.app
         title: "Now playing"
-        desc: "Shows the current track near the bottom while music is playing."
+        desc: "Shows what's playing under the password, with its controls."
         trailing: [
             Seg {
                 app: settingsRoot.app

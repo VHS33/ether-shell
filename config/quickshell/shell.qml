@@ -35,6 +35,8 @@ import qs.modules.plugins
 import qs.modules.scenes
 import qs.modules.widgets
 import qs.modules.backdrop
+// the lock screen's folder (loaded by path below, so a fault in it can't stop the shell)
+import qs.modules.lock
 
 ShellRoot {
     id: root
@@ -140,15 +142,21 @@ ShellRoot {
 
     // ---- bar style ---------------------------------------------------
     // "long": one long pill floating just below the top edge, its
-    // sections opening cards that slide out from behind it.  "islands":
-    // three separate floating pills.  Settings > Bar > Bar style.
-    // (barAttached is the long bar: the sections sit on a shared bar.)
+    // sections opening cards that slide out from behind it.  "wrap": the
+    // same bar run edge to edge along the top of the screen, curving into
+    // its sides, the drawers hanging straight from it.  "islands": three
+    // separate floating pills.  Settings > Bar > Bar style.
+    // (barAttached is the long bar or the wrap: the sections sit on a
+    // shared bar.)
     readonly property bool barAttached: cfg.barStyle !== "islands"
-    readonly property int barTop: gap                 // the long bar's distance from the top
+    readonly property bool barWrap: cfg.barStyle === "wrap"
+    readonly property int barTop: barWrap ? 0 : gap   // the bar's distance from the top
+    readonly property int barInset: barWrap ? 0 : gap // ...and from the screen's sides
     readonly property int barH: 38                    // its height
+    readonly property int wrapR: 18                   // the wrap's curve into the screen's sides
     readonly property int drawerGap: 6                // between the bar and a card
     // the space reserved at the top of the main screen
-    readonly property int zoneH: barAttached ? barTop + barH + 4 : 46
+    readonly property int zoneH: barAttached ? barTop + barH + (barWrap ? 0 : 4) : 46
     // where things that hang below the bar start
     readonly property int barBottom: barAttached ? barTop + barH : gap + pillH
 
@@ -1464,6 +1472,14 @@ ShellRoot {
     Cheatsheet { app: root }
     SettingsPanel { app: root }
     DisplayConfirm { app: root }          // "Keep these display settings?" after Apply
+    // The lock screen (qs ipc call lock lock), loaded on its own: if it ever
+    // fails to load, the rest of the shell still starts (the error is in
+    // the log).
+    LazyLoader {
+        active: true
+        source: "modules/lock/Lock.qml"
+        onItemChanged: if (item) item.app = root
+    }
     VolumePop { app: root }
     // under the islands, so a click outside one closes it
     CenterIsland { app: root }

@@ -251,7 +251,7 @@ Variants {
             { t: "Windows",        d: "Spacing, shape and motion for app windows" },
             { t: "Dock",           d: "The window dock, along the bottom or down a side" },
             { t: "Notifications",  d: "Popups and on-screen indicators" },
-            { t: "Idle",           d: "Locking, screens off and sleep when you step away" },
+            { t: "Idle",           d: "Locking, screens off and sleep when you step away; power saver on laptops" },
             { t: "Displays",       d: "Arrange your screens by dragging, and each one's resolution, refresh, scale and rotation" },
             { t: "Keyboard",       d: "How keys repeat when held" },
             { t: "Mouse",          d: "Pointer speed, scrolling and focus" },

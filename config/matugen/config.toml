@@ -29,10 +29,6 @@ input_path  = "~/.config/matugen/templates/hyprland-colors.lua"
 output_path = "~/.config/hypr/colors.lua"
 post_hook   = "hyprctl reload"
 
-[templates.hyprlock]
-input_path  = "~/.config/matugen/templates/hyprlock-colors.conf"
-output_path = "~/.config/hypr/hyprlock-colors.conf"
-
 [templates.gtk3]
 input_path  = "~/.config/matugen/templates/gtk-colors.css"
 output_path = "~/.config/gtk-3.0/colors.css"

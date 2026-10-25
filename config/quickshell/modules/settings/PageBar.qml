@@ -64,19 +64,22 @@ ColumnLayout {
     Card {
         app: settingsRoot.app
         title: "Bar style"
-        desc: app.barAttached
+        desc: app.barWrap
+              ? "The bar runs along the whole top edge and curves into the screen's sides. Its sections open cards that hang straight from it."
+              : app.barAttached
               ? "One long bar across the top. Its sections open cards that slide out from behind it."
               : "Three separate floating pills that grow into panels."
         trailing: [
             Seg {
                 app: settingsRoot.app
-                options: ["Long bar", "Islands"]
-                current: app.barAttached ? 0 : 1
+                options: ["Long bar", "Wrap", "Islands"]
+                current: app.barWrap ? 1 : app.barAttached ? 0 : 2
                 onPicked: i => {
                     app.cardShown = false
                     app.quickShown = false
                     app.sysShown = false
-                    app.setting("barStyle", i === 0 ? "long" : "islands")
+                    app.aiShown = false
+                    app.setting("barStyle", ["long", "wrap", "islands"][i])
                 }
             }
         ]

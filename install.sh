@@ -135,7 +135,7 @@ command -v pacman >/dev/null || die "pacman not found."
 # official repos when it's there, otherwise from the AUR.
 PACKAGES=(
     # desktop
-    hyprland hyprlock hypridle hyprsunset xdg-desktop-portal-hyprland polkit-kde-agent
+    hyprland hypridle hyprsunset xdg-desktop-portal-hyprland polkit-kde-agent
     # file pickers for apps that use portals (Firefox, Flatpaks), as Hyprland recommends
     xdg-desktop-portal-gtk
     # the shell
@@ -169,6 +169,8 @@ PACKAGES=(
     networkmanager libnotify xdg-utils curl git coreutils util-linux procps-ng dbus
     # Bluetooth, for quick settings (harmless without an adapter)
     bluez bluez-utils
+    # the battery indicator on laptops (harmless without a battery)
+    upower
     # the sound a finished timer plays
     sound-theme-freedesktop
     # building the native plugin (Ether.Native); wayland for its clipboard
@@ -181,6 +183,21 @@ PACKAGES=(
 # (enabled wherever Steam is); without multilib it's left out, not hunted for
 # in the AUR
 pacman -Sl multilib >/dev/null 2>&1 && PACKAGES+=(lib32-mangohud)
+# laptops: power modes (Power saver, Balanced, Performance) in quick
+# settings.  Left out where another power manager is installed: TLP,
+# tuned's or auto-cpufreq conflict with it (pacman would stop the whole
+# install over it), and they manage power their own way.
+other_power=""
+for p in tlp tuned tuned-ppd auto-cpufreq; do
+    pacman -Q "$p" >/dev/null 2>&1 && other_power=$p
+done
+if ls "${ETHER_SYSFS:-/sys}"/class/power_supply/BAT* >/dev/null 2>&1; then
+    if [ -z "$other_power" ]; then
+        PACKAGES+=(power-profiles-daemon)
+    else
+        info "$other_power manages power here, so the power modes in quick settings stay off"
+    fi
+fi
 
 if [ "$PKGS" = 1 ]; then
     step "Working out which packages are needed"
@@ -322,11 +339,21 @@ while IFS= read -r -d '' f; do
     # written by the Settings panel: only a starting point, never
     # overwritten on a re-install so nobody's choices get reset
     case "$rel" in
-        hypr/hyprlock-settings.conf|hypr/hypridle.conf|kitty/shell-settings.conf|uwsm/env|uwsm/env-hyprland)
+        hypr/hypridle.conf|kitty/shell-settings.conf|uwsm/env|uwsm/env-hyprland)
             [ -e "$HOME/.config/$rel" ] && continue ;;
     esac
     place "$f" "$HOME/.config/$rel"
 done < <(find "$HERE/config" -type f -print0)
+
+# The lock screen is the shell's own now (~/.local/bin/lock), and hyprlock
+# isn't installed any more: a hypridle.conf kept from before (it's yours, so
+# it isn't replaced) is switched over, only its lock command, so idle and
+# sleep still lock.
+idle="$HOME/.config/hypr/hypridle.conf"
+if [ -f "$idle" ] && grep -q '^ *lock_cmd *=.*hyprlock' "$idle"; then
+    info "Switching idle locking (hypridle.conf) to Ether Shell's lock screen"
+    [ "$DRY" = 0 ] && sed -i "s|^\( *lock_cmd *=\).*hyprlock.*|\1 $HOME/.local/bin/lock|" "$idle"
+fi
 
 while IFS= read -r -d '' f; do
     rel="${f#"$HERE"/local/}"
@@ -398,7 +425,7 @@ if [ -d "$HERE/plugins" ]; then
         [ -e "$HOME/.config/ether-shell/plugins/$name" ] || run cp -r "$pd" "$HOME/.config/ether-shell/plugins/$name"
     done
 fi
-run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
+run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/lock" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
     "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.local/bin/ether" "$HOME/.config/ether-greeter/start"
 
 if [ "$moved" -gt 0 ]; then

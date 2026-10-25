@@ -411,7 +411,7 @@ Variants {
                 else if (r.res.run) app.pluginRun(r.pid, r.res.run)
             } else if (r.kind === "cmd") {
                 const a = r.act
-                if (a === "lock") sh("sleep 0.3; loginctl lock-session")
+                if (a === "lock") sh("sleep 0.3; \"$HOME/.local/bin/lock\" || loginctl lock-session")
                 else if (a === "logout" || a === "reboot" || a === "poweroff") app.powerShown = true
                 else if (a === "settings") app.settingsShown = true
                 else if (a === "wallpaper") { app.settingsPage = 3; app.settingsShown = true }

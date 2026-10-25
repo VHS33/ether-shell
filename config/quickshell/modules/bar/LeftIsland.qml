@@ -170,8 +170,9 @@ Variants {
         // clear of the bar's rounded ends
         readonly property real scrX: 0
         readonly property real secCX: scrX + shape.x + shape.width / 2
-        // the left drawer runs flush down the bar's left end
-        readonly property real finalX: app.gap
+        // the left drawer runs flush down the bar's left end (the screen's
+        // edge, in the wrap style)
+        readonly property real finalX: app.barInset
         Binding {
             target: app
             property: "leftGeom"

@@ -1,0 +1,37 @@
+#!/bin/sh
+# Lock the screen with Ether Shell's lock screen.  Super+L, every Lock
+# button, and hypridle (idle, and before sleep) use it.
+#
+# If the shell isn't running, it's started first and the screen locks as
+# soon as its lock screen is up, so the screen is never left unlocked.
+# What it did each time goes in $XDG_RUNTIME_DIR/ether-lock.log.
+#
+# (qs ipc call says "Target not found." with a success exit code while the
+# lock screen isn't loaded, so only a real true/false answer counts.  Just
+# after the shell starts or reloads, its lock screen takes a moment to come
+# up, so it's asked again for a while before giving up.)
+log="${XDG_RUNTIME_DIR:-/tmp}/ether-lock.log"
+say() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$log"; }
+started=0
+tries=0
+while [ "$tries" -lt 50 ]; do                 # up to 15 seconds
+    state=$(qs ipc call lock isLocked 2>&1)
+    case "$state" in
+        true)  say "already locked"; exit 0 ;;
+        # the lock screen is there: it locks (asking again straight after
+        # once said "not locked" before Hyprland had confirmed)
+        false) qs ipc call lock lock >/dev/null 2>&1
+               [ "$started" = 1 ] && say "locked by the shell (started it first)" || say "locked by the shell"
+               exit 0 ;;
+        *"No running instances"*)
+            if [ "$started" = 0 ]; then
+                say "the shell wasn't running: starting it"
+                "$HOME/.local/bin/ether-shell"
+                started=1
+            fi ;;
+    esac
+    tries=$((tries + 1))
+    sleep 0.3
+done
+say "couldn't lock: the shell's lock screen didn't come up ($(printf '%s' "$state" | head -n 1))"
+exit 1

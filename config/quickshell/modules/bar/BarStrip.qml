@@ -6,8 +6,9 @@ import Quickshell.Widgets
 import Quickshell.Wayland
 
 // ============================================================
-//   LONG BAR  (bar style "long")
-//   One long pill across the top of the main screen, and the open
+//   LONG BAR  (bar styles "long" and "wrap")
+//   One long pill across the top of the main screen (or, wrapped, the
+//   screen's whole top edge, curving into its sides), and the open
 //   drawer, drawn together on ONE surface.  Separate panels each get
 //   their own blur, which showed as a line where they met; shapes on
 //   one surface, meeting edge to edge, can't have a seam.
@@ -171,11 +172,16 @@ Variants {
             }
         }
 
-        readonly property real x0: app.gap
+        readonly property real x0: app.barInset
         readonly property real y0: app.barTop
-        readonly property real bw: width - app.gap * 2
+        readonly property real bw: width - app.barInset * 2
         readonly property real bh: app.barH
         readonly property real r: bh / 2
+        // the bar's corners: square in the wrap style (it runs into the
+        // screen's edges).  Set corner by corner with the radius itself
+        // left at r: a Rectangle with no radius at all is drawn by Qt in a
+        // way that turns the rest of a see-through layer black.
+        readonly property real rc: app.barWrap ? 0 : r
 
         // ---- the drawing: plain rounded rectangles on one surface ----
         // The bar and the open drawer used to be one curved outline drawn
@@ -222,8 +228,31 @@ Variants {
                 height: strip.bh
                 color: glass.solid
                 radius: strip.r
-                bottomLeftRadius: strip.dOpen && strip.flush === "left" ? Math.max(0, strip.r - strip.dh) : strip.r
-                bottomRightRadius: strip.dOpen && strip.flush === "right" ? Math.max(0, strip.r - strip.dh) : strip.r
+                topLeftRadius: strip.rc
+                topRightRadius: strip.rc
+                bottomLeftRadius: strip.dOpen && strip.flush === "left" ? Math.max(0, strip.rc - strip.dh) : strip.rc
+                bottomRightRadius: strip.dOpen && strip.flush === "right" ? Math.max(0, strip.rc - strip.dh) : strip.rc
+            }
+
+            // the wrap style: the bar curves into the screen's sides, a concave
+            // corner under each end (hidden where a drawer runs down that side)
+            Fillet {
+                app: rootV.app
+                fill: glass.solid
+                corner: "tl"
+                r: app.wrapR
+                x: -pad
+                y: strip.y0 + strip.bh - pad
+                visible: strip.active && app.barWrap && !(strip.dOpen && strip.flush === "left")
+            }
+            Fillet {
+                app: rootV.app
+                fill: glass.solid
+                corner: "tr"
+                r: app.wrapR
+                x: strip.width - Math.ceil(r)
+                y: strip.y0 + strip.bh - pad
+                visible: strip.active && app.barWrap && !(strip.dOpen && strip.flush === "right")
             }
 
             // the drawer, reaching 2 px up into the bar so the join is covered

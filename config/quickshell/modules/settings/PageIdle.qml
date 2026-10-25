@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -88,6 +89,24 @@ ColumnLayout {
                 options: ["Default"]
                 current: app.cfgUser.idleSleepMin === undefined ? 0 : -1
                 onPicked: app.resetSetting("idleSleepMin")
+            }
+        ]
+    }
+
+    // laptops with power modes (power-profiles-daemon) only
+    SectionLabel { app: settingsRoot.app; text: "Battery"; visible: Power.shown }
+
+    Card {
+        app: settingsRoot.app
+        visible: Power.shown
+        title: "Power saver when low"
+        desc: "Switches to Power saver at 20% while running on battery, and back to your usual mode when you plug in. If you pick a mode yourself while it's low, yours stays until you plug in."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Off", "On"]
+                current: app.cfg.autoPowerSaver !== false ? 1 : 0
+                onPicked: i => app.setting("autoPowerSaver", i === 1)
             }
         ]
     }

@@ -57,7 +57,7 @@ Variants {
         mask: open ? shownMask : hiddenMask
 
         readonly property var actions: [
-            { key: "L", label: "Lock",      g: "lock", col: app.cBlue,   c: "loginctl lock-session", wait: false },
+            { key: "L", label: "Lock",      g: "lock", col: app.cBlue,   c: "\"$HOME/.local/bin/lock\" || loginctl lock-session", wait: false },
             { key: "S", label: "Suspend",   g: "bedtime", col: app.cTeal,   c: "systemctl suspend",     wait: false },
             { key: "E", label: "Log out",   g: "logout", col: app.cYellow, c: "hyprctl dispatch 'hl.dsp.exit()'", wait: true },
             { key: "R", label: "Restart",   g: "restart_alt", col: app.cPeach,  c: "systemctl reboot",      wait: true },

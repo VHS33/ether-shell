@@ -6,7 +6,7 @@ import qs.common
 
 // Your settings, passed on to the programs that read them: Hyprland
 // (~/.config/hypr/shell-settings.lua, then hyprctl reload), kitty (its
-// opacity), the lock screen (hyprlock's settings), idle (hypridle's
+// opacity), idle (hypridle's
 // timings), the in-game overlay (MangoHud.conf, and Steam's launcher entry),
 // and default apps (terminal, files, browser: xdg-mime).  It listens to
 // Config's settingChanged itself.  Use it anywhere as Session.setDefaultApp
@@ -74,9 +74,7 @@ Singleton {
     }
 
     // ---- lock screen ---------------------------------------------------
-    // hyprlock.conf sources ~/.config/hypr/hyprlock-settings.conf, which
-    // the panel rewrites: clock command (follows the bar's 12/24-hour and
-    // seconds settings), blur, dimming, greeting and now-playing line.
+    // read by the shell's own lock screen (modules/lock)
     readonly property int lockBlur: {
         const v = Number(Config.cfg.lockBlur)
         return Config.cfg.lockBlur !== undefined && isFinite(v) ? Math.max(0, Math.min(12, Math.round(v))) : 8
@@ -89,47 +87,6 @@ Singleton {
         ["time", "custom", "off"].indexOf(Config.cfg.lockGreetMode) >= 0 ? Config.cfg.lockGreetMode : "time"
     readonly property string lockGreetText: Config.cfg.lockGreetText || ""
     readonly property bool lockMedia: Config.cfg.lockMedia !== false
-
-    function lockText() {
-        const secs = Config.cfg.clockSeconds === true ? ":%S" : ""
-        const clock = Config.cfg.clock24h === true
-            ? "echo \"<span font_weight='200'>$(date +'%H:%M" + secs + "')</span>\""
-            : "echo \"<span font_weight='200'>$(date +'%-I:%M" + secs + "')</span>"
-              + "<span font_size='30pt' font_weight='400'> $(date +'%p')</span>\""
-        // a custom greeting goes inside echo "...", so anything that would
-        // end the string, expand, or start a hyprlang comment is dropped
-        const safe = lockGreetText.replace(/["`$\\#\n\r]/g, "").trim()
-        const who = "$(whoami)"
-        const greet = lockGreetMode === "off" ? "true"
-            : lockGreetMode === "custom" ? "echo \"" + (safe || "Welcome back") + "\""
-            : "case $(date +%H) in 0[5-9]|1[01]) echo \"Good morning, " + who + "\";; "
-              + "1[2-6]) echo \"Good afternoon, " + who + "\";; "
-              + "1[7-9]|2[01]) echo \"Good evening, " + who + "\";; "
-              + "*) echo \"Good night, " + who + "\";; esac"
-        const media = lockMedia
-            ? "playerctl metadata --format '{{title}}   {{artist}}' 2>/dev/null"
-            : "true"
-        return "# written by the quickshell settings panel (Desktop > Lock screen);\n"
-             + "# change it there, hand edits are replaced.\n"
-             + "$clock_cmd   = " + clock + "\n"
-             + "$blur_passes = " + (lockBlur === 0 ? 0 : 3) + "\n"
-             + "$blur_size   = " + Math.max(1, lockBlur) + "\n"
-             + "$dim         = " + (lockDim / 100).toFixed(2) + "\n"
-             + "$greet_cmd   = " + greet + "\n"
-             + "$media_cmd   = " + media + "\n"
-    }
-
-    Timer {
-        id: lockDebounce
-        interval: 300
-        onTriggered: {
-            lockWrite.command = ["sh", "-c",
-                'f="$HOME/.config/hypr/hyprlock-settings.conf"; printf "%s" "$1" > "$f.tmp" && mv "$f.tmp" "$f"',
-                "sh", sessionSvc.lockText()]
-            lockWrite.running = true
-        }
-    }
-    Process { id: lockWrite }
 
     // ---- idle --------------------------------------------------------
     // hypridle can't reload its config, so the panel regenerates the
@@ -146,9 +103,9 @@ Singleton {
     function idleText() {
         const dpms = s => "hyprctl dispatch 'hl.dsp.dpms(\"" + s + "\")'"
         let t = "# written by the quickshell settings panel (Desktop > Idle);\n"
-              + "# change it there, hand edits are replaced.  hyprlang, like hyprlock\n\n"
+              + "# change it there, hand edits are replaced.  hyprlang\n\n"
               + "general {\n"
-              + "    lock_cmd         = pidof hyprlock || hyprlock\n"
+              + "    lock_cmd         = " + Quickshell.env("HOME") + "/.local/bin/lock\n"
               + "    before_sleep_cmd = loginctl lock-session\n"
               + "    after_sleep_cmd  = " + dpms("on") + "\n"
               + "}\n"
@@ -358,8 +315,6 @@ Singleton {
     }
     function applyExternal(key) {
         if (key === "termOpacity" || key === "*") writeKitty()
-        if (key === "*" || key === "clock24h" || key === "clockSeconds" || key.startsWith("lock"))
-            lockDebounce.restart()
         if (key === "*" || hyprKeys[key] !== undefined) hyprDebounce.restart()
         if (key === "*" || key === "idleLockMin" || key === "idleScreenMin"
                 || key === "idleSleepMin")
@@ -370,7 +325,7 @@ Singleton {
     }
 
     // settings sync (qs ipc call settings sync): write everything again
-    function syncAll() { writeHypr(); writeKitty(); lockDebounce.restart() }
+    function syncAll() { writeHypr(); writeKitty() }
     // Hyprland's settings changed in another way (game mode starting): write them soon
     function applyHyprSoon() { hyprDebounce.restart() }
 }

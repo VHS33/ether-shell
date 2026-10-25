@@ -329,8 +329,9 @@ Variants {
         // clear of the bar's rounded ends
         readonly property real scrX: modelData.width - isr.width
         readonly property real secCX: scrX + shape.x + shape.width / 2
-        // the right drawer runs flush down the bar's right end
-        readonly property real finalX: modelData.width - app.gap - openW
+        // the right drawer runs flush down the bar's right end (the screen's
+        // edge, in the wrap style)
+        readonly property real finalX: modelData.width - app.barInset - openW
         Binding {
             target: app
             property: "rightGeom"
@@ -687,6 +688,52 @@ Variants {
                                     font.pixelSize: app.fs(12)
                                 }
                                 HoverHandler { id: netHov }
+                            }
+
+                            // ---- battery (laptops only): its level and percentage; red
+                            // when low, the accent while charging; hover slides out
+                            // the time left (or to full) and the power mode ----
+                            Seg {
+                                id: batSeg
+                                app: rootV.app
+                                visible: Battery.present
+                                lit: false
+                                onClicked: app.quickShown = !app.quickShown
+                                readonly property color tint: Battery.low ? app.cRed
+                                    : Battery.charging ? app.cBlue
+                                    : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.85)
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: Battery.icon
+                                    color: batSeg.tint
+                                    font.family: "Material Symbols Rounded"
+                                    font.pixelSize: app.fs(17)
+                                    // the battery on its side, like a laptop's (the font draws it
+                                    // standing); the charging bolt stays upright
+                                    rotation: Battery.charging ? 0 : 90
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: Battery.percent + "%"
+                                    color: Battery.low ? app.cRed : app.cFg
+                                    font.family: "Inter"
+                                    font.weight: Font.Medium
+                                    font.pixelSize: app.fs(12)
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: batHov.hovered ? implicitWidth : 0
+                                    clip: true
+                                    opacity: batHov.hovered ? 1 : 0
+                                    Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
+                                    Behavior on opacity { NumberAnimation { duration: app.animQuick } }
+                                    text: Battery.detail + (Power.shown ? "  \u2022  " + Power.name : "")
+                                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.7)
+                                    font.family: "Inter"
+                                    font.weight: Font.Medium
+                                    font.pixelSize: app.fs(12)
+                                }
+                                HoverHandler { id: batHov }
                             }
 
                             // ---- the game overlay (Settings, Game overlay): shows or hides
@@ -1639,6 +1686,16 @@ Variants {
                             on: app.dnd
                             onClicked: app.dnd = !app.dnd
                         }
+                        // laptops: the power mode; a click steps to the next
+                        Tile {
+                            app: rootV.app
+                            visible: Power.shown
+                            glyph: Power.icon
+                            title: "Power mode"
+                            sub: Power.name
+                            on: Power.saver || Power.performance
+                            onClicked: Power.cycle()
+                        }
                     }
 
                     // ---- the Wi-Fi or Bluetooth list, opened from a tile's arrow ----
@@ -2271,7 +2328,7 @@ Variants {
                     RoundBtn {
                         app: rootV.app
                         glyph: "lock"
-                        onClicked: { app.quickShown = false; app.run("sleep 0.3; loginctl lock-session") }
+                        onClicked: { app.quickShown = false; app.run("sleep 0.3; \"$HOME/.local/bin/lock\" || loginctl lock-session") }
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {

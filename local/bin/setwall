@@ -181,11 +181,6 @@ THIRD=
 [ -f "$HOME/.config/matugen/shell-theme" ] && . "$HOME/.config/matugen/shell-theme"
 [ "$MODE" = light ] || MODE=dark
 
-# the lock screen's wallpaper, in a file of its own: matugen only knows the
-# image when it reads one, and the smart colour below doesn't
-mkdir -p "$HOME/.config/hypr"
-printf '$wallpaper = %s\n' "$img" > "$HOME/.config/hypr/hyprlock-wallpaper.conf"
-
 # The colour the theme is built from.
 #   smart (the default)  Ether Shell's own pick, worked out by its native
 #                        plugin and passed in as SEED: the subject over the

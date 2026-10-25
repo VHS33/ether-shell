@@ -555,7 +555,8 @@ hl.bind(key("ocr", mainMod .. " + SHIFT + T"), hl.dsp.exec_cmd(os.getenv("HOME")
 hl.bind(key("wallpaper", mainMod .. " + H"), hl.dsp.exec_cmd(
     "qs ipc call wallpaper toggle || " .. os.getenv("HOME") .. "/.local/bin/setwall"),
         { description = "Wallpaper selector" })
-hl.bind(key("lock", mainMod .. " + L"), hl.dsp.exec_cmd("hyprlock"),
+-- the shell's own lock screen (~/.local/bin/lock starts the shell first if it isn't running)
+hl.bind(key("lock", mainMod .. " + L"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/lock"),
         { description = "Lock screen" })
 -- Ether Shell's panels.  (There's no key that quits Hyprland outright: Log out is
 -- in the power menu, behind a countdown, so one slip can't end the session.)
@@ -715,6 +716,9 @@ hl.config({
     misc = {
         mouse_move_enables_dpms = true,
         key_press_enables_dpms  = true,
+        -- if the shell stops while the screen is locked, it stays locked;
+        -- this lets the shell, started again, take the lock back over
+        allow_session_lock_restore = true,
     },
 })
 
