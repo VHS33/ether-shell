@@ -369,6 +369,8 @@ if [ -f "$kg" ] && ! grep -q '^\[Icons\]' "$kg"; then
     if [ "$MODE" = light ]; then kicons=breeze; else kicons=breeze-dark; fi
     printf '\n[Icons]\nTheme=%s\n' "$kicons" >> "$kg"
 fi
+# your fonts (Settings > General > Fonts): matugen's kdeglobals has none
+[ -x "$HOME/.local/bin/font" ] && "$HOME/.local/bin/font" reapply
 # colours changed (0), and icons (4): folders recolour in open windows too
 dbus-send --session --type=signal /KGlobalSettings \
     org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null

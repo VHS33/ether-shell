@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
+import qs.services
 
 // ============================================================
 //   VOLUME POPOVER
@@ -102,7 +103,7 @@ Variants {
             horizontalAlignment: Text.AlignRight
             text: vr.muted ? "Muted" : Math.round(vr.v * 100) + "%"
             color: vr.app.cDim
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: vr.app.fs(11)
         }
     }
@@ -205,7 +206,7 @@ Variants {
                         Text {
                             text: "Sound"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(15)
                             font.bold: true
                         }
@@ -213,7 +214,7 @@ Variants {
                             Layout.fillWidth: true
                             text: winV.sink?.nickname || winV.sink?.description || "No output"
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                             elide: Text.ElideRight
                         }
@@ -267,7 +268,7 @@ Variants {
                 Text {
                     text: "Output"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                 }
@@ -301,7 +302,7 @@ Variants {
                                     text: outRow.modelData?.nickname || outRow.modelData?.description
                                           || outRow.modelData?.name || "Output"
                                     color: outRow.isDefault ? app.cFg : app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                     font.bold: outRow.isDefault
                                     elide: Text.ElideRight

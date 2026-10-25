@@ -1,0 +1,236 @@
+#!/bin/sh
+# record [start|stop|toggle|status]  — record the screen you're on, with
+# the sound your PC is playing, into ~/Videos/recordings.
+#
+#   record          start, or stop and save (SUPER + SHIFT + R, and the
+#                   quick settings tile).  With "Record 30 s back" on, the
+#                   recording starts 30 seconds back: the video begins with
+#                   the 30 seconds before you pressed it.
+#   record status   "recording <seconds>" or "idle", then "replay" when
+#                   "Record 30 s back" is on
+#
+# Record 30 s back (quick settings): the last 30 seconds always kept in
+# memory (nothing written until it's used), so a recording can start 30
+# seconds before the press.  They can also be saved alone, as a clip, into
+# ~/Videos/clips.
+#
+#   record replay on|off   turn it on or off (the quick settings tile)
+#   record clip            save the last 30 seconds (SUPER + SHIFT + C)
+#
+# It records with gpu-screen-recorder, on the graphics card's own video
+# encoder, so even a game keeps its frame rate.  When it's saved, a
+# notification says so, with buttons to open the video or its folder.
+# The shell is told each time (the bar's red dot).  Nothing goes over the
+# network.
+
+run="${XDG_RUNTIME_DIR:-/tmp}"
+pidf="$run/ether-record.pid"
+startf="$run/ether-record.start"
+filef="$run/ether-record.file"
+logf="$run/ether-record.log"
+dir="$HOME/Videos/recordings"
+rpidf="$run/ether-replay.pid"
+rlogf="$run/ether-replay.log"
+clips="$HOME/Videos/clips"
+# a recording started while replay is on: its two parts (the 30 seconds
+# before, and from the press on), joined into one video when it stops
+modef="$run/ether-record.mode"
+waitpre="$run/ether-record.waitpre"
+pref="$run/ether-record.pre"
+mainf="$run/ether-record.main"
+# gpu-screen-recorder's "start or stop a recording during replay" signal,
+# SIGRTMIN (34 here; sh's kill doesn't know it by name)
+RTMIN=34
+
+tell_shell() { qs ipc call recorder update >/dev/null 2>&1; }
+running() {
+    if [ -f "$modef" ]; then replaying; return; fi
+    [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null
+}
+replaying() { [ -f "$rpidf" ] && kill -0 "$(cat "$rpidf")" 2>/dev/null; }
+
+need_gsr() {
+    command -v gpu-screen-recorder >/dev/null 2>&1 && return 0
+    notify-send -a "Screen recording" -i media-record "Can't record" \
+        "gpu-screen-recorder isn't installed: sudo pacman -S gpu-screen-recorder"
+    exit 1
+}
+# the screen you're on (Hyprland's focused one); any screen if that fails
+focused() {
+    m=$(hyprctl activeworkspace -j 2>/dev/null | sed -n 's/.*"monitor": *"\([^"]*\)".*/\1/p' | head -n 1)
+    echo "${m:-screen}"
+}
+# "Recording saved" (or "Clip saved"), with buttons to open it or its folder;
+# in the background, as the buttons wait for a click
+saved() {
+    (
+        act=$(notify-send -a "Screen recording" -i media-record "$1" "$(basename "$2")" \
+            -A open=Open -A folder="Show in folder")
+        case "$act" in
+            open)   xdg-open "$2" ;;
+            folder) xdg-open "$(dirname "$2")" ;;
+        esac
+    ) >/dev/null 2>&1 &
+}
+
+start() {
+    need_gsr
+    if replaying; then start_with_replay; return; fi
+    mkdir -p "$dir"
+    f="$dir/Recording_$(date +%Y-%m-%d_%H-%M-%S).mp4"
+    mon=$(focused)
+    setsid gpu-screen-recorder -w "$mon" -f 60 -a default_output -c mp4 -q very_high -cursor yes \
+        -o "$f" >"$logf" 2>&1 &
+    echo $! > "$pidf"
+    date +%s > "$startf"
+    printf '%s\n' "$f" > "$filef"
+    # it gives up straight away if it can't capture: say why
+    sleep 0.8
+    if ! running; then
+        why=$(grep -v '^ *$' "$logf" | tail -n 1)
+        rm -f "$pidf" "$startf" "$filef"
+        notify-send -a "Screen recording" -i media-record "Couldn't start recording" "${why:-gpu-screen-recorder stopped}"
+        tell_shell
+        exit 1
+    fi
+    tell_shell
+}
+
+stop() {
+    if [ -f "$modef" ]; then stop_with_replay; return; fi
+    pid=$(cat "$pidf" 2>/dev/null)
+    f=$(cat "$filef" 2>/dev/null)
+    [ -n "$pid" ] && kill -INT "$pid" 2>/dev/null
+    # it finishes writing the file before it exits
+    i=0
+    while [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+    rm -f "$pidf" "$startf" "$filef"
+    tell_shell
+    if [ -n "$f" ] && [ -s "$f" ]; then
+        saved "Recording saved" "$f"
+    else
+        notify-send -a "Screen recording" -i media-record "Recording not saved" "Nothing was recorded"
+    fi
+}
+
+# ---- recording while replay is on: the 30 seconds before, then onward ----
+start_with_replay() {
+    rp=$(cat "$rpidf")
+    rm -f "$pref" "$mainf"
+    : > "$waitpre"                  # the next saved replay is this recording's start
+    echo replay > "$modef"
+    date +%s > "$startf"
+    kill -USR1 "$rp"                # the 30 seconds before
+    kill -$RTMIN "$rp"              # and recording from now on
+    tell_shell
+}
+stop_with_replay() {
+    rp=$(cat "$rpidf" 2>/dev/null)
+    began=$(cat "$startf" 2>/dev/null || date +%s)
+    [ -n "$rp" ] && kill -$RTMIN "$rp" 2>/dev/null
+    # the recorder hands over both parts (through this script) once written
+    i=0
+    while { [ ! -s "$mainf" ] || [ -f "$waitpre" ]; } && [ $i -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
+    rm -f "$modef" "$startf" "$waitpre"
+    tell_shell
+    pre=$(cat "$pref" 2>/dev/null); main=$(cat "$mainf" 2>/dev/null)
+    rm -f "$pref" "$mainf"
+    if [ -z "$main" ] || [ ! -s "$main" ]; then
+        notify-send -a "Screen recording" -i media-record "Recording not saved" "Nothing was recorded"
+        return
+    fi
+    mkdir -p "$dir"
+    out="$dir/Recording_$(date -d "@$began" +%Y-%m-%d_%H-%M-%S 2>/dev/null || date +%Y-%m-%d_%H-%M-%S).mp4"
+    # If the recording already holds the 30 seconds before (it's longer than
+    # the time since the press by most of the part before), it's used alone,
+    # so nothing is in twice.  Otherwise the two are joined, as they are (no
+    # re-encoding: instant, and no loss).
+    took=$(( $(date +%s) - began ))
+    dmain=$(dur "$main"); dpre=$(dur "$pre")
+    if [ -n "$pre" ] && [ -s "$pre" ] && command -v ffmpeg >/dev/null 2>&1 \
+            && awk -v m="$dmain" -v t="$took" -v p="$dpre" 'BEGIN { exit !(m < t + p / 2) }'; then
+        list="$run/ether-record.list"
+        printf "file '%s'\nfile '%s'\n" "$pre" "$main" > "$list"
+        if ffmpeg -nostdin -loglevel error -f concat -safe 0 -i "$list" -c copy -movflags +faststart "$out"; then
+            rm -f "$pre" "$main"
+        else
+            rm -f "$out"; mv "$main" "$out"      # couldn't join: at least the recording
+        fi
+        rm -f "$list"
+    else
+        mv "$main" "$out"
+        [ -n "$pre" ] && rm -f "$pre"
+    fi
+    saved "Recording saved" "$out"
+}
+# a video's length in seconds (0 if it can't be read)
+dur() { ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null || echo 0; }
+
+# ---- Record 30 s back (gpu-screen-recorder's replay mode) ----
+replay_on() {
+    need_gsr
+    mkdir -p "$clips" "$dir"
+    # constant bitrate, as gpu-screen-recorder advises for replay: the 30
+    # seconds take the same room in memory whatever's on screen (about 110 MB)
+    setsid gpu-screen-recorder -w "$(focused)" -f 60 -a default_output -c mp4 -bm cbr -q 30000 \
+        -r 30 -cursor yes -o "$clips" -ro "$dir" -sc "$HOME/.local/bin/record" >"$rlogf" 2>&1 &
+    echo $! > "$rpidf"
+    sleep 0.8
+    if ! replaying; then
+        why=$(grep -v '^ *$' "$rlogf" | tail -n 1)
+        rm -f "$rpidf"
+        notify-send -a "Screen recording" -i media-record "Couldn't turn on Record 30 s back" "${why:-gpu-screen-recorder stopped}"
+        tell_shell
+        exit 1
+    fi
+    tell_shell
+}
+replay_off() {
+    [ -f "$modef" ] && stop_with_replay
+    pid=$(cat "$rpidf" 2>/dev/null)
+    # (stopping replay doesn't save anything)
+    [ -n "$pid" ] && kill -INT "$pid" 2>/dev/null
+    i=0
+    while [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+    rm -f "$rpidf"
+    tell_shell
+}
+clip() {
+    if ! replaying; then
+        notify-send -a "Screen recording" -i media-record "Record 30 s back is off" \
+            "Turn it on in quick settings, then the last 30 seconds can be saved at any time"
+        exit 1
+    fi
+    # the recorder writes the clip, then calls this script with its path
+    kill -USR1 "$(cat "$rpidf")"
+}
+
+# called by gpu-screen-recorder once it has written a file: <path> <type>
+if [ -f "$1" ] && [ "$2" = replay ]; then
+    if [ -f "$waitpre" ]; then               # the start of a recording (above)
+        printf '%s\n' "$1" > "$pref"; rm -f "$waitpre"
+    else
+        saved "Clip saved: the last 30 seconds" "$1"
+    fi
+    exit 0
+fi
+if [ -f "$1" ] && [ "$2" = regular ]; then     # a recording made during replay
+    printf '%s\n' "$1" > "$mainf"
+    exit 0
+fi
+
+case "${1:-toggle}" in
+    start)  running || start ;;
+    stop)   running && stop ;;
+    toggle) if running; then stop; else rm -f "$pidf"; start; fi ;;
+    status) if running; then echo "recording $(( $(date +%s) - $(cat "$startf" 2>/dev/null || date +%s) ))"; else echo idle; fi
+            if replaying; then echo replay; fi ;;
+    replay) case "$2" in
+                on)  replaying || replay_on ;;
+                off) replaying && replay_off ;;
+                *)   echo "usage: record replay on|off" >&2; exit 2 ;;
+            esac ;;
+    clip)   clip ;;
+    *)      echo "usage: record [start|stop|toggle|status] | replay on|off | clip" >&2; exit 2 ;;
+esac
+exit 0

@@ -1,0 +1,61 @@
+#!/bin/sh
+# pickcolor  — pick a colour from anywhere on the screen (SUPER + SHIFT + P,
+# and the quick settings button).
+#
+# The cursor becomes a magnifier (hyprpicker); a click copies the colour as
+# hex (#1E66F5), and a notification shows it, with a swatch, its rgb() and
+# hsl() forms, and buttons to copy those instead.  Escape cancels.
+# Nothing goes over the network.
+
+if ! command -v hyprpicker >/dev/null 2>&1; then
+    notify-send -a "Colour picker" -i color-picker "Can't pick colours" \
+        "hyprpicker isn't installed: sudo pacman -S hyprpicker"
+    exit 1
+fi
+
+# -b plain output (just the colour), -r the other screens stay as they are
+c=$(hyprpicker -f hex -b -r -q 2>/dev/null | grep -o '#[0-9A-Fa-f]\{6\}' | tail -n 1)
+[ -n "$c" ] || exit 0                    # cancelled
+hex=$(printf '%s' "$c" | tr 'a-f' 'A-F')
+
+r=$(printf '%d' "0x$(printf '%s' "$hex" | cut -c2-3)")
+g=$(printf '%d' "0x$(printf '%s' "$hex" | cut -c4-5)")
+b=$(printf '%d' "0x$(printf '%s' "$hex" | cut -c6-7)")
+rgb="rgb($r, $g, $b)"
+hsl=$(awk -v r="$r" -v g="$g" -v b="$b" 'BEGIN {
+    r /= 255; g /= 255; b /= 255
+    mx = r; if (g > mx) mx = g; if (b > mx) mx = b
+    mn = r; if (g < mn) mn = g; if (b < mn) mn = b
+    l = (mx + mn) / 2; h = 0; s = 0; d = mx - mn
+    if (d > 0) {
+        s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+        if (mx == r) h = (g - b) / d + (g < b ? 6 : 0)
+        else if (mx == g) h = (b - r) / d + 2
+        else h = (r - g) / d + 4
+        h *= 60
+    }
+    printf "hsl(%d, %d%%, %d%%)", h + 0.5, s * 100 + 0.5, l * 100 + 0.5
+}')
+
+printf '%s' "$hex" | wl-copy
+
+# a swatch for the notification: a small picture of the colour, in the
+# runtime folder (only the latest is kept)
+run="${XDG_RUNTIME_DIR:-/tmp}"
+rm -f "$run"/ether-colour-*.ppm
+sw="$run/ether-colour-${hex#\#}.ppm"
+awk -v r="$r" -v g="$g" -v b="$b" 'BEGIN {
+    n = 64; print "P3"; print n, n; print 255
+    for (i = 0; i < n * n; i++) print r, g, b
+}' > "$sw"
+
+# in the background: the buttons wait for a click
+(
+    act=$(notify-send -a "Colour picker" -i "$sw" "$hex copied" "$rgb  ·  $hsl" \
+        -A rgb="Copy rgb" -A hsl="Copy hsl")
+    case "$act" in
+        rgb) printf '%s' "$rgb" | wl-copy ;;
+        hsl) printf '%s' "$hsl" | wl-copy ;;
+    esac
+) >/dev/null 2>&1 &
+exit 0

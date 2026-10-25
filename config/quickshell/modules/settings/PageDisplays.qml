@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -77,7 +78,7 @@ ColumnLayout {
                 Text {
                     text: "Resolution"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                     Layout.topMargin: 4
@@ -100,7 +101,7 @@ ColumnLayout {
                 Text {
                     text: "Refresh rate"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                     Layout.topMargin: 6
@@ -124,7 +125,7 @@ ColumnLayout {
                     visible: app.monBus[monSec.modelData.name] !== undefined
                     text: "Brightness"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                     Layout.topMargin: 6
@@ -144,7 +145,7 @@ ColumnLayout {
                 Text {
                     text: "Scale"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                     Layout.topMargin: 6
@@ -159,7 +160,7 @@ ColumnLayout {
                 Text {
                     text: "Rotation"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                     Layout.topMargin: 6
@@ -174,7 +175,7 @@ ColumnLayout {
                 Text {
                     text: "Variable refresh rate"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     font.bold: true
                     Layout.topMargin: 6
@@ -290,7 +291,7 @@ ColumnLayout {
                     verticalAlignment: TextInput.AlignVCenter
                     color: app.cFg
                     selectionColor: app.cBlue
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(12)
                     maximumLength: 30
                     clip: true

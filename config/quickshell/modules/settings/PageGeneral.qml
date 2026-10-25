@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -15,6 +16,10 @@ ColumnLayout {
     visible: settingsWin.page === 0
     readonly property int pageNo: 0
     spacing: 4
+    // the fonts are looked for each time the page is opened (a font just
+    // installed shows up), and when Settings opens on this page
+    onVisibleChanged: if (visible) Fonts.refresh()
+    Component.onCompleted: if (visible) Fonts.refresh()
 
     SectionLabel { app: settingsRoot.app; text: "Launcher" }
 
@@ -83,6 +88,50 @@ ColumnLayout {
                 onPicked: app.resetSetting("fontScale")
             }
         ]
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "Font"
+        desc: "For the whole shell, and for apps (GTK, Qt and KDE). Open apps may need a restart to switch."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Default"]
+                current: app.cfgUser.uiFont ? -1 : 0
+                onPicked: app.resetSetting("uiFont")
+            }
+        ]
+        FontPicker {
+            app: settingsRoot.app
+            picks: Fonts.picksText
+            all: Fonts.all
+            current: Fonts.text
+            sample: "Aa"
+            onPicked: f => Fonts.setText(f)
+        }
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "Terminal font"
+        desc: "Monospace, for the terminal (kitty) and code in apps. Open terminals switch straight away."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Default"]
+                current: app.cfgUser.monoFont ? -1 : 0
+                onPicked: app.resetSetting("monoFont")
+            }
+        ]
+        FontPicker {
+            app: settingsRoot.app
+            picks: Fonts.picksMono
+            all: Fonts.monoAll
+            current: Fonts.mono
+            sample: "0O {}"
+            onPicked: f => Fonts.setMono(f)
+        }
     }
 
 }

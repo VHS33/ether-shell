@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -63,7 +64,7 @@ ColumnLayout {
                     echoMode: TextInput.Password
                     color: app.cFg
                     selectionColor: app.cBlue
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(13)
                     clip: true
                     Keys.onReturnPressed: if (text.trim()) { app.saveAiKey(aiPage.p, text); text = "" }
@@ -86,7 +87,7 @@ ColumnLayout {
                     anchors.centerIn: parent
                     text: "Save"
                     color: keyIn.text.trim() ? app.cOnAccent : app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.DemiBold
                     font.pixelSize: app.fs(13)
                 }
@@ -108,7 +109,7 @@ ColumnLayout {
                     anchors.centerIn: parent
                     text: "Remove"
                     color: remHov.hovered ? app.cOnAccent : app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.DemiBold
                     font.pixelSize: app.fs(13)
                 }
@@ -141,7 +142,7 @@ ColumnLayout {
                 verticalAlignment: TextInput.AlignVCenter
                 color: app.cFg
                 selectionColor: app.cBlue
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: app.fs(13)
                 clip: true
                 // only letters, numbers and . : _ - reach the request

@@ -111,7 +111,7 @@ Variants {
                     Layout.fillWidth: true
                     text: tile.title
                     color: tile.on ? tile.app.cOnPrimC : tile.app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.Medium
                     font.pixelSize: tile.app.fs(13)
                     elide: Text.ElideRight
@@ -121,7 +121,7 @@ Variants {
                     text: tile.sub
                     color: tile.on ? Qt.rgba(tile.app.cOnPrimC.r, tile.app.cOnPrimC.g, tile.app.cOnPrimC.b, 0.75)
                                    : tile.app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: tile.app.fs(11)
                     elide: Text.ElideRight
                 }
@@ -232,7 +232,7 @@ Variants {
             anchors.verticalCenter: parent.verticalCenter
             text: vr.muted ? "Muted" : Math.round(vr.v * 100) + "%"
             color: vr.app.cDim
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.weight: Font.Medium
             font.pixelSize: vr.app.fs(11)
         }
@@ -294,7 +294,7 @@ Variants {
             anchors.verticalCenter: parent.verticalCenter
             text: br.app.brightAvg + "%"
             color: br.app.cDim
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.weight: Font.Medium
             font.pixelSize: br.app.fs(11)
         }
@@ -458,13 +458,13 @@ Variants {
 
         TextMetrics {
             id: rateMetrics
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(12)
             text: "999 KB/s"
         }
         TextMetrics {
             id: volMetrics
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(12)
             text: "100%"
         }
@@ -594,7 +594,7 @@ Variants {
                                 text: app.timerOn ? app.fmtDur(app.timerPaused ? app.timerHeld : app.timerLeft)
                                                   : app.fmtDur(app.swMs / 1000)
                                 color: app.timerOn && app.timerLeft <= 10 && !app.timerPaused ? app.cOnAccent : app.cOnPrimC
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(12)
                             }
@@ -616,6 +616,50 @@ Variants {
                             id: statusRow
                             anchors.centerIn: parent
                             spacing: 0
+                            // ---- recording (only while it is): a pulsing red dot and
+                            // how long; a click stops it and saves the video ----
+                            Seg {
+                                id: recSeg
+                                app: rootV.app
+                                visible: Recorder.recording
+                                lit: false
+                                onClicked: Recorder.stop()
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 9; height: 9; radius: 4.5
+                                    color: app.cRed
+                                    SequentialAnimation on opacity {
+                                        running: recSeg.visible
+                                        loops: Animation.Infinite
+                                        NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+                                    }
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: Recorder.elapsed
+                                    color: app.cFg
+                                    font.family: Theme.uiFont
+                                    font.weight: Font.Medium
+                                    font.pixelSize: app.fs(12)
+                                    font.features: { "tnum": 1 }
+                                }
+                            }
+                            // ---- record 30 s back (only while it's on): its icon; a click
+                            // saves the last 30 seconds as a clip ----
+                            Seg {
+                                app: rootV.app
+                                visible: Recorder.replaying
+                                lit: false
+                                onClicked: Recorder.saveClip()
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "replay_30"
+                                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.85)
+                                    font.family: "Material Symbols Rounded"
+                                    font.pixelSize: app.fs(17)
+                                }
+                            }
                             // ---- volume: its icon; hover slides the level out ----
                             Seg {
                                 id: volSeg
@@ -652,7 +696,7 @@ Variants {
                                     Behavior on opacity { NumberAnimation { duration: app.animQuick } }
                                     text: volSeg.muted ? "Muted" : volSeg.vol + "%"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -683,7 +727,7 @@ Variants {
                                     Behavior on opacity { NumberAnimation { duration: app.animQuick } }
                                     text: "\u2193 " + app.netDown + "   \u2191 " + app.netUp
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -716,7 +760,7 @@ Variants {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: Battery.percent + "%"
                                     color: Battery.low ? app.cRed : app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -729,7 +773,7 @@ Variants {
                                     Behavior on opacity { NumberAnimation { duration: app.animQuick } }
                                     text: Battery.detail + (Power.shown ? "  \u2022  " + Power.name : "")
                                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.7)
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -850,7 +894,7 @@ Variants {
                                     visible: app.cfg.clockDate !== false
                                     text: Qt.formatDateTime(app.now, "ddd d")
                                     color: Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7)
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -860,7 +904,7 @@ Variants {
                                           ? Qt.formatDateTime(app.now, "HH:mm" + (app.cfg.clockSeconds === true ? ":ss" : ""))
                                           : Qt.formatDateTime(app.now, "h:mm" + (app.cfg.clockSeconds === true ? ":ss" : "") + " AP")
                                     color: app.cOnPrimC
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -952,7 +996,7 @@ Variants {
                                           ? Qt.formatDateTime(app.now, "HH:mm")
                                           : Qt.formatDateTime(app.now, "h:mm AP").split(" ")[0]
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(28)
                                     font.weight: Font.Light
                                 }
@@ -961,7 +1005,7 @@ Variants {
                                     anchors.baseline: qTime.baseline
                                     text: Qt.formatDateTime(app.now, "AP")
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                 }
                             }
@@ -969,7 +1013,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: Qt.formatDateTime(app.now, "dddd, d MMMM")
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 elide: Text.ElideRight
                             }
@@ -1029,7 +1073,7 @@ Variants {
                                     Layout.topMargin: 4
                                     text: app.wxOk ? app.wxTemp : "\u2014"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(26)
                                     font.weight: Font.Light
                                 }
@@ -1039,7 +1083,7 @@ Variants {
                                     text: app.wxOk ? app.wxCond
                                           : (app.wxHasPlace ? "No weather yet" : "Set a location in Settings")
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                     wrapMode: Text.WordWrap
                                     maximumLineCount: 2
@@ -1051,7 +1095,7 @@ Variants {
                                     horizontalAlignment: Text.AlignHCenter
                                     text: "H " + app.wxHi + "   L " + app.wxLo
                                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.5)
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(11)
                                 }
@@ -1092,7 +1136,7 @@ Variants {
                                 Text {
                                     text: Qt.formatDateTime(app.now, "dddd, d MMMM")
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(13)
                                     font.bold: true
                                 }
@@ -1110,7 +1154,7 @@ Variants {
                                             horizontalAlignment: Text.AlignHCenter
                                             text: ["S", "M", "T", "W", "T", "F", "S"][dow]
                                             color: (dow === 0 || dow === 6) ? app.cPeach : app.cDim
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(10)
                                             font.bold: true
                                         }
@@ -1131,7 +1175,7 @@ Variants {
                                                 text: dc.modelData.d
                                                 color: dc.modelData.today ? app.cOnAccent
                                                      : dc.modelData.hol ? app.cPeach : app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(11)
                                                 font.bold: dc.modelData.today === true
                                             }
@@ -1190,7 +1234,7 @@ Variants {
                                                 anchors.horizontalCenter: parent.horizontalCenter
                                                 text: hr.modelData.time
                                                 color: hr.index === 0 ? app.cFg : app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: hr.index === 0 ? Font.DemiBold : Font.Normal
                                                 font.pixelSize: app.fs(11)
                                             }
@@ -1208,7 +1252,7 @@ Variants {
                                                 anchors.horizontalCenter: parent.horizontalCenter
                                                 text: hr.modelData.temp
                                                 color: app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.Medium
                                                 font.pixelSize: app.fs(13)
                                             }
@@ -1226,7 +1270,7 @@ Variants {
                                                 Text {
                                                     text: hr.modelData.rain + "%"
                                                     color: app.cBlue
-                                                    font.family: "Inter"
+                                                    font.family: Theme.uiFont
                                                     font.pixelSize: app.fs(10)
                                                 }
                                             }
@@ -1272,7 +1316,7 @@ Variants {
                                     Text {
                                         text: "Timer"
                                         color: app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: Font.DemiBold
                                         font.pixelSize: app.fs(12)
                                     }
@@ -1294,7 +1338,7 @@ Variants {
                                                 anchors.centerIn: parent
                                                 text: pre.modelData + "m"
                                                 color: preHov.hovered ? app.cOnAccent : app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.Medium
                                                 font.pixelSize: app.fs(12)
                                             }
@@ -1345,7 +1389,7 @@ Variants {
                                         anchors.centerIn: parent
                                         text: app.fmtDur(app.timerPaused ? app.timerHeld : app.timerLeft)
                                         color: app.cOnPrimC
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: Font.DemiBold
                                         font.pixelSize: app.fs(app.timerLeft >= 600 || app.timerHeld >= 600 ? 12 : 13)
                                     }
@@ -1393,7 +1437,7 @@ Variants {
                                     Text {
                                         text: "Stopwatch"
                                         color: app.swRunning ? app.cOnPrimC : app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: Font.DemiBold
                                         font.pixelSize: app.fs(12)
                                     }
@@ -1406,7 +1450,7 @@ Variants {
                                         // tenths of a second while it runs
                                         text: app.fmtDur(app.swMs / 1000) + "." + Math.floor((app.swMs % 1000) / 100)
                                         color: app.swRunning ? app.cOnPrimC : app.swOn ? app.cFg : app.cDim
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: Font.Medium
                                         font.pixelSize: app.fs(20)
                                         font.features: ({ "tnum": 1 })
@@ -1513,7 +1557,7 @@ Variants {
                                     Layout.fillWidth: true
                                     text: mini.p?.trackTitle || "Unknown track"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                     font.bold: true
                                     elide: Text.ElideRight
@@ -1523,7 +1567,7 @@ Variants {
                                     visible: text !== ""
                                     text: mini.p?.trackArtist ?? ""
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     elide: Text.ElideRight
                                 }
@@ -1686,6 +1730,34 @@ Variants {
                             on: app.dnd
                             onClicked: app.dnd = !app.dnd
                         }
+                        // screen recording (~/.local/bin/record): the screen you're on,
+                        // with the sound; the bar shows a red dot while it records
+                        Tile {
+                            app: rootV.app
+                            glyph: "screen_record"
+                            title: "Screen record"
+                            sub: !Recorder.available ? "Needs gpu-screen-recorder"
+                               : Recorder.recording ? "Recording " + Recorder.elapsed
+                               : Recorder.replaying ? "Starts 30 s back" : "Off"
+                            on: Recorder.recording
+                            onClicked: {
+                                if (!Recorder.available) return
+                                app.quickShown = false
+                                Recorder.toggle()
+                            }
+                        }
+                        // record 30 s back: the last 30 seconds always kept in memory, so
+                        // a recording (SUPER + SHIFT + R) starts 30 seconds before the
+                        // press; SUPER + SHIFT + C (or the bar's icon) saves just them
+                        Tile {
+                            app: rootV.app
+                            glyph: "replay_30"
+                            title: "Record 30 s back"
+                            sub: !Recorder.available ? "Needs gpu-screen-recorder"
+                               : Recorder.replaying ? "Recordings start 30 s earlier" : "Off"
+                            on: Recorder.replaying
+                            onClicked: if (Recorder.available) Recorder.setReplay(!Recorder.replaying)
+                        }
                         // laptops: the power mode; a click steps to the next
                         Tile {
                             app: rootV.app
@@ -1729,7 +1801,7 @@ Variants {
                                 Text {
                                     text: pickerBox.wifi ? "Wi-Fi networks" : "Bluetooth devices"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.DemiBold
                                     font.pixelSize: app.fs(13)
                                 }
@@ -1737,7 +1809,7 @@ Variants {
                                     visible: !pickerBox.wifi && app.btScanning
                                     text: "Searching\u2026"
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                 }
                                 Item { Layout.fillWidth: true }
@@ -1756,7 +1828,7 @@ Variants {
                                 text: pickerBox.wifi ? "Wi-Fi is off. Click the tile to turn it on."
                                                      : "Bluetooth is off. Click the tile to turn it on."
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 wrapMode: Text.WordWrap
                             }
@@ -1766,7 +1838,7 @@ Variants {
                                 visible: pickerBox.wifi && app.wifiError !== ""
                                 text: app.wifiError
                                 color: app.cRed
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                             }
                             Text {
@@ -1776,7 +1848,7 @@ Variants {
                                                          : app.btOn && app.btList.length === 0)
                                 text: pickerBox.wifi ? "No networks found yet" : "No devices yet. Put yours in pairing mode."
                                 color: app.cFaint
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                             }
 
@@ -1824,7 +1896,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 text: pr.isWifi ? pr.modelData.ssid : pr.modelData.name
                                                 color: pr.linked ? app.cOnPrimC : app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.Medium
                                                 font.pixelSize: app.fs(12)
                                                 elide: Text.ElideRight
@@ -1840,7 +1912,7 @@ Variants {
                                                 visible: text !== ""
                                                 color: pr.linked ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.75)
                                                                  : app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(11)
                                             }
                                             Text {
@@ -1892,7 +1964,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 echoMode: TextInput.Password
                                                 color: app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(12)
                                                 clip: true
                                                 Text {
@@ -1917,7 +1989,7 @@ Variants {
                                                     anchors.centerIn: parent
                                                     text: "Join"
                                                     color: app.cOnAccent
-                                                    font.family: "Inter"
+                                                    font.family: Theme.uiFont
                                                     font.weight: Font.DemiBold
                                                     font.pixelSize: app.fs(12)
                                                 }
@@ -1993,7 +2065,7 @@ Variants {
                                     text: outChip.modelData?.nickname || outChip.modelData?.description
                                           || outChip.modelData?.name || "Output"
                                     color: outChip.isDefault ? app.cOnPrimC : app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     font.bold: outChip.isDefault
                                     elide: Text.ElideRight
@@ -2022,7 +2094,7 @@ Variants {
                         Text {
                             text: "Notifications"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                             font.bold: true
                         }
@@ -2037,7 +2109,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: app.notifCount
                                 color: app.cOnAccent
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(10)
                                 font.bold: true
                             }
@@ -2047,7 +2119,7 @@ Variants {
                             visible: app.notifCount > 0
                             text: "Clear all"
                             color: qclr.hovered ? app.cRed : app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                             font.bold: true
                             HoverHandler { id: qclr }
@@ -2069,7 +2141,7 @@ Variants {
                         Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
                         text: "You're all caught up"
                         color: app.cFaint
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(12)
                         horizontalAlignment: Text.AlignHCenter
                     }
@@ -2129,7 +2201,7 @@ Variants {
                                             Text {
                                                 text: grp.modelData.app
                                                 color: app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.DemiBold
                                                 font.pixelSize: app.fs(11)
                                             }
@@ -2144,7 +2216,7 @@ Variants {
                                                     anchors.centerIn: parent
                                                     text: grp.modelData.items.length
                                                     color: app.cDim
-                                                    font.family: "Inter"
+                                                    font.family: Theme.uiFont
                                                     font.weight: Font.DemiBold
                                                     font.pixelSize: app.fs(10)
                                                 }
@@ -2228,7 +2300,7 @@ Variants {
                                                             Layout.fillWidth: true
                                                             text: item.modelData.summary || item.modelData.app
                                                             color: app.cFg
-                                                            font.family: "Inter"
+                                                            font.family: Theme.uiFont
                                                             font.weight: Font.DemiBold
                                                             font.pixelSize: app.fs(12)
                                                             elide: Text.ElideRight
@@ -2238,7 +2310,7 @@ Variants {
                                                             visible: !itHov.hovered
                                                             text: app.notifWhen(item.modelData)
                                                             color: app.cFaint
-                                                            font.family: "Inter"
+                                                            font.family: Theme.uiFont
                                                             font.pixelSize: app.fs(10)
                                                         }
                                                         Text {
@@ -2261,7 +2333,7 @@ Variants {
                                                         visible: text !== ""
                                                         text: item.modelData.body
                                                         color: app.cDim
-                                                        font.family: "Inter"
+                                                        font.family: Theme.uiFont
                                                         font.pixelSize: app.fs(11)
                                                         wrapMode: Text.WordWrap
                                                         maximumLineCount: 2
@@ -2279,7 +2351,7 @@ Variants {
                                             bottomPadding: 2
                                             text: grp.more + " more"
                                             color: app.cBlue
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.weight: Font.Medium
                                             font.pixelSize: app.fs(11)
                                             MouseArea {
@@ -2311,6 +2383,12 @@ Variants {
                         app: rootV.app
                         glyph: "screenshot_region"
                         onClicked: { app.quickShown = false; app.run("sleep 0.4; $HOME/.local/bin/shot") }
+                    }
+                    Item { Layout.fillWidth: true }
+                    RoundBtn {
+                        app: rootV.app
+                        glyph: "colorize"
+                        onClicked: { app.quickShown = false; app.run("sleep 0.4; $HOME/.local/bin/pickcolor") }
                     }
                     Item { Layout.fillWidth: true }
                     RoundBtn {

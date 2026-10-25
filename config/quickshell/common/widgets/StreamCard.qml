@@ -58,7 +58,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: sc.appName
                 color: sc.app.cFg
-                font.family: "Inter"
+                font.family: app.uiFont
                 font.pixelSize: app.fs(13)
                 font.bold: true
                 elide: Text.ElideRight
@@ -68,7 +68,7 @@ Rectangle {
                 visible: text !== ""
                 text: sc.mediaName
                 color: sc.app.cDim
-                font.family: "Inter"
+                font.family: app.uiFont
                 font.pixelSize: app.fs(11)
                 elide: Text.ElideRight
             }

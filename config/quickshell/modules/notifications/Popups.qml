@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import "../../lib/models.mjs" as Models
+import qs.services
 
 // ============================================================
 //   NOTIFICATION POPUPS
@@ -169,7 +170,7 @@ Variants {
                                         Layout.fillWidth: true
                                         text: pop.modelData.app
                                         color: pop.crit ? app.cRed : app.cDim
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(11)
                                         elide: Text.ElideRight
                                     }
@@ -177,7 +178,7 @@ Variants {
                                         visible: !popHov.hovered
                                         text: pop.modelData.when
                                         color: app.cFaint
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(11)
                                     }
                                     // close, in place of the time while hovered
@@ -202,7 +203,7 @@ Variants {
                                     visible: text !== ""
                                     text: pop.modelData.summary
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(14)
                                     font.bold: true
                                     wrapMode: Text.WordWrap
@@ -214,7 +215,7 @@ Variants {
                                     visible: text !== ""
                                     text: pop.modelData.body
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                     lineHeight: 1.2
                                     wrapMode: Text.WordWrap
@@ -245,7 +246,7 @@ Variants {
                                             Layout.fillWidth: true
                                             color: app.cFg
                                             selectionColor: app.cBlue
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(12)
                                             clip: true
                                             onAccepted: app.sendNotifReply(pop.modelData.id, text)
@@ -307,7 +308,7 @@ Variants {
                                                 anchors.centerIn: parent
                                                 text: modelData.text
                                                 color: app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(12)
                                             }
                                             MouseArea {

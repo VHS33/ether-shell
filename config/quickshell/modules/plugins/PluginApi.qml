@@ -1,5 +1,6 @@
 import QtQuick
 import "../../lib/plugins.mjs" as Plugins
+import qs.services
 
 // The toolkit each plugin gets, as its `ether` property (version 1).
 // Everything a plugin needs to fit in and to do things, without reaching into
@@ -35,7 +36,7 @@ QtObject {
     readonly property color surface:  app.cSurf
     readonly property color red:      app.cRed
 
-    readonly property string font:     "Inter"
+    readonly property string font:     Theme.uiFont
     readonly property string monoFont: app.font
     readonly property string iconFont: "Material Symbols Rounded"
     function fs(px) { return app.fs(px) }

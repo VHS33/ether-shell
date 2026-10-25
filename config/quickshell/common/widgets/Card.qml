@@ -53,7 +53,7 @@ Rectangle {
                     visible: text !== ""
                     text: card.title
                     color: card.app.cFg
-                    font.family: "Inter"
+                    font.family: app.uiFont
                     font.pixelSize: app.fs(14)
                     font.bold: true
                     elide: Text.ElideRight
@@ -63,7 +63,7 @@ Rectangle {
                     visible: text !== ""
                     text: card.desc
                     color: card.app.cDim
-                    font.family: "Inter"
+                    font.family: app.uiFont
                     font.pixelSize: app.fs(11)
                     wrapMode: Text.WordWrap
                     lineHeight: 1.15

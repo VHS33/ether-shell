@@ -97,6 +97,11 @@ ShellRoot {
     readonly property var colourFade: Theme.colourFade
     readonly property var darkTheme: Theme.darkTheme
     readonly property var font: Theme.font
+    // the shell's text font (Settings > General > Fonts), for the shared widgets
+    readonly property string uiFont: Theme.uiFont
+    // (referring to the service here starts it with the shell: your fonts
+    // passed on to apps again at login)
+    readonly property string appFont: Fonts.text
     readonly property var isLight: Theme.isLight
     readonly property var pal: Theme.pal
     readonly property var smartOn: Theme.smartOn
@@ -1779,6 +1784,9 @@ ShellRoot {
     readonly property var lockDim: Session.lockDim
     readonly property var lockGreetMode: Session.lockGreetMode
     readonly property var lockGreetText: Session.lockGreetText
+    // the cursor theme and size (Settings > Mouse), applied again at login:
+    // referring to the service here starts it with the shell
+    readonly property string cursorTheme: Cursors.current
     readonly property var lockMedia: Session.lockMedia
     readonly property var mangoOk: Session.mangoOk
     function refreshXdg() { return Session.refreshXdg() }

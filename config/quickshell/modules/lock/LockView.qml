@@ -161,7 +161,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: Qt.formatDate(view.app.now, "dddd, d MMMM")
                 color: Qt.rgba(1, 1, 1, 0.85)
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.weight: Font.Medium
                 font.pixelSize: view.app.fs(20)
             }
@@ -176,7 +176,7 @@ Item {
                     text: view.app.cfg.clock24h === true ? Qt.formatTime(view.app.now, "HH:mm")
                                                         : Qt.formatTime(view.app.now, "h:mm AP").split(" ")[0]
                     color: "white"
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.ExtraLight
                     font.pixelSize: Math.round(Math.min(view.height * 0.17, 190))
                 }
@@ -185,7 +185,7 @@ Item {
                     anchors.baseline: clockText.baseline
                     text: Qt.formatTime(view.app.now, "AP")
                     color: Qt.rgba(1, 1, 1, 0.8)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.Normal
                     font.pixelSize: Math.round(clockText.font.pixelSize * 0.22)
                 }
@@ -200,7 +200,7 @@ Item {
                     : (h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 17 ? "Good afternoon"
                        : h >= 17 && h < 22 ? "Good evening" : "Good night") + (who ? ", " + who : "")
                 color: Qt.rgba(1, 1, 1, 0.75)
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: view.app.fs(17)
             }
         }
@@ -266,7 +266,7 @@ Item {
                         visible: view.lock.buffer === "" && !view.lock.busy
                         text: "Enter your password"
                         color: Qt.rgba(1, 1, 1, 0.5)
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: view.app.fs(14)
                     }
                     // A fixed set of dots, each shown while there's a character
@@ -331,7 +331,7 @@ Item {
                     text: view.lock.message !== "" ? view.lock.message
                         : view.lock.capsLock ? "Caps Lock is on" : ""
                     color: view.lock.messageIsError ? view.app.cRed : Qt.rgba(1, 1, 1, 0.7)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.Medium
                     font.pixelSize: view.app.fs(13)
                 }
@@ -396,7 +396,7 @@ Item {
                             width: parent.width
                             text: view.player?.trackTitle ?? ""
                             color: "white"
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.weight: Font.DemiBold
                             font.pixelSize: view.app.fs(14)
                             elide: Text.ElideRight
@@ -407,7 +407,7 @@ Item {
                             visible: text !== ""
                             text: view.player?.trackArtist ?? ""
                             color: Qt.rgba(1, 1, 1, 0.65)
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: view.app.fs(12)
                             elide: Text.ElideRight
                             textFormat: Text.PlainText

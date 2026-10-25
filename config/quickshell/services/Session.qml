@@ -290,14 +290,19 @@ Singleton {
 
     property string pendingKitty: ""
     function writeKitty() {
-        pendingKitty = sessionSvc.termOpacity.toFixed(2)
+        // its opacity, and the terminal font once one's been chosen
+        // (Settings > General > Fonts; kitty.conf's own is used otherwise)
+        const mono = (Config.cfg.monoFont || "").replace(/[\n\r]/g, "")
+        pendingKitty = "# written by the quickshell settings panel; change it there\n"
+                     + "background_opacity " + sessionSvc.termOpacity.toFixed(2) + "\n"
+                     + (mono !== "" ? "font_family " + mono + "\n" : "")
         if (!kittyWrite.running) flushKitty()
     }
     function flushKitty() {
         if (pendingKitty === "") return
         kittyWrite.command = ["sh", "-c",
             'f="$HOME/.config/kitty/shell-settings.conf"; ' +
-            'printf "# written by the quickshell settings panel; change it there\\nbackground_opacity %s\\n" "$1" > "$f.tmp" ' +
+            'printf "%s" "$1" > "$f.tmp" ' +
             '&& mv "$f.tmp" "$f" && pkill -USR1 -x kitty; true',
             "sh", pendingKitty]
         pendingKitty = ""
@@ -314,7 +319,7 @@ Singleton {
         function onSettingChanged(key) { sessionSvc.applyExternal(key) }
     }
     function applyExternal(key) {
-        if (key === "termOpacity" || key === "*") writeKitty()
+        if (key === "termOpacity" || key === "monoFont" || key === "*") writeKitty()
         if (key === "*" || hyprKeys[key] !== undefined) hyprDebounce.restart()
         if (key === "*" || key === "idleLockMin" || key === "idleScreenMin"
                 || key === "idleSleepMin")

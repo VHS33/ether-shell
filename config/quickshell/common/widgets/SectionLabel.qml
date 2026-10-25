@@ -10,7 +10,7 @@ Text {
     Layout.bottomMargin: 6
     Layout.leftMargin: 18
     color: app.cBlue
-    font.family: "Inter"
+    font.family: app.uiFont
     font.pixelSize: app.fs(12)
     font.bold: true
 }

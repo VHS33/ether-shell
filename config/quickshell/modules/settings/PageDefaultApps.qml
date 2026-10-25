@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -53,7 +54,7 @@ ColumnLayout {
             visible: appsPage.listFor("TerminalEmulator").length === 0
             text: "None installed that declare themselves as one."
             color: app.cFaint
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(11)
         }
     }
@@ -78,7 +79,7 @@ ColumnLayout {
             visible: appsPage.listFor("FileManager").length === 0
             text: "None installed that declare themselves as one."
             color: app.cFaint
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(11)
         }
     }
@@ -103,7 +104,7 @@ ColumnLayout {
             visible: appsPage.listFor("WebBrowser").length === 0
             text: "None installed that declare themselves as one."
             color: app.cFaint
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(11)
         }
     }

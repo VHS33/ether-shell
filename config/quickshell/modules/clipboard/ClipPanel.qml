@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import qs.services
 
 // ============================================================
 //   CLIPBOARD  (SUPER + V)
@@ -141,14 +142,14 @@ Variants {
                         Text {
                             text: "Clipboard"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.weight: Font.DemiBold
                             font.pixelSize: app.fs(15)
                         }
                         Text {
                             text: app.clipItems.length === 1 ? "1 item" : app.clipItems.length + " items"
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                         }
                     }
@@ -168,7 +169,7 @@ Variants {
                             anchors.centerIn: parent
                             text: cw.confirmClear ? "Clear all?" : "delete_sweep"
                             color: cw.confirmClear ? app.cOnAccent : app.cDim
-                            font.family: cw.confirmClear ? "Inter" : "Material Symbols Rounded"
+                            font.family: cw.confirmClear ? Theme.uiFont : "Material Symbols Rounded"
                             font.weight: cw.confirmClear ? Font.DemiBold : Font.Normal
                             font.pixelSize: app.fs(cw.confirmClear ? 12 : 19)
                         }
@@ -226,7 +227,7 @@ Variants {
                             color: app.cFg
                             selectionColor: app.cBlue
                             selectedTextColor: app.cOnAccent
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(14)
                             clip: true
                             onTextChanged: cw.sel = 0
@@ -286,7 +287,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: chip.modelData.label
                                 color: chip.on ? app.cOnPrimC : app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.Medium
                                 font.pixelSize: app.fs(12)
                             }
@@ -343,7 +344,7 @@ Variants {
                             anchors.rightMargin: 8
                             text: entry.modelData.text
                             color: entry.current ? app.cOnPrimC : app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                             wrapMode: Text.Wrap
                             maximumLineCount: 3
@@ -388,7 +389,7 @@ Variants {
                                 Text {
                                     text: "Image"
                                     color: entry.current ? app.cOnPrimC : app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.DemiBold
                                     font.pixelSize: app.fs(12)
                                 }
@@ -398,7 +399,7 @@ Variants {
                                            entry.modelData.size.replace("x", " \u00d7 "),
                                            entry.modelData.bytes].filter(x => x).join("  \u2022  ")
                                     color: entry.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7) : app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     wrapMode: Text.Wrap
                                 }
@@ -439,7 +440,7 @@ Variants {
                         text: app.clipItems.length === 0 ? "Nothing copied yet"
                             : cw.filter === "images" ? "No images" : "Nothing matches"
                         color: app.cFaint
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(13)
                     }
                 }
@@ -448,7 +449,7 @@ Variants {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Enter copies  \u2022  Delete removes  \u2022  Tab switches the filter"
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(10)
                 }
             }

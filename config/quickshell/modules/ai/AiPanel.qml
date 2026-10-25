@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import "../../lib/models.mjs" as Models
+import qs.services
 
 // ============================================================
 //   AI ASSISTANT  (SUPER + A, or the sparkle at the bar's left)
@@ -167,7 +168,7 @@ Variants {
                         Text {
                             text: "Assistant"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.weight: Font.DemiBold
                             font.pixelSize: app.fs(15)
                         }
@@ -175,7 +176,7 @@ Variants {
                         Text {
                             text: aw.prov.product + "  \u2022  " + app.aiModel
                             color: modelHov.hovered ? app.cBlue : app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                             HoverHandler { id: modelHov }
                             MouseArea {
@@ -244,7 +245,7 @@ Variants {
                             horizontalAlignment: Text.AlignHCenter
                             text: "What can I help with?"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.weight: Font.Medium
                             font.pixelSize: app.fs(16)
                             wrapMode: Text.WordWrap
@@ -273,7 +274,7 @@ Variants {
                                         anchors.centerIn: parent
                                         text: sug.modelData
                                         color: app.cDim
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                     }
                                     MouseArea {
@@ -317,7 +318,7 @@ Variants {
                                     width: Math.min(implicitWidth, msg.width * 0.85 - 28)
                                     text: msg.modelData.text
                                     color: app.cOnPrimC
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(13)
                                     wrapMode: Text.Wrap
                                     textFormat: Text.PlainText
@@ -338,7 +339,7 @@ Variants {
                                     color: msg.modelData.error ? app.cRed : app.cFg
                                     selectionColor: app.cBlue
                                     selectedTextColor: app.cOnAccent
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(13)
                                     wrapMode: TextEdit.Wrap
                                     onLinkActivated: link => Qt.openUrlExternally(link)
@@ -364,7 +365,7 @@ Variants {
                                         Text {
                                             text: parent.parent.copied ? "Copied" : "Copy"
                                             color: app.cDim
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(11)
                                         }
                                     }
@@ -404,7 +405,7 @@ Variants {
                                     text: app.aiStreaming
                                     textFormat: TextEdit.MarkdownText
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(13)
                                     wrapMode: TextEdit.Wrap
                                 }
@@ -453,7 +454,7 @@ Variants {
                                 Layout.topMargin: 6
                                 text: aw.hasKey ? "Assistant settings" : "Set up your assistant"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(18)
                             }
@@ -461,7 +462,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: "Choose who answers, then add your API key for them. Keys stay on this computer, in a file only you can read."
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 wrapMode: Text.WordWrap
                             }
@@ -471,7 +472,7 @@ Variants {
                                 Layout.topMargin: 4
                                 text: "1  Choose a provider"
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(11)
                             }
@@ -506,7 +507,7 @@ Variants {
                                                 anchors.centerIn: parent
                                                 text: pc.info.product.charAt(0)
                                                 color: pc.chosen ? app.cOnAccent : app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.Bold
                                                 font.pixelSize: app.fs(15)
                                             }
@@ -517,14 +518,14 @@ Variants {
                                             Text {
                                                 text: pc.info.product
                                                 color: pc.chosen ? app.cOnPrimC : app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.DemiBold
                                                 font.pixelSize: app.fs(13)
                                             }
                                             Text {
                                                 text: "by " + pc.info.name
                                                 color: pc.chosen ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7) : app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(11)
                                             }
                                         }
@@ -539,7 +540,7 @@ Variants {
                                                 anchors.centerIn: parent
                                                 text: "Key saved"
                                                 color: pc.chosen ? app.cOnPrimC : app.cGreen
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.Medium
                                                 font.pixelSize: app.fs(10)
                                             }
@@ -564,7 +565,7 @@ Variants {
                                 Layout.topMargin: 8
                                 text: "2  " + (aw.hasKey ? "Your " + aw.prov.name + " key" : "Add your " + aw.prov.name + " API key")
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(11)
                             }
@@ -584,7 +585,7 @@ Variants {
                                         Layout.fillWidth: true
                                         text: "Don't have one? Create a key on " + aw.prov.name + "'s site, then copy it."
                                         color: app.cDim
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         wrapMode: Text.WordWrap
                                     }
@@ -603,7 +604,7 @@ Variants {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 text: "Get a key"
                                                 color: app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.weight: Font.Medium
                                                 font.pixelSize: app.fs(12)
                                             }
@@ -653,7 +654,7 @@ Variants {
                                         echoMode: TextInput.Password
                                         color: app.cFg
                                         selectionColor: app.cBlue
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(13)
                                         clip: true
                                         function save() {
@@ -684,7 +685,7 @@ Variants {
                                         anchors.centerIn: parent
                                         text: "Save"
                                         color: keyIn.text.trim() ? app.cOnAccent : app.cDim
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: Font.DemiBold
                                         font.pixelSize: app.fs(13)
                                     }
@@ -700,7 +701,7 @@ Variants {
                                 visible: aw.hasKey
                                 text: "Remove this key"
                                 color: rmHov.hovered ? app.cRed : app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 font.underline: rmHov.hovered
                                 HoverHandler { id: rmHov }
@@ -716,7 +717,7 @@ Variants {
                                 Layout.topMargin: 8
                                 text: "3  Model (optional)"
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(11)
                             }
@@ -735,7 +736,7 @@ Variants {
                                     verticalAlignment: TextInput.AlignVCenter
                                     color: app.cFg
                                     selectionColor: app.cBlue
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(13)
                                     clip: true
                                     // only letters, numbers and . : _ - reach the request
@@ -770,7 +771,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: "Done"
                                     color: app.cOnAccent
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.DemiBold
                                     font.pixelSize: app.fs(13)
                                 }
@@ -816,7 +817,7 @@ Variants {
                             color: app.cFg
                             selectionColor: app.cBlue
                             selectedTextColor: app.cOnAccent
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                             wrapMode: TextEdit.Wrap
                             onCursorRectangleChanged: {
@@ -883,7 +884,7 @@ Variants {
                     visible: !aw.showSetup
                     text: "Messages go to " + aw.prov.name + ". Enter sends, Shift+Enter for a new line."
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(10)
                 }
             }

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -73,7 +74,7 @@ ColumnLayout {
                     anchors { left: parent.left; bottom: parent.bottom; margins: 6 }
                     width: lbl.implicitWidth + 12; height: 18; radius: 9
                     color: Qt.rgba(0, 0, 0, 0.55)
-                    Text { id: lbl; anchors.centerIn: parent; text: "Ether default"; color: "white"; font.family: "Inter"; font.pixelSize: app.fs(10) }
+                    Text { id: lbl; anchors.centerIn: parent; text: "Ether default"; color: "white"; font.family: Theme.uiFont; font.pixelSize: app.fs(10) }
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -181,7 +182,7 @@ ColumnLayout {
                 text: app.lockGreetText
                 color: app.cFg
                 selectionColor: app.cBlue
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: app.fs(12)
                 clip: true
                 maximumLength: 80

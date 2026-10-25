@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import qs.services
 
 // ============================================================
 //   POWER MENU
@@ -169,7 +170,7 @@ Variants {
                             anchors.centerIn: parent
                             text: (Quickshell.env("USER") || "?").charAt(0).toUpperCase()
                             color: app.cOnAccent
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(20)
                             font.bold: true
                         }
@@ -179,7 +180,7 @@ Variants {
                         Text {
                             text: app.userHost
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(15)
                             font.bold: true
                         }
@@ -187,7 +188,7 @@ Variants {
                             visible: text !== ""
                             text: app.uptimeText ? app.uptimeText.replace(/^up /, "Up ") : ""
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                         }
                     }
@@ -242,7 +243,7 @@ Variants {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: act.modelData.label
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(13)
                                     font.bold: true
                                 }
@@ -287,7 +288,7 @@ Variants {
                         Layout.alignment: Qt.AlignHCenter
                         text: parent.a ? parent.a.label + " in " + winP.secsLeft : ""
                         color: app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(26)
                         font.bold: true
                     }
@@ -317,7 +318,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: "Cancel"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(13)
                                 font.bold: true
                             }
@@ -338,7 +339,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: "Now"
                                 color: app.cOnAccent
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(13)
                                 font.bold: true
                             }
@@ -356,7 +357,7 @@ Variants {
                     text: winP.pending >= 0 ? "Esc to cancel, Enter to do it now"
                                             : "Press a key or click.  Esc closes."
                     color: app.cFaint
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                 }
             }

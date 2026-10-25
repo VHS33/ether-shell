@@ -81,6 +81,9 @@ doctor() {
              printf "           (all of it: %s)\n" "$log"; fi
     fi
 
+    # ---- what it's using ----
+    resources
+
     # ---- the plugin ----
     section "The native plugin"
     so=$(ls "$HOME"/.local/lib/ether-shell/qml/Ether/Native/*.so 2>/dev/null | head -1)
@@ -192,11 +195,14 @@ doctor() {
         [ -n "$t" ] && ok "the last boot took $t"
     fi
     if have journalctl; then
-        ports=$(journalctl -b -k --no-pager 2>/dev/null | sed -n 's/.*usb \([0-9][0-9.-]*\): device descriptor read.*error -110.*/\1/p' | sort -u)
+        # (the journal searched once, by journalctl itself, and never for
+        # long: reading the whole boot's log could take a long while)
+        usb=$(timeout 5 journalctl -b -k --no-pager -q -g 'usb .*(error -110|Device not responding)' 2>/dev/null)
+        ports=$(printf '%s\n' "$usb" | sed -n 's/.*usb \([0-9][0-9.-]*\): device descriptor read.*error -110.*/\1/p' | sort -u)
         if [ -z "$ports" ]; then ok "no USB device held up the boot"
         else
             for p in $ports; do
-                c=$(journalctl -b -k --no-pager 2>/dev/null | grep -c "usb $p: .*error -110\|usb $p: Device not responding")
+                c=$(printf '%s\n' "$usb" | grep -c "usb $p: .*error -110\|usb $p: Device not responding")
                 problem "USB port $p has something that never answers ($c timeouts this boot), which slows the boot"
             done
             if ls "$R"/etc/udev/rules.d/*dead-usb-port* >/dev/null 2>&1; then
@@ -263,6 +269,42 @@ perf_threads() {
         FILENAME ~ /\/status$/ && /^voluntary_ctxt_switches:/ { wake[tid] = $2 }
         END { for (t in ticks) { c = name[t]; gsub(/[ \t]/, "_", c); print t, ticks[t], wake[t] + 0, c } }
     ' "$1"/task/*/stat "$1"/task/*/status 2>/dev/null
+}
+
+# the shell's memory and processor (ether doctor)
+resources() {
+    pid=$(pgrep -xo quickshell 2>/dev/null)
+    [ -n "$pid" ] && [ -r "$P/$pid/stat" ] || return 0
+    section "What it's using"
+    # memory: its fair share (shared libraries split between the programs
+    # using them), and that of the programs it has started (the visualiser...)
+    kb=$(perf_pss "$P/$pid"); kb=${kb:-0}
+    kids=0
+    for c in $(pgrep -P "$pid" 2>/dev/null); do k=$(perf_pss "$P/$c"); kids=$((kids + ${k:-0})); done
+    total=$(awk '/^MemTotal:/ { print $2; exit }' "$P/meminfo" 2>/dev/null)
+    line=$(awk -v kb="$kb" -v kids="$kids" -v total="${total:-0}" 'BEGIN {
+        s = sprintf("memory: %.0f MB", kb / 1024)
+        if (total > 0) s = s sprintf(" (%.1f%% of your %.0f GB)", 100 * kb / total, total / 1048576)
+        if (kids >= 1024) s = s sprintf(", and %.0f MB for programs it runs", kids / 1024)
+        print s }')
+    if [ "$kb" -gt 1572864 ]; then note "$line: more than usual (ether perf shows where it goes)"
+    else ok "$line"; fi
+    # processor: over two seconds, as you're using it now
+    clk=$(getconf CLK_TCK 2>/dev/null); clk=${clk:-100}
+    cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null); cores=${cores:-1}
+    a=$(proc_ticks "$pid"); sleep 2; z=$(proc_ticks "$pid")
+    [ -n "$a" ] && [ -n "$z" ] || return 0
+    line=$(awk -v d="$((z - a))" -v clk="$clk" -v cores="$cores" 'BEGIN {
+        pc = 100 * d / clk / 2
+        printf "processor: %.1f%% of one core, over 2 seconds (%.2f%% of all %d)", pc, pc / cores, cores }')
+    busy=$(awk -v d="$((z - a))" -v clk="$clk" 'BEGIN { print (100 * d / clk / 2 > 15) ? 1 : 0 }')
+    if [ "$busy" = 1 ]; then note "$line: busy (if you weren't using it, ether perf shows what's doing it)"
+    else ok "$line"; fi
+}
+# a process's processor time so far, in ticks (user + system)
+proc_ticks() {
+    awk '{ l = $0; b = 0; for (i = length(l); i > 0; i--) if (substr(l, i, 1) == ")") { b = i; break }
+           split(substr(l, b + 2), f, " "); print f[12] + f[13] }' "$P/$1/stat" 2>/dev/null
 }
 
 # kB of a process's fair share of memory

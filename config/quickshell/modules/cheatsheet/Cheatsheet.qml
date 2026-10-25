@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import qs.services
 
 // ============================================================
 //   KEYBIND CHEATSHEET  (SUPER + /)
@@ -142,14 +143,14 @@ Variants {
                         Text {
                             text: "Keybinds"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(20)
                             font.bold: true
                         }
                         Text {
                             text: "Read live from Hyprland, so this is always what's really bound"
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                         }
                     }
@@ -178,7 +179,7 @@ Variants {
                                 Layout.fillWidth: true
                                 color: app.cFg
                                 selectionColor: app.cBlue
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(13)
                                 clip: true
                                 Keys.onEscapePressed: {
@@ -245,7 +246,7 @@ Variants {
                                             Text {
                                                 text: grp.modelData.name
                                                 color: app.cBlue
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(13)
                                                 font.bold: true
                                             }
@@ -262,7 +263,7 @@ Variants {
                                                         Layout.fillWidth: true
                                                         text: bindRow.modelData.label
                                                         color: app.cFg
-                                                        font.family: "Inter"
+                                                        font.family: Theme.uiFont
                                                         font.pixelSize: app.fs(12)
                                                         elide: Text.ElideRight
                                                     }
@@ -316,7 +317,7 @@ Variants {
                         visible: winK.groups.length === 0
                         text: app.cheatBinds.length ? "No binds match \u201c" + search.text + "\u201d" : "Reading binds\u2026"
                         color: app.cFaint
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(13)
                     }
                 }
@@ -326,7 +327,7 @@ Variants {
                     Layout.topMargin: -4
                     text: "Type to search.  Esc or a click outside closes."
                     color: app.cFaint
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                 }
             }

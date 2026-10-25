@@ -8,6 +8,7 @@ import Quickshell.Hyprland
 import "../../lib/text.mjs" as TextLib
 import "../../lib/plugins.mjs" as Plugins
 import "../../lib/models.mjs" as Models
+import qs.services
 
 // ============================================================
 //   LAUNCHER  (tap SUPER)
@@ -512,7 +513,7 @@ Variants {
                             color: app.cFg
                             selectionColor: app.cBlue
                             selectedTextColor: app.cOnAccent
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(16)
                             clip: true
                             Text {
@@ -585,7 +586,7 @@ Variants {
                                 Text {
                                     text: chip.modelData.label
                                     color: chip.on ? app.cOnPrimC : app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(12)
                                 }
@@ -594,7 +595,7 @@ Variants {
                                     text: chip.modelData.p
                                     color: chip.on ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.6)
                                                    : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.DemiBold
                                     font.pixelSize: app.fs(12)
                                 }
@@ -679,7 +680,7 @@ Variants {
                                     Layout.fillWidth: true
                                     text: row.modelData.title
                                     color: row.current ? app.cOnPrimC : app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.weight: Font.Medium
                                     font.pixelSize: app.fs(row.modelData.kind === "calc" ? 17 : 13)
                                     elide: Text.ElideRight
@@ -692,7 +693,7 @@ Variants {
                                     text: row.modelData.sub || ""
                                     color: row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7)
                                                        : app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     elide: Text.ElideRight
                                     maximumLineCount: 1
@@ -724,7 +725,7 @@ Variants {
                             : lw.mode === "emoji" && !lw.emoji.length ? "Loading emoji\u2026"
                             : "Nothing matches"
                         color: app.cFaint
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(13)
                     }
                 }
@@ -736,7 +737,7 @@ Variants {
                           ? "Enter to open   \u2022   Alt + Enter to show it in its folder   \u2022   Esc to close"
                           : "\u2191 \u2193 to move   \u2022   Enter to open   \u2022   Esc to close"
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                 }
             }

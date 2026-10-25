@@ -159,14 +159,16 @@ PACKAGES=(
     fish starship fzf zoxide
     # sound and media
     pipewire wireplumber pipewire-pulse libpulse playerctl cava
-    # screenshots and clipboard
-    grim slurp wl-clipboard cliphist
+    # screenshots and clipboard, and the colour picker (SUPER + SHIFT + P)
+    grim slurp wl-clipboard cliphist hyprpicker
+    # screen recording (SUPER + SHIFT + R), on the graphics card's video encoder
+    gpu-screen-recorder
     # copying text from the screen (SUPER + SHIFT + T)
     tesseract tesseract-data-eng
     # brightness
     ddcutil brightnessctl
-    # system
-    networkmanager libnotify xdg-utils curl git coreutils util-linux procps-ng dbus
+    # system (python: the cursor previews in Settings > Mouse)
+    python networkmanager libnotify xdg-utils curl git coreutils util-linux procps-ng dbus
     # Bluetooth, for quick settings (harmless without an adapter)
     bluez bluez-utils
     # the battery indicator on laptops (harmless without a battery)
@@ -425,7 +427,7 @@ if [ -d "$HERE/plugins" ]; then
         [ -e "$HOME/.config/ether-shell/plugins/$name" ] || run cp -r "$pd" "$HOME/.config/ether-shell/plugins/$name"
     done
 fi
-run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/lock" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
+run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/lock" "$HOME/.local/bin/record" "$HOME/.local/bin/pickcolor" "$HOME/.local/bin/cursor" "$HOME/.local/bin/font" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
     "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.local/bin/ether" "$HOME/.config/ether-greeter/start"
 
 if [ "$moved" -gt 0 ]; then

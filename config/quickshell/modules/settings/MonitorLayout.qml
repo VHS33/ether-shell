@@ -1,5 +1,6 @@
 import QtQuick
 import "../../lib/layout.mjs" as LayoutLib
+import qs.services
 
 // Your monitors, drawn to scale: drag one to where it sits on your desk, and
 // it snaps edge to edge with its neighbours (lib/layout.mjs); click one to
@@ -73,7 +74,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: tile.modelData.name
                     color: canvas.app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.bold: true
                     font.pixelSize: canvas.app.fs(13)
                     elide: Text.ElideRight
@@ -83,7 +84,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: tile.modelData.label || ""
                     color: canvas.app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: canvas.app.fs(11)
                     elide: Text.ElideRight
                     visible: tile.height > 50
@@ -93,7 +94,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: tile.modelData.label2 || ""
                     color: canvas.app.cFaint
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: canvas.app.fs(11)
                     elide: Text.ElideRight
                     visible: tile.height > 64 && text !== ""
@@ -110,7 +111,7 @@ Item {
                         anchors.centerIn: parent
                         text: "Main"
                         color: canvas.app.cOnAccent
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.bold: true
                         font.pixelSize: canvas.app.fs(10)
                     }

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import qs.services
 
 // "Keep these display settings?"  After Apply on the Displays page the old
 // settings come back by themselves after 15 seconds unless they're kept
@@ -60,7 +61,7 @@ Variants {
                 Text {
                     text: "Keep these display settings?"
                     color: dc.app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.DemiBold
                     font.pixelSize: dc.app.fs(16)
                 }
@@ -69,7 +70,7 @@ Variants {
                     text: "Going back to the previous settings in " + dc.app.revertLeft
                           + (dc.app.revertLeft === 1 ? " second." : " seconds.")
                     color: dc.app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: dc.app.fs(12)
                     wrapMode: Text.WordWrap
                 }
@@ -95,7 +96,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: btn.modelData.t
                                 color: btn.modelData.keep ? dc.app.cOnAccent : dc.app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: dc.app.fs(13)
                             }

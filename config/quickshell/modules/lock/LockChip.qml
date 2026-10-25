@@ -1,4 +1,5 @@
 import QtQuick
+import qs.services
 
 // A small tonal pill for the lock screen's status row (weather, battery,
 // notifications): an icon and a label, hidden while the label is empty.
@@ -32,7 +33,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: chip.label
             color: Qt.rgba(1, 1, 1, 0.9)
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.weight: Font.Medium
             font.pixelSize: chip.app ? chip.app.fs(13) : 13
         }

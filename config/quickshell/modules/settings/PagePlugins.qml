@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.modules.plugins
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -37,7 +38,7 @@ ColumnLayout {
         wrapMode: Text.WordWrap
         text: "No plugins yet. Put a plugin's folder in ~/.config/ether-shell/plugins, then press Check plugins."
         color: app.cDim
-        font.family: "Inter"
+        font.family: Theme.uiFont
         font.pixelSize: app.fs(13)
     }
 

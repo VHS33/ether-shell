@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# font  — fonts for the shell's apps (Settings > General > Fonts).
+#
+#   font list                  the font families installed, one per line:
+#                              family <tab> 1 if monospace (else 0)
+#   font apply <text> <mono>   GTK and Qt/KDE apps use them (the shell itself
+#                              reads its settings, and kitty its own file)
+#   font reapply               the same, from your settings: after a new
+#                              wallpaper (setwall), whose colours rewrite
+#                              kdeglobals, fonts and all
+#
+# Nothing goes over the network.
+
+import os, sys, json, shutil, subprocess
+
+HOME = os.path.expanduser("~")
+CFG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"))
+SETTINGS = os.path.join(CFG, "quickshell", "settings.json")
+KDEGLOBALS = os.path.join(CFG, "kdeglobals")
+DEFAULT_TEXT, DEFAULT_MONO = "Inter", "JetBrainsMono Nerd Font"
+# fonts that aren't for reading (icons, emoji, symbols)
+SKIP = ("emoji", "symbols", "material", "icons", "awesome", "codicon", "devicons", "weather icons",
+        "powerline", "octicons", "cursor", "unifont upper")
+
+
+def cmd_list():
+    if not shutil.which("fc-list"):
+        return 1
+    out = subprocess.run(["fc-list", "--format", "%{family}\t%{spacing}\n"],
+                         capture_output=True, text=True).stdout
+    fams = {}
+    for line in out.splitlines():
+        fam, _, sp = line.partition("\t")
+        fam = fam.split(",")[0].strip()
+        if not fam or any(k in fam.lower() for k in SKIP):
+            continue
+        mono = sp.strip() in ("90", "100", "110")     # dual, mono, charcell
+        fams[fam] = fams.get(fam, False) or mono
+    for fam in sorted(fams, key=str.lower):
+        print(f"{fam}\t{1 if fams[fam] else 0}")
+    return 0
+
+
+def run(*cmd):
+    if shutil.which(cmd[0]):
+        subprocess.run(list(cmd), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def set_ini(path, section, values):
+    """set keys in one [section] of an ini-style file, keeping the rest as it is"""
+    try:
+        lines = open(path, encoding="utf-8").read().split("\n")
+    except OSError:
+        lines = []
+    head = f"[{section}]"
+    start = next((i for i, l in enumerate(lines) if l.strip() == head), None)
+    if start is None:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines += [head] + [f"{k}={v}" for k, v in values.items()] + [""]
+    else:
+        end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("[")), len(lines))
+        left = dict(values)
+        for i in range(start + 1, end):
+            k = lines[i].split("=", 1)[0].strip()
+            if k in left:
+                lines[i] = f"{k}={left.pop(k)}"
+        at = end
+        while at > start + 1 and lines[at - 1].strip() == "":
+            at -= 1
+        lines[at:at] = [f"{k}={v}" for k, v in left.items()]
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    os.replace(tmp, path)
+
+
+def qt_font(fam, pt, weight=400):
+    # Qt's font string: family, size, pixel size, style hint, weight, ...
+    return f"{fam},{pt},-1,5,{weight},0,0,0,0,0,0,0,0,0,0,1"
+
+
+def cmd_apply(text, mono):
+    text = text or DEFAULT_TEXT
+    mono = mono or DEFAULT_MONO
+    # GTK
+    run("gsettings", "set", "org.gnome.desktop.interface", "font-name", f"{text} 11")
+    run("gsettings", "set", "org.gnome.desktop.interface", "document-font-name", f"{text} 11")
+    run("gsettings", "set", "org.gnome.desktop.interface", "monospace-font-name", f"{mono} 11")
+    # Qt and KDE (kdeglobals; its colours are rewritten with each wallpaper,
+    # which is why setwall runs "font reapply" after)
+    set_ini(KDEGLOBALS, "General", {
+        "font": qt_font(text, 10), "menuFont": qt_font(text, 10), "toolBarFont": qt_font(text, 10),
+        "smallestReadableFont": qt_font(text, 8), "fixed": qt_font(mono, 10),
+    })
+    set_ini(KDEGLOBALS, "WM", {"activeFont": qt_font(text, 10, 600)})
+    # open KDE apps: fonts changed (1)
+    run("dbus-send", "--session", "--type=signal", "/KGlobalSettings",
+        "org.kde.KGlobalSettings.notifyChange", "int32:1", "int32:0")
+    return 0
+
+
+def cmd_reapply():
+    try:
+        cfg = json.load(open(SETTINGS, encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    text, mono = cfg.get("uiFont") or "", cfg.get("monoFont") or ""
+    if not text and not mono:
+        return 0                          # never chosen: apps keep their own
+    return cmd_apply(text, mono)
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "list":
+        return cmd_list()
+    if len(argv) >= 2 and argv[1] == "reapply":
+        return cmd_reapply()
+    if len(argv) >= 4 and argv[1] == "apply":
+        return cmd_apply(argv[2], argv[3])
+    print("usage: font list | apply <text> <mono> | reapply", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except BrokenPipeError:               # (its reader stopped early: fine)
+        sys.exit(0)

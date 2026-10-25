@@ -1,0 +1,479 @@
+#!/usr/bin/env python3
+# cursor  — the mouse cursor's look (Settings > Mouse > Cursor).
+#
+#   cursor list                 the cursor themes installed, one per line:
+#                               id <tab> name <tab> folder of its previews
+#                               <tab> when they were made (changes with them)
+#   cursor apply <theme> <size> use it everywhere, now
+#   cursor current              the theme in use (or nothing)
+#   cursor make-ether <#rrggbb> [apply <size>]
+#                               Ether Shell's own theme, in that colour (the
+#                               accent: the shell makes it again whenever the
+#                               wallpaper's colours change); "apply" puts it on
+#                               straight after, in one go
+#
+# Previews: each theme's own arrow, hand and text cursors, read from its
+# files (the X cursor format) and saved once as small pictures in
+# ~/.cache/ether-shell/cursors (made again when the theme changes).
+#
+# Applying: Hyprland straight away (hyprctl setcursor), with most Wayland
+# apps; then GTK (gsettings), Qt and KDE apps (kcminputrc), and the "default"
+# theme older X11 apps fall back to (~/.icons/default), which those pick up
+# when they're restarted.  Nothing goes over the network.
+
+import os, sys, struct, zlib, shutil, subprocess, configparser
+
+HOME = os.path.expanduser("~")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"), "ether-shell", "cursors")
+DATA_DIRS = [os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(HOME, ".local", "share"), "icons"),
+             os.path.join(HOME, ".icons")] + \
+            [os.path.join(d, "icons") for d in (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":") if d]
+
+# the three cursors shown, by the names themes use for them
+SHAPES = {
+    "arrow": ["left_ptr", "default", "arrow", "top_left_arrow"],
+    "hand":  ["pointer", "hand2", "hand1", "pointing_hand", "hand"],
+    "text":  ["text", "xterm", "ibeam"],
+}
+PREVIEW = 48            # the size of cursor image picked for a preview
+
+
+def theme_dirs():
+    """id -> folder, user folders first (they win), only themes with cursors"""
+    found = {}
+    for base in DATA_DIRS:
+        try:
+            names = sorted(os.listdir(base))
+        except OSError:
+            continue
+        for n in names:
+            # (Ether-<colour>: Ether's versions, shown once, as Ether)
+            if n == "default" or n in found or n.startswith("Ether-"):
+                continue
+            d = os.path.join(base, n)
+            if os.path.isdir(os.path.join(d, "cursors")):
+                found[n] = d
+    return found
+
+
+def index_of(d):
+    cp = configparser.ConfigParser(interpolation=None, strict=False)
+    try:
+        cp.read(os.path.join(d, "index.theme"), encoding="utf-8")
+    except (configparser.Error, OSError, UnicodeDecodeError):
+        return {}
+    return dict(cp["Icon Theme"]) if cp.has_section("Icon Theme") else {}
+
+
+def cursor_file(themes, tid, names, depth=0):
+    """the file for one of `names` in theme `tid`, or one it inherits from"""
+    d = themes.get(tid)
+    if d:
+        for n in names:
+            f = os.path.join(d, "cursors", n)
+            if os.path.exists(f):
+                return os.path.realpath(f)
+    if depth < 4:
+        src = d or next((os.path.join(b, tid) for b in DATA_DIRS if os.path.isdir(os.path.join(b, tid))), None)
+        for parent in (index_of(src).get("inherits", "") if src else "").split(","):
+            parent = parent.strip()
+            if parent and parent != tid:
+                f = cursor_file(themes, parent, names, depth + 1)
+                if f:
+                    return f
+    return None
+
+
+def read_xcursor(path):
+    """(width, height, rgba bytes) of the image nearest PREVIEW px, first frame"""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if data[:4] != b"Xcur":
+        return None
+    _, _, ntoc = struct.unpack_from("<III", data, 4)
+    best = None
+    for i in range(ntoc):
+        typ, sub, pos = struct.unpack_from("<III", data, 16 + i * 12)
+        if typ != 0xFFFD0002:
+            continue
+        if best is None or abs(sub - PREVIEW) < abs(best[0] - PREVIEW):
+            best = (sub, pos)
+    if best is None:
+        return None
+    pos = best[1]
+    _, _, _, _, w, h = struct.unpack_from("<IIIIII", data, pos)
+    px = data[pos + 36: pos + 36 + w * h * 4]
+    if len(px) < w * h * 4:
+        return None
+    out = bytearray(w * h * 4)
+    for i in range(w * h):
+        b, g, r, a = px[i * 4], px[i * 4 + 1], px[i * 4 + 2], px[i * 4 + 3]
+        if a and a < 255:                       # stored premultiplied
+            r, g, b = min(255, r * 255 // a), min(255, g * 255 // a), min(255, b * 255 // a)
+        out[i * 4: i * 4 + 4] = bytes((r, g, b, a))
+    return w, h, bytes(out)
+
+
+def write_png(path, w, h, rgba):
+    def chunk(t, body):
+        c = t + body
+        return struct.pack(">I", len(body)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
+    raw = b"".join(b"\x00" + rgba[y * w * 4:(y + 1) * w * 4] for y in range(h))
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)) \
+        + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as fh:
+        fh.write(png)
+    os.replace(tmp, path)
+
+
+def previews(themes, tid):
+    """the folder of tid's previews, made (again) when missing or stale"""
+    out = os.path.join(CACHE, tid)
+    stamp = os.path.join(out, ".made")
+    try:
+        newest = max(os.stat(themes[tid]).st_mtime, os.stat(os.path.join(themes[tid], "cursors")).st_mtime)
+    except OSError:
+        newest = 0
+    real = os.path.realpath(themes[tid])     # (Ether: which colour it is now)
+    try:
+        same = open(stamp).read().strip() == real
+    except OSError:
+        same = False
+    if same and os.stat(stamp).st_mtime >= newest:
+        return out
+    os.makedirs(out, exist_ok=True)
+    for shape, names in SHAPES.items():
+        f = cursor_file(themes, tid, names)
+        img = None
+        try:
+            img = read_xcursor(f) if f else None
+        except (OSError, struct.error):
+            img = None
+        target = os.path.join(out, shape + ".png")
+        if img:
+            write_png(target, *img)
+        elif os.path.exists(target):
+            os.remove(target)
+    with open(stamp, "w") as fh:
+        fh.write(real)
+    return out
+
+
+def cmd_list():
+    themes = theme_dirs()
+    rows = []
+    for tid, d in themes.items():
+        # a theme whose cursors are all missing (broken links) isn't offered
+        if not cursor_file(themes, tid, SHAPES["arrow"]):
+            continue
+        name = index_of(d).get("name", "").strip() or tid
+        if " " not in name:                     # Bibata-Modern-Classic: Bibata Modern Classic
+            name = name.replace("-", " ").replace("_", " ")
+        # Ether Shell's own first, then by name
+        rows.append(("" if tid == "Ether" else name.lower(), tid, name, previews(themes, tid)))
+    for _, tid, name, prev in sorted(rows):
+        try:
+            made = int(os.stat(os.path.join(prev, ".made")).st_mtime_ns // 1000000)
+        except OSError:
+            made = 0
+        print(f"{tid}\t{name}\t{prev}\t{made}")
+
+
+def current():
+    try:
+        r = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "cursor-theme"],
+                           capture_output=True, text=True, timeout=3)
+        v = r.stdout.strip().strip("'")
+        if r.returncode == 0 and v:
+            return v
+    except (OSError, subprocess.SubprocessError):
+        pass
+    for base in (os.path.join(HOME, ".icons"), os.path.join(HOME, ".local", "share", "icons")):
+        v = index_of(os.path.join(base, "default")).get("inherits", "").split(",")[0].strip()
+        if v:
+            return v
+    return ""
+
+
+def run(*cmd):
+    if shutil.which(cmd[0]):
+        subprocess.run(list(cmd), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def cmd_apply(tid, size):
+    if tid not in theme_dirs():
+        print(f"no cursor theme called {tid}", file=sys.stderr)
+        return 1
+    size = str(max(12, min(128, int(size))))
+    # Hyprland: Ether by its colour's own name, so a new colour is loaded
+    run("hyprctl", "setcursor", ether_real() if tid == "Ether" else tid, size)
+    run("gsettings", "set", "org.gnome.desktop.interface", "cursor-theme", tid)
+    run("gsettings", "set", "org.gnome.desktop.interface", "cursor-size", size)
+    run("kwriteconfig6", "--file", "kcminputrc", "--group", "Mouse", "--key", "cursorTheme", tid)
+    run("kwriteconfig6", "--file", "kcminputrc", "--group", "Mouse", "--key", "cursorSize", size)
+    # the theme X11 apps use when none is named
+    for base in (os.path.join(HOME, ".icons"), os.path.join(HOME, ".local", "share", "icons")):
+        d = os.path.join(base, "default")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "index.theme"), "w") as fh:
+            fh.write("# written by Ether Shell (Settings > Mouse > Cursor)\n"
+                     f"[Icon Theme]\nName=Default\nComment=Your cursor theme\nInherits={tid}\n")
+    return 0
+
+
+# ---- Ether: a small dot, a soft ring over things you can click, a slim bar
+# for text; resize arrows, a move cross, a spinner and "not allowed" too, so
+# every place an app asks for a cursor gets one that means something.  Drawn
+# in the accent with a thin dark edge (seen on anything, the accent too). ----
+import math
+
+# Each colour is a theme of its own, Ether-<colour>, and Ether points to the
+# one in use: Hyprland keeps a theme it has loaded, so the same name with new
+# files changed nothing on screen; a new name is loaded afresh.
+ICONS = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(HOME, ".local", "share"), "icons")
+ETHER = os.path.join(ICONS, "Ether")
+
+def ether_real():
+    """the Ether-<colour> theme Ether points to (or "Ether")"""
+    try:
+        return os.path.basename(os.readlink(ETHER)) or "Ether"
+    except OSError:
+        return "Ether"
+SIZES = (24, 32, 40, 48, 64)
+
+def sd_circle(x, y, r): return math.hypot(x, y) - r
+def sd_ring(x, y, r, w): return abs(math.hypot(x, y) - r) - w / 2
+def sd_seg(x, y, ax, ay, bx, by, w):
+    px, py, dx, dy = x - ax, y - ay, bx - ax, by - ay
+    t = max(0.0, min(1.0, (px * dx + py * dy) / (dx * dx + dy * dy or 1)))
+    return math.hypot(px - dx * t, py - dy * t) - w / 2
+def sd_poly(x, y, pts):
+    d = float("inf"); inside = False
+    for i in range(len(pts)):
+        ax, ay = pts[i]; bx, by = pts[i - 1]
+        d = min(d, sd_seg(x, y, ax, ay, bx, by, 0))
+        if (ay > y) != (by > y) and x < (bx - ax) * (y - ay) / (by - ay) + ax:
+            inside = not inside
+    return -d if inside else d
+def sd_arc(x, y, r, w, start, span):
+    a = (math.atan2(y, x) - start) % (2 * math.pi)
+    if a <= span:
+        return abs(math.hypot(x, y) - r) - w / 2
+    e1 = (r * math.cos(start), r * math.sin(start))
+    e2 = (r * math.cos(start + span), r * math.sin(start + span))
+    return min(math.hypot(x - e1[0], y - e1[1]), math.hypot(x - e2[0], y - e2[1])) - w / 2
+
+def arrow_head(cx, cy, ang, size):
+    """a triangle pointing along ang, its tip at (cx, cy)"""
+    bx, by = cx - math.cos(ang) * size, cy - math.sin(ang) * size
+    nx, ny = -math.sin(ang) * size * 0.62, math.cos(ang) * size * 0.62
+    return [(cx, cy), (bx + nx, by + ny), (bx - nx, by - ny)]
+
+def shape(kind, s, frame=0):
+    """the distance function of a cursor at nominal size s, centred on 0,0"""
+    w = max(1.6, s * 0.085)
+    if kind == "dot":
+        return lambda x, y: sd_circle(x, y, s * 0.15)
+    if kind == "ring":
+        # with a small dot in the middle: exactly where the click lands
+        return lambda x, y: min(sd_ring(x, y, s * 0.34, w), sd_circle(x, y, max(1.3, s * 0.055)))
+    if kind == "bar":
+        return lambda x, y: sd_seg(x, y, 0, -s * 0.30, 0, s * 0.30, w * 1.1)
+    if kind == "cross":
+        L = s * 0.30
+        return lambda x, y: min(sd_seg(x, y, -L, 0, L, 0, w), sd_seg(x, y, 0, -L, 0, L, w))
+    if kind == "move":
+        L, h = s * 0.40, s * 0.17
+        heads = [arrow_head(L * math.cos(a), L * math.sin(a), a, h) for a in (0, math.pi / 2, math.pi, -math.pi / 2)]
+        return lambda x, y: min([sd_circle(x, y, s * 0.10)] + [sd_poly(x, y, t) for t in heads])
+    if kind.startswith("resize"):
+        ang = {"resize-h": 0, "resize-v": math.pi / 2, "resize-d1": math.pi / 4, "resize-d2": -math.pi / 4}[kind]
+        L, h = s * 0.40, s * 0.18
+        c, sn = math.cos(ang), math.sin(ang)
+        t1, t2 = arrow_head(L * c, L * sn, ang, h), arrow_head(-L * c, -L * sn, ang + math.pi, h)
+        return lambda x, y: min(sd_seg(x, y, -L * c * 0.7, -L * sn * 0.7, L * c * 0.7, L * sn * 0.7, w),
+                                sd_poly(x, y, t1), sd_poly(x, y, t2))
+    if kind == "wait":
+        start = frame * (2 * math.pi / 12)
+        return lambda x, y: min(sd_arc(x, y, s * 0.32, w, start, math.pi * 1.4), sd_circle(x, y, s * 0.08))
+    if kind == "no":
+        r = s * 0.32
+        k = r * 0.70
+        return lambda x, y: min(sd_ring(x, y, r, w), sd_seg(x, y, -k, -k, k, k, w))
+    raise ValueError(kind)
+
+SHAPES_VERSION = "ether-shapes-2"     # (new shapes: everything made again)
+SHAPE_CACHE = os.path.join(CACHE, SHAPES_VERSION + ".marshal")
+
+def mask(kind, s, frame=0):
+    """the shape, colour aside: for each pixel a (cursor, dark edge, fill)
+    coverage triple, kept as an index into the few triples it uses"""
+    f = shape(kind, s, frame)
+    c = s / 2.0
+    edge = max(1.0, s / 24.0)                 # the dark edge, about a pixel at 24
+    combos, ids, idx = [], {}, []
+    for j in range(s):
+        y = j + 0.5 - c
+        for i in range(s):
+            x = i + 0.5 - c
+            d = f(x, y)
+            acc = int(max(0.0, min(1.0, 0.5 - d)) * 255 + 0.5)
+            edg = int(max(0.0, min(1.0, 0.5 - (d - edge))) * 0.55 * 255 + 0.5)
+            # the ring is lightly filled, so it reads as a soft circle
+            fil = 1 if kind == "ring" and math.hypot(x, y) < s * 0.34 else 0
+            key = (acc, edg, fil)
+            k = ids.get(key)
+            if k is None:
+                k = ids[key] = len(combos)
+                combos.append(key)
+            idx.append(k)
+    return combos, bytes(idx) if len(combos) < 256 else idx
+
+_shapes = None
+def shapes():
+    """every cursor's masks, worked out once and kept (only their colour
+    changes, so a new colour is quick)"""
+    global _shapes
+    if _shapes is None:
+        import marshal
+        try:
+            with open(SHAPE_CACHE, "rb") as fh:
+                _shapes = marshal.load(fh)
+        except (OSError, EOFError, ValueError, TypeError):
+            _shapes = {}
+            for kind in ETHER_NAMES:
+                for sz in SIZES:
+                    for fr in range(12 if kind == "wait" else 1):
+                        _shapes[f"{kind}/{sz}/{fr}"] = mask(kind, sz, fr)
+            os.makedirs(CACHE, exist_ok=True)
+            tmp = SHAPE_CACHE + ".tmp"
+            with open(tmp, "wb") as fh:
+                marshal.dump(_shapes, fh)
+            os.replace(tmp, SHAPE_CACHE)
+    return _shapes
+
+def render(kind, s, colour, frame=0):
+    """(w, h, xhot, yhot, ARGB premultiplied little-endian) of one image"""
+    combos, idx = shapes()[f"{kind}/{s}/{frame}"]
+    r0, g0, b0 = colour
+    table = []
+    for acc, edg, fil in combos:
+        a_acc, a_edge = acc / 255.0, edg / 255.0
+        # the accent over its dark edge, then the fill under both
+        a = a_acc + a_edge * (1 - a_acc)
+        rr, gg, bb = r0 * a_acc, g0 * a_acc, b0 * a_acc
+        if fil and a < 1:
+            k = 0.22 * (1 - a)
+            rr += r0 * k; gg += g0 * k; bb += b0 * k; a += k
+        table.append(bytes((int(bb + 0.5), int(gg + 0.5), int(rr + 0.5), int(a * 255 + 0.5))))
+    return s, s, s // 2, s // 2, b"".join([table[i] for i in idx])
+
+def write_xcursor(path, kind, colour):
+    frames = 12 if kind == "wait" else 1
+    images = [(s, render(kind, s, colour, fr)) for s in SIZES for fr in range(frames)]
+    ntoc = len(images)
+    header = struct.pack("<4sIII", b"Xcur", 16, 0x10000, ntoc)
+    pos = 16 + ntoc * 12
+    toc, chunks = b"", b""
+    for s, (w, h, xh, yh, px) in images:
+        toc += struct.pack("<III", 0xFFFD0002, s, pos)
+        chunk = struct.pack("<IIIIIIIII", 36, 0xFFFD0002, s, 1, w, h, xh, yh, 60 if frames > 1 else 0) + px
+        chunks += chunk
+        pos += len(chunk)
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as fh:
+        fh.write(header + toc + chunks)
+    os.replace(tmp, path)
+
+# which cursor each name an app may ask for gets
+ETHER_NAMES = {
+    "dot":   ["default", "left_ptr", "arrow", "top_left_arrow", "context-menu", "help", "question_arrow",
+              "whats_this", "copy", "alias", "link", "dnd-copy", "dnd-link", "dnd-move", "dnd-ask", "zoom-in", "zoom-out",
+              "center_ptr", "right_ptr", "draft", "pencil", "color-picker", "vertical-text"],
+    "ring":  ["pointer", "hand1", "hand2", "pointing_hand", "grab", "grabbing", "openhand", "closedhand",
+              "fleur-grab", "dnd-none", "hand"],
+    "bar":   ["text", "xterm", "ibeam"],
+    "cross": ["crosshair", "cross", "tcross", "plus", "cell", "diamond_cross", "cross_reverse"],
+    "move":  ["move", "fleur", "all-scroll", "size_all", "all-resize"],
+    "resize-h":  ["ew-resize", "col-resize", "e-resize", "w-resize", "sb_h_double_arrow", "h_double_arrow",
+                  "size_hor", "left_side", "right_side", "split_h"],
+    "resize-v":  ["ns-resize", "row-resize", "n-resize", "s-resize", "sb_v_double_arrow", "v_double_arrow",
+                  "size_ver", "top_side", "bottom_side", "split_v", "double_arrow"],
+    "resize-d1": ["nwse-resize", "nw-resize", "se-resize", "size_fdiag", "top_left_corner",
+                  "bottom_right_corner", "bd_double_arrow", "ul_angle", "lr_angle"],
+    "resize-d2": ["nesw-resize", "ne-resize", "sw-resize", "size_bdiag", "top_right_corner",
+                  "bottom_left_corner", "fd_double_arrow", "ur_angle", "ll_angle"],
+    "wait":  ["wait", "watch", "progress", "left_ptr_watch", "half-busy"],
+    "no":    ["not-allowed", "no-drop", "crossed_circle", "forbidden", "circle", "X_cursor", "pirate"],
+}
+
+def cmd_make_ether(hexcol):
+    h = hexcol.strip().lstrip("#")
+    if len(h) != 6:
+        print("colour as #rrggbb", file=sys.stderr); return 2
+    h = h.lower()
+    colour = tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+    name = "Ether-" + h
+    tdir = os.path.join(ICONS, name)
+    # Ether from before (a folder of its own): replaced by the pointer
+    if os.path.isdir(ETHER) and not os.path.islink(ETHER):
+        shutil.rmtree(ETHER, ignore_errors=True)
+    # (made again when its shapes have changed too, not just its colour)
+    try:
+        made = open(os.path.join(tdir, ".colour")).read().strip()
+    except OSError:
+        made = ""
+    if made != h + " " + SHAPES_VERSION:
+        make_ether_in(tdir, colour, h)
+    if ether_real() != name:
+        tmp = ETHER + ".tmp"
+        if os.path.lexists(tmp):
+            os.remove(tmp)
+        os.symlink(name, tmp)
+        os.replace(tmp, ETHER)
+    # keep this colour and the one before (anything still using it), no more
+    versions = sorted((d for d in os.listdir(ICONS) if d.startswith("Ether-") and d != name),
+                      key=lambda d: os.stat(os.path.join(ICONS, d)).st_mtime, reverse=True)
+    for old in versions[1:]:
+        shutil.rmtree(os.path.join(ICONS, old), ignore_errors=True)
+    return 0
+
+
+def make_ether_in(tdir, colour, h):
+    cdir = os.path.join(tdir, "cursors")
+    os.makedirs(cdir, exist_ok=True)
+    for kind, names in ETHER_NAMES.items():
+        main = os.path.join(cdir, names[0])
+        write_xcursor(main, kind, colour)
+        for n in names[1:]:
+            link = os.path.join(cdir, n)
+            tmp = link + ".tmp"
+            if os.path.lexists(tmp):
+                os.remove(tmp)
+            os.symlink(names[0], tmp)
+            os.replace(tmp, link)
+    with open(os.path.join(tdir, "index.theme"), "w") as fh:
+        fh.write("[Icon Theme]\nName=Ether\nComment=Ether Shell's cursor, in your accent colour\n")
+    with open(os.path.join(tdir, ".colour"), "w") as fh:
+        fh.write(h + " " + SHAPES_VERSION)
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "list":
+        cmd_list(); return 0
+    if len(argv) >= 2 and argv[1] == "current":
+        print(current()); return 0
+    if len(argv) >= 3 and argv[1] == "make-ether":
+        r = cmd_make_ether(argv[2])
+        if r == 0 and len(argv) >= 5 and argv[3] == "apply":
+            return cmd_apply("Ether", argv[4])
+        return r
+    if len(argv) >= 4 and argv[1] == "apply":
+        return cmd_apply(argv[2], argv[3])
+    print("usage: cursor list | current | apply <theme> <size>", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

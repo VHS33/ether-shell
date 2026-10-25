@@ -63,7 +63,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: dr.title
                 color: dr.app.cFg
-                font.family: "Inter"
+                font.family: app.uiFont
                 font.pixelSize: app.fs(13)
                 elide: Text.ElideRight
             }
@@ -72,7 +72,7 @@ Rectangle {
                 visible: text !== ""
                 text: dr.sub
                 color: dr.app.cFaint
-                font.family: "Inter"
+                font.family: app.uiFont
                 font.pixelSize: app.fs(10)
                 elide: Text.ElideRight
             }
@@ -82,7 +82,7 @@ Rectangle {
             visible: dr.isDefault
             text: "In use"
             color: dr.accent
-            font.family: "Inter"
+            font.family: app.uiFont
             font.pixelSize: app.fs(11)
             font.bold: true
         }

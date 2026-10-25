@@ -76,6 +76,9 @@ Singleton {
     // rule) and writes it as pal.vivid; before a theme with it has been made,
     // the shell works it out itself
     property color cBlue: pal.vivid ?? (vividOn ? readableAccent(wallSeed, pal.bg ?? "#1e1e2e") : (pal.blue ?? "#89b4fa"))
+    // the accent it's heading for, straight away (cBlue fades into it): for
+    // what can't fade, the mouse cursor (Cursors)
+    readonly property color accentTarget: pal.vivid ?? (vividOn ? readableAccent(wallSeed, pal.bg ?? "#1e1e2e") : (pal.blue ?? "#89b4fa"))
     // The shell's third accent, from the picture itself.  Material builds the
     // third accent by turning the main colour round the colour wheel, which
     // often lands on a colour that isn't in the wallpaper (teal beside an
@@ -140,7 +143,10 @@ Singleton {
     Behavior on cOnPrimC { enabled: themeSvc.colourFade; ColorAnimation { duration: 550; easing.type: Easing.InOutQuad } }
     // dimming layers: the background colour at a given strength
     function scrim(a) { return withAlpha(pal.bg ?? "#1e1e2e", hexA(a)) }
-    readonly property string font:   "JetBrainsMono Nerd Font"
+    // fonts (Settings > General > Fonts): the shell's text, and monospace
+    // (the terminal, and code and numbers in the shell)
+    readonly property string uiFont: Config.cfg.uiFont || "Inter"
+    readonly property string font:   Config.cfg.monoFont || "JetBrainsMono Nerd Font"
 
     readonly property var themeSchemes: [
         "scheme-tonal-spot", "scheme-vibrant", "scheme-expressive",

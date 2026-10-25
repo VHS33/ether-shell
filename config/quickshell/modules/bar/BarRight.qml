@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.SystemTray
 import Quickshell.Services.Pipewire
+import qs.services
 
 // ============================================================
 //   RIGHT PILL
@@ -80,13 +81,13 @@ Variants {
 
         TextMetrics {
             id: rateMetrics
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(12)
             text: "999 KB/s"
         }
         TextMetrics {
             id: volMetrics
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(12)
             text: "100%"
         }
@@ -134,7 +135,7 @@ Variants {
                         width: volMetrics.advanceWidth
                         text: parent.parent.muted ? "Mute" : parent.parent.vol + "%"
                         color: parent.parent.muted ? app.cFaint : app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(12)
                     }
                 }
@@ -159,7 +160,7 @@ Variants {
                             width: rateMetrics.advanceWidth
                             text: app.netDown
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                         }
                     }
@@ -177,7 +178,7 @@ Variants {
                             width: rateMetrics.advanceWidth
                             text: app.netUp
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                         }
                     }
@@ -239,7 +240,7 @@ Variants {
                         visible: app.cfg.clockDate !== false
                         text: Qt.formatDateTime(app.now, "ddd d MMM")
                         color: app.cDim
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(12)
                     }
                     Item {
@@ -254,7 +255,7 @@ Variants {
                                   + (app.cfg.clockSeconds === true ? ":ss" : "")
                                   + (app.cfg.clock24h === true ? "" : " AP"))
                         color: app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(12)
                         font.weight: Font.DemiBold
                     }

@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Hyprland
+import qs.services
 
 // ============================================================
 //   WORKSPACE PREVIEW
@@ -177,7 +178,7 @@ Variants {
                     color: "white"
                     style: Text.Outline
                     styleColor: Qt.rgba(0, 0, 0, 0.5)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: Font.DemiBold
                     font.pixelSize: app.fs(13)
                 }
@@ -206,7 +207,7 @@ Variants {
                         anchors.centerIn: parent
                         text: pw.number
                         color: numBadge.current ? app.cOnAccent : app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.weight: Font.DemiBold
                         font.pixelSize: app.fs(11)
                     }
@@ -223,7 +224,7 @@ Variants {
                     text: pw.count === 0 ? "No windows"
                         : pw.count === 1 ? "1 window" : pw.count + " windows"
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                 }
                 // the apps on it

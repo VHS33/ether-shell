@@ -551,6 +551,15 @@ hl.bind(key("shot_full", mainMod .. " + SHIFT + S"), hl.dsp.exec_cmd(os.getenv("
         { description = "Screenshot screen" })
 hl.bind(key("ocr", mainMod .. " + SHIFT + T"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/ocr"),
         { description = "Copy text from the screen" })
+-- pick a colour from anywhere on the screen (copied as hex)
+hl.bind(key("pickcolor", mainMod .. " + SHIFT + P"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/pickcolor"),
+        { description = "Pick a colour from the screen" })
+-- screen recording: the screen you're on, with the sound; the same key stops it
+hl.bind(key("record", mainMod .. " + SHIFT + R"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/record"),
+        { description = "Record the screen (again to stop)" })
+-- with Record 30 s back on (quick settings): save just the last 30 seconds
+hl.bind(key("clip", mainMod .. " + SHIFT + C"), hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/record clip"),
+        { description = "Save the last 30 seconds" })
 -- the wallpaper selector (the rofi list if the shell isn't running)
 hl.bind(key("wallpaper", mainMod .. " + H"), hl.dsp.exec_cmd(
     "qs ipc call wallpaper toggle || " .. os.getenv("HOME") .. "/.local/bin/setwall"),

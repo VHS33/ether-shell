@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Hyprland
+import qs.services
 
 // ============================================================
 //   WORKSPACE OVERVIEW  (Alt+Tab)
@@ -221,7 +222,7 @@ Variants {
                     Text {
                         text: "Workspaces"
                         color: app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(17)
                         font.bold: true
                     }
@@ -229,7 +230,7 @@ Variants {
                     Text {
                         text: "Arrows and Enter, or a number.  Drag windows between workspaces.  Middle-click closes one."
                         color: app.cFaint
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(11)
                     }
                 }
@@ -302,7 +303,7 @@ Variants {
                                     visible: tile.count === 0
                                     text: "Empty"
                                     color: app.cFaint
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                 }
 
@@ -374,7 +375,7 @@ Variants {
                                                     verticalAlignment: Text.AlignVCenter
                                                     text: win.ipc?.title ?? ""
                                                     color: "white"
-                                                    font.family: "Inter"
+                                                    font.family: Theme.uiFont
                                                     font.pixelSize: app.fs(10)
                                                     elide: Text.ElideRight
                                                 }
@@ -468,7 +469,7 @@ Variants {
                                         anchors.centerIn: parent
                                         text: tile.wsId
                                         color: tile.current ? app.cOnAccent : app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         font.bold: true
                                     }
@@ -492,7 +493,7 @@ Variants {
                                     visible: tile.count > 1
                                     text: tile.count + " windows"
                                     color: app.cFaint
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                 }
                             }

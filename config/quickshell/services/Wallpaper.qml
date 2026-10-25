@@ -49,7 +49,7 @@ Singleton {
     // ---- each wallpaper's colours, for the swatches in the selector ----
     // Worked out with matugen's --dry-run (nothing is changed), one
     // wallpaper at a time in the background, for the current style,
-    // Theme.contrast, colour source and mode; cached in
+    // contrast, colour source and mode; cached in
     // ~/.cache/ether/palettes.json, so they're only worked out once.
     // wallPalettes: { path: [accent, secondary, tertiary, container, background] }
     // "auto" stays "auto" here: each wallpaper's swatches are worked out with
@@ -123,7 +123,7 @@ Singleton {
         const pick = seed ? [] : (Theme.themePrefer === "dominant" || Theme.themePrefer === "smart")
                                  ? ["--source-color-index", "0"] : ["--prefer", Theme.themePrefer]
         paletteProc.command = ["matugen"].concat(from).concat(["--dry-run", "-j", "hex", "-q",
-                               "--type", scheme, "--Theme.contrast", Theme.themeContrast.toFixed(2)]).concat(pick)
+                               "--type", scheme, "--contrast", Theme.themeContrast.toFixed(2)]).concat(pick)
                                 .concat(["--mode", mode])
         paletteProc.running = true
     }
@@ -387,7 +387,7 @@ Singleton {
 
     property bool themeBusy: false
 
-    // a Theme.contrast drag settles before matugen runs; each run re-renders
+    // a contrast drag settles before matugen runs; each run re-renders
     // every app's colours, so it should happen once, not per pixel
     Timer {
         id: themeDebounce

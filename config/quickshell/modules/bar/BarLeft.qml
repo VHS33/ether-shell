@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import "../../lib/models.mjs" as Models
+import qs.services
 
 // ============================================================
 //   LEFT PILL
@@ -38,7 +39,7 @@ Variants {
 
         TextMetrics {
             id: stMetrics
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: st.app.fs(12)
             text: st.widest
         }
@@ -60,7 +61,7 @@ Variants {
                 horizontalAlignment: Text.AlignRight
                 text: st.value
                 color: st.app.cFg
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: st.app.fs(12)
             }
         }

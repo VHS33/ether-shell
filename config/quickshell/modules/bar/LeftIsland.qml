@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.modules.plugins
+import qs.services
 
 // ============================================================
 //   LEFT ISLAND: SYSTEM
@@ -40,7 +41,7 @@ Variants {
 
         TextMetrics {
             id: stMetrics
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.weight: Font.Medium
             font.pixelSize: st.app.fs(12)
             text: st.widest
@@ -57,7 +58,7 @@ Variants {
             width: stMetrics.advanceWidth
             text: st.value
             color: st.app.cFg
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.weight: Font.Medium
             font.pixelSize: st.app.fs(12)
         }
@@ -136,14 +137,14 @@ Variants {
             Text {
                 text: gr.title
                 color: gr.app.cDim
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: gr.app.fs(11)
                 font.bold: true
             }
             Text {
                 text: gr.value
                 color: gr.app.cFg
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: gr.app.fs(24)
                 font.weight: Font.Light
             }
@@ -494,7 +495,7 @@ Variants {
                                         color: ws.active && wsStrip.here ? app.cOnAccent
                                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b,
                                                        ws.active || wsHov.hovered ? 0.9 : ws.modelData.occupied ? 0.65 : 0.3)
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: ws.active ? Font.DemiBold : Font.Medium
                                         font.pixelSize: app.fs(11)
                                         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -603,7 +604,7 @@ Variants {
                                         color: ws2.active && wsStrip2.here ? app.cOnAccent
                                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b,
                                                        ws2.active || wsHov2.hovered ? 0.9 : ws2.modelData.occupied ? 0.65 : 0.3)
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.weight: ws2.active ? Font.DemiBold : Font.Medium
                                         font.pixelSize: app.fs(11)
                                         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -726,7 +727,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: awGroup.title || "Desktop"
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.8)
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.Medium
                                 font.pixelSize: app.fs(12)
                                 elide: Text.ElideRight
@@ -777,7 +778,7 @@ Variants {
                                 Text {
                                     text: "System"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(15)
                                     font.bold: true
                                 }
@@ -785,7 +786,7 @@ Variants {
                                     visible: text !== ""
                                     text: app.uptimeText ? app.uptimeText.replace(/^up /, "Up ") : ""
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                 }
                             }
@@ -882,7 +883,7 @@ Variants {
                                     Layout.fillWidth: true
                                     text: "Busiest processes"
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     font.bold: true
                                 }
@@ -890,14 +891,14 @@ Variants {
                                     Layout.preferredWidth: 90
                                     text: "CPU"
                                     color: app.cFaint
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(10)
                                 }
                                 Text {
                                     Layout.preferredWidth: 90
                                     text: "Memory"
                                     color: app.cFaint
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(10)
                                 }
                             }
@@ -916,7 +917,7 @@ Variants {
                                         Layout.leftMargin: 2
                                         text: pr.modelData.name
                                         color: app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         elide: Text.ElideRight
                                     }
@@ -946,7 +947,7 @@ Variants {
                                             Text {
                                                 text: cell.modelData.v.toFixed(1) + "%"
                                                 color: app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(10)
                                             }
                                         }
@@ -957,7 +958,7 @@ Variants {
                                 visible: app.topProcs.length === 0
                                 text: "Reading\u2026"
                                 color: app.cFaint
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                             }
                         }
@@ -992,7 +993,7 @@ Variants {
                                     Layout.fillWidth: true
                                     text: "Playtime this week"
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     font.bold: true
                                 }
@@ -1000,7 +1001,7 @@ Variants {
                                     visible: playCol.total > 0
                                     text: app.fmtPlay(playCol.total)
                                     color: app.cFaint
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(10)
                                 }
                             }
@@ -1027,7 +1028,7 @@ Variants {
                                         Layout.fillWidth: true
                                         text: app.gameMode ? "Playing now: game mode is on" : "Playing now"
                                         color: app.cOnPrimC
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(11)
                                         font.weight: Font.Medium
                                         elide: Text.ElideRight
@@ -1057,7 +1058,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 text: gRow.modelData.name
                                                 color: app.cFg
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(12)
                                                 elide: Text.ElideRight
                                                 textFormat: Text.PlainText
@@ -1065,7 +1066,7 @@ Variants {
                                             Text {
                                                 text: app.fmtPlay(gRow.modelData.week)
                                                 color: app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(11)
                                             }
                                         }
@@ -1092,7 +1093,7 @@ Variants {
                                 Layout.leftMargin: 2
                                 text: "Games you play show up here. Steam games are recognised by themselves."
                                 color: app.cFaint
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 wrapMode: Text.Wrap
                             }
@@ -1119,7 +1120,7 @@ Variants {
                                     Text {
                                         text: "Count the last window as a game"
                                         color: app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(11)
                                     }
                                 }
@@ -1151,7 +1152,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: "Open btop"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 font.bold: true
                             }

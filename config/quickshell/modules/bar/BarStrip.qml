@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Wayland
+import qs.services
 
 // ============================================================
 //   LONG BAR  (bar styles "long" and "wrap")
@@ -385,7 +386,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: islandHost.d.summary || islandHost.d.app || ""
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(13)
                                 elide: Text.ElideRight
@@ -396,7 +397,7 @@ Variants {
                                 visible: text !== ""
                                 text: (islandHost.d.body || "").replace(/\s+/g, " ")
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 elide: Text.ElideRight
                                 textFormat: Text.PlainText
@@ -405,7 +406,7 @@ Variants {
                         Text {
                             text: islandHost.d.app || ""
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(10)
                         }
                     }
@@ -451,7 +452,7 @@ Variants {
                                 : row.k === "brightness" ? "Brightness"
                                 : row.off ? "Muted" : "Volume"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.weight: Font.DemiBold
                             font.pixelSize: app.fs(13)
                         }
@@ -474,7 +475,7 @@ Variants {
                             visible: !parent.toggleKind
                             text: parent.off ? "" : Math.round(parent.v * 100) + "%"
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.weight: Font.Medium
                             font.pixelSize: app.fs(12)
                         }
@@ -536,7 +537,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: islandHost.d.title || ""
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(13)
                                 elide: Text.ElideRight
@@ -547,7 +548,7 @@ Variants {
                                 visible: text !== ""
                                 text: islandHost.d.artist || ""
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 elide: Text.ElideRight
                                 textFormat: Text.PlainText
@@ -599,7 +600,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: islandHost.d.name || "Game"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(13)
                                 elide: Text.ElideRight
@@ -611,7 +612,7 @@ Variants {
                                       + ((islandHost.d.week || 0) > (islandHost.d.secs || 0) + 59
                                          ? "  \u2022  " + app.fmtPlay(islandHost.d.week) + " this week" : "")
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 elide: Text.ElideRight
                             }
@@ -651,7 +652,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: (islandHost.d.verb || "") + " \u201c" + (islandHost.d.name || "") + "\u201d"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(13)
                                 elide: Text.ElideRight
@@ -661,7 +662,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: islandHost.d.detail || ""
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 elide: Text.ElideRight
                             }
@@ -694,14 +695,14 @@ Variants {
                             Text {
                                 text: "Time's up"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(13)
                             }
                             Text {
                                 text: "Your " + (islandHost.d.len || "") + " timer has finished"
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                             }
                         }
@@ -715,7 +716,7 @@ Variants {
                                 anchors.centerIn: parent
                                 text: "Dismiss"
                                 color: app.cOnAccent
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: app.fs(12)
                             }

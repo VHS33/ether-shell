@@ -2,3 +2,7 @@
 /README.md
 CHANGELOG.md
 docs/
+
+# Python byte-code caches
+__pycache__/
+*.pyc

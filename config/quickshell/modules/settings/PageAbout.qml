@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -40,14 +41,14 @@ ColumnLayout {
                     Layout.preferredWidth: 90
                     text: modelData.k
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(12)
                 }
                 Text {
                     Layout.fillWidth: true
                     text: modelData.v
                     color: app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(12)
                     wrapMode: Text.WordWrap
                 }

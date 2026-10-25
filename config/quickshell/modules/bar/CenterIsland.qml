@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
 import qs.modules.media
+import qs.services
 
 // ============================================================
 //   CENTRE ISLAND
@@ -307,7 +308,7 @@ Variants {
                             Text {
                                 text: app.player?.trackTitle || "Unknown track"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 font.weight: Font.Medium
                             }
@@ -315,7 +316,7 @@ Variants {
                                 visible: text !== ""
                                 text: app.player?.trackArtist ?? ""
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.5)
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                             }
                         }
@@ -512,7 +513,7 @@ Variants {
                             Text {
                                 text: "Now playing"
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 font.bold: true
                             }

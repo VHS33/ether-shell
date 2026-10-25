@@ -48,7 +48,7 @@ Row {
                     id: segT
                     text: modelData
                     color: parent.parent.on ? seg.app.cFg : seg.app.cDim
-                    font.family: "Inter"
+                    font.family: app.uiFont
                     font.pixelSize: app.fs(12)
                 }
             }

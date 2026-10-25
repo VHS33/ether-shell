@@ -27,7 +27,7 @@ Rectangle {
         anchors.centerIn: parent
         text: chip.text
         color: chip.selected ? chip.app.cFg : chip.app.cDim
-        font.family: "Inter"
+        font.family: app.uiFont
         font.pixelSize: app.fs(12)
         font.bold: chip.selected
     }

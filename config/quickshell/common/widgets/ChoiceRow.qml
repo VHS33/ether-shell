@@ -37,7 +37,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: cr.title
                 color: cr.app.cFg
-                font.family: "Inter"
+                font.family: app.uiFont
                 font.pixelSize: app.fs(13)
                 font.bold: cr.selected
             }
@@ -46,7 +46,7 @@ Rectangle {
                 visible: text !== ""
                 text: cr.desc
                 color: cr.app.cDim
-                font.family: "Inter"
+                font.family: app.uiFont
                 font.pixelSize: app.fs(11)
                 wrapMode: Text.WordWrap
             }

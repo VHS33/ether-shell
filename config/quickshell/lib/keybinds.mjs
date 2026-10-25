@@ -45,6 +45,9 @@ export const CATALOG = [
     { id: "shot",           group: "Screenshots", label: "Screenshot a region",       def: "SUPER + S" },
     { id: "shot_full",      group: "Screenshots", label: "Screenshot the screen",     def: "SUPER + SHIFT + S" },
     { id: "ocr",            group: "Screenshots", label: "Copy text from the screen", def: "SUPER + SHIFT + T" },
+    { id: "record",         group: "Screenshots", label: "Record the screen (again to stop)", def: "SUPER + SHIFT + R" },
+    { id: "pickcolor",      group: "Screenshots", label: "Pick a colour from the screen", def: "SUPER + SHIFT + P" },
+    { id: "clip",           group: "Screenshots", label: "Save the last 30 seconds (Record 30 s back on)", def: "SUPER + SHIFT + C" },
 ]
 
 // shortcuts that can't be changed here, but can't be taken either

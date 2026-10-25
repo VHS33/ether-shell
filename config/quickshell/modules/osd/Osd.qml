@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import qs.services
 
 // ============================================================
 //   ON-SCREEN DISPLAY
@@ -123,7 +124,7 @@ Variants {
                             Layout.fillWidth: true
                             text: winOsd.title
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                             font.bold: true
                         }
@@ -131,7 +132,7 @@ Variants {
                             visible: text !== ""
                             text: winOsd.amount
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                         }
                     }

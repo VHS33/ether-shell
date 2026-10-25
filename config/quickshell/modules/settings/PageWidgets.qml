@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -52,7 +53,7 @@ ColumnLayout {
                     Text {
                         text: addRow.modelData.name
                         color: app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(13)
                         font.bold: true
                     }
@@ -60,7 +61,7 @@ ColumnLayout {
                         Layout.fillWidth: true
                         text: addRow.modelData.desc
                         color: app.cDim
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(11)
                         elide: Text.ElideRight
                     }
@@ -159,7 +160,7 @@ ColumnLayout {
                     text: wCard.modelData.text || ""
                     color: app.cFg
                     selectionColor: app.cBlue
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(12)
                     wrapMode: TextEdit.Wrap
                     // saved when you click away

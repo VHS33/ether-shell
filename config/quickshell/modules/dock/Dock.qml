@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Hyprland
+import qs.services
 
 // ============================================================
 //   DOCK
@@ -105,7 +106,7 @@ Variants {
                 anchors.centerIn: parent
                 text: it.badge > 9 ? "9+" : it.badge
                 color: "#2b0a06"
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: it.app.fs(9)
                 font.bold: true
             }
@@ -122,7 +123,7 @@ Variants {
                 anchors.centerIn: parent
                 text: it.modelData.n
                 color: it.app.cOnAccent
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: it.app.fs(9)
                 font.bold: true
             }
@@ -200,7 +201,7 @@ Variants {
                     return main + (it.elsewhere ? " (another workspace)" : "")
                 }
                 color: it.app.cFg
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: it.app.fs(11)
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignHCenter
@@ -240,7 +241,7 @@ Variants {
                 Layout.maximumWidth: 260
                 text: mr.text
                 color: mr.danger ? mr.app.cRed : mr.app.cFg
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: mr.app.fs(12)
                 elide: Text.ElideRight
             }
@@ -248,7 +249,7 @@ Variants {
                 visible: mr.detail !== ""
                 text: mr.detail
                 color: mr.app.cFaint
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: mr.app.fs(11)
             }
         }
@@ -572,7 +573,7 @@ Variants {
                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 8; rightMargin: 30; bottomMargin: 7 }
                             text: pv.modelData.title || (winD.previewFor ? winD.previewFor.name : "")
                             color: winD.app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: winD.app.fs(11)
                             elide: Text.ElideRight
                         }
@@ -654,7 +655,7 @@ Variants {
                     Layout.bottomMargin: 4
                     text: menu.d ? menu.d.name : ""
                     color: winD.app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: winD.app.fs(13)
                     font.bold: true
                     elide: Text.ElideRight
@@ -694,7 +695,7 @@ Variants {
                                 Layout.maximumWidth: 260
                                 text: wr.modelData.title || menu.d.name
                                 color: winD.app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: winD.app.fs(12)
                                 elide: Text.ElideRight
                             }
@@ -702,7 +703,7 @@ Variants {
                                 visible: wr.modelData.ws !== ""
                                 text: wr.modelData.ws
                                 color: winD.app.cFaint
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: winD.app.fs(11)
                             }
                             // close just this window (shown on hover)

@@ -63,6 +63,18 @@ Singleton {
         idleScreenMin: 10,
         idleSleepMin:  0,
 
+        // Record 30 s back (quick settings): kept on across logins
+        replayOn:      false,
+
+        // fonts (Settings > General): "" is Inter for text, JetBrains Mono
+        // for monospace (the terminal)
+        uiFont:        "",
+        monoFont:      "",
+
+        // the mouse cursor (Settings > Mouse): "" leaves the system's theme
+        cursorTheme:   "",
+        cursorSize:    24,
+
         // Hyprland input (also in hyprKeys below)
         repeatRate:    25,
         repeatDelay:   600,

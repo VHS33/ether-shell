@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -50,7 +51,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     color: app.cFg
                     selectionColor: app.cBlue
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(12)
                     clip: true
                     onAccepted: app.searchPlace(text)
@@ -67,7 +68,7 @@ ColumnLayout {
                     visible: app.wxSearching
                     text: "Searching\u2026"
                     color: app.cFaint
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                 }
             }

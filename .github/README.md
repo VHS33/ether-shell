@@ -1,7 +1,8 @@
 # Ether Shell
 
 A desktop for Hyprland: bar, drawers, dock, launcher, lock screen,
-notifications and settings, all themed from your wallpaper.
+notifications, screen recording and settings, all themed from your
+wallpaper, down to the mouse cursor.
 
 ## Install
 

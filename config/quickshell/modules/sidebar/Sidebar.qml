@@ -7,6 +7,7 @@ import Quickshell.Widgets
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
 import "../../lib/models.mjs" as Models
+import qs.services
 
 // ============================================================
 //   SIDEBAR
@@ -82,7 +83,7 @@ Variants {
                     Layout.fillWidth: true
                     text: tile.title
                     color: tile.app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(13)
                     font.bold: true
                     elide: Text.ElideRight
@@ -91,7 +92,7 @@ Variants {
                     Layout.fillWidth: true
                     text: tile.sub
                     color: tile.app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     elide: Text.ElideRight
                 }
@@ -277,7 +278,7 @@ Variants {
             horizontalAlignment: Text.AlignRight
             text: vr.muted ? "Muted" : Math.round(vr.v * 100) + "%"
             color: vr.app.cDim
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: app.fs(11)
         }
     }
@@ -345,7 +346,7 @@ Variants {
             horizontalAlignment: Text.AlignRight
             text: br.app.brightAvg + "%"
             color: br.app.cDim
-            font.family: "Inter"
+            font.family: Theme.uiFont
             font.pixelSize: br.app.fs(11)
         }
     }
@@ -474,7 +475,7 @@ Variants {
                                       ? Qt.formatDateTime(app.now, "HH:mm")
                                       : Qt.formatDateTime(app.now, "h:mm AP").split(" ")[0]
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(38)
                                 font.weight: Font.Light
                             }
@@ -483,14 +484,14 @@ Variants {
                                 anchors.baseline: bigTime.baseline
                                 text: Qt.formatDateTime(app.now, "AP")
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(15)
                             }
                         }
                         Text {
                             text: Qt.formatDateTime(app.now, "dddd, d MMMM")
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                         }
                     }
@@ -515,7 +516,7 @@ Variants {
                                     Layout.alignment: Qt.AlignRight
                                     text: app.wxOk ? app.wxTemp : "\u2014"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(18)
                                     font.bold: true
                                 }
@@ -524,7 +525,7 @@ Variants {
                                     Layout.maximumWidth: 120
                                     text: app.wxOk ? app.wxCond : (app.wxHasPlace ? "No weather" : "Set location in Settings")
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     elide: Text.ElideRight
                                 }
@@ -701,7 +702,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: app.player?.trackTitle || "Nothing playing"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(13)
                                 font.bold: true
                                 elide: Text.ElideRight
@@ -710,7 +711,7 @@ Variants {
                                 Layout.fillWidth: true
                                 text: app.player?.trackArtist ?? ""
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 elide: Text.ElideRight
                             }
@@ -793,7 +794,7 @@ Variants {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: tabItem.modelData.t
                                         color: tabItem.on ? app.cFg : app.cDim
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         font.bold: tabItem.on
                                     }
@@ -809,7 +810,7 @@ Variants {
                                             anchors.centerIn: parent
                                             text: tabItem.badge
                                             color: app.cOnAccent
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(10)
                                             font.bold: true
                                         }
@@ -852,7 +853,7 @@ Variants {
                             Text {
                                 text: Qt.formatDateTime(app.calBase, "MMMM yyyy")
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(15)
                                 font.bold: true
                                 MouseArea {
@@ -886,7 +887,7 @@ Variants {
                                     Layout.fillWidth: true
                                     text: ["S", "M", "T", "W", "T", "F", "S"][dow]
                                     color: (dow === 0 || dow === 6) ? app.cPeach : app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                     font.bold: true
                                     horizontalAlignment: Text.AlignHCenter
@@ -921,7 +922,7 @@ Variants {
                                         color: dayCell.modelData.today ? app.cOnAccent
                                              : !dayCell.modelData.cur ? app.cFaint
                                              : dayCell.isHol ? app.cPeach : app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(13)
                                         font.bold: dayCell.modelData.today
                                     }
@@ -958,7 +959,7 @@ Variants {
                             visible: app.selectedKey === "" && app.holidayOn(todayKey) !== ""
                             text: "Today is " + app.holidayOn(todayKey)
                             color: app.cPeach
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
@@ -996,7 +997,7 @@ Variants {
                                         text: dayCard.key !== ""
                                               ? Qt.formatDate(new Date(dayCard.key + "T12:00:00"), "dddd d MMMM yyyy") : ""
                                         color: app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(13)
                                         font.bold: true
                                         elide: Text.ElideRight
@@ -1033,7 +1034,7 @@ Variants {
                                         Layout.fillWidth: true
                                         text: dayCard.hol
                                         color: app.cPeach
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         wrapMode: Text.WordWrap
                                     }
@@ -1059,7 +1060,7 @@ Variants {
                                             text: noteRow.modelData.text
                                                   + (noteRow.modelData.yearly ? "  (every year)" : "")
                                             color: app.cFg
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(12)
                                             wrapMode: Text.WordWrap
                                         }
@@ -1101,7 +1102,7 @@ Variants {
                                             verticalAlignment: TextInput.AlignVCenter
                                             color: app.cFg
                                             selectionColor: app.cBlue
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(12)
                                             clip: true
                                             onAccepted: {
@@ -1138,7 +1139,7 @@ Variants {
                                             anchors.centerIn: parent
                                             text: "Every year"
                                             color: dayCard.yearly ? app.cFg : app.cDim
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(11)
                                             font.bold: dayCard.yearly
                                         }
@@ -1168,7 +1169,7 @@ Variants {
                             Text {
                                 text: "Notifications"
                                 color: app.cFg
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(13)
                                 font.bold: true
                             }
@@ -1183,7 +1184,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: app.notifCount
                                     color: app.cOnAccent
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(10)
                                     font.bold: true
                                 }
@@ -1193,7 +1194,7 @@ Variants {
                                 visible: app.notifCount > 0
                                 text: "Clear all"
                                 color: clrHov.hovered ? app.cRed : app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 font.bold: true
                                 HoverHandler { id: clrHov }
@@ -1270,7 +1271,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 text: nItem.modelData.app
                                                 color: app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(10)
                                                 elide: Text.ElideRight
                                             }
@@ -1278,7 +1279,7 @@ Variants {
                                                 visible: !nHov.hovered
                                                 text: nItem.modelData.when
                                                 color: app.cFaint
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(10)
                                             }
                                             Text {
@@ -1301,7 +1302,7 @@ Variants {
                                             visible: text !== ""
                                             text: nItem.modelData.summary
                                             color: app.cFg
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(12)
                                             font.bold: true
                                             elide: Text.ElideRight
@@ -1311,7 +1312,7 @@ Variants {
                                             visible: text !== ""
                                             text: nItem.modelData.body
                                             color: app.cDim
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(11)
                                             wrapMode: Text.WordWrap
                                             maximumLineCount: 2
@@ -1345,7 +1346,7 @@ Variants {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: "You're all caught up"
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(14)
                             }
                             Text {
@@ -1354,7 +1355,7 @@ Variants {
                                 visible: app.dnd
                                 text: "Do not disturb is on, so new ones won't pop up"
                                 color: app.cFaint
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                                 wrapMode: Text.WordWrap
                             }
@@ -1403,7 +1404,7 @@ Variants {
                                         Layout.fillWidth: true
                                         color: app.cFg
                                         selectionColor: app.cBlue
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         clip: true
                                         Keys.onEscapePressed: {
@@ -1440,7 +1441,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: wipeBtn.armed ? "Clear all?" : "delete"
                                     color: wipeBtn.armed ? app.cOnAccent : app.cDim
-                                    font.family: wipeBtn.armed ? "Inter" : "Material Symbols Rounded"
+                                    font.family: wipeBtn.armed ? Theme.uiFont : "Material Symbols Rounded"
                                     font.pixelSize: app.fs(wipeBtn.armed ? 11 : 15)
                                     font.bold: wipeBtn.armed
                                 }
@@ -1511,7 +1512,7 @@ Variants {
                                                 + cItem.bin[3].replace("x", "\u00d7") + ", " + cItem.bin[1]
                                               : cItem.modelData.preview
                                         color: app.cFg
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(12)
                                         wrapMode: Text.WrapAnywhere
                                         maximumLineCount: 2
@@ -1542,7 +1543,7 @@ Variants {
                             visible: clipTab.shown.length === 0
                             text: app.clipItems.length === 0 ? "Nothing copied yet" : "No matches"
                             color: app.cFaint
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter

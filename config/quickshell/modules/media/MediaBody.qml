@@ -180,7 +180,7 @@ Item {
                         Text {
                             text: pl.modelData.name
                             color: pl.on ? app.cFg : app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                             font.bold: pl.on
                         }
@@ -253,7 +253,7 @@ Item {
                     Layout.fillWidth: true
                     text: mb.p?.identity ?? ""
                     color: app.cFaint
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     elide: Text.ElideRight
                 }
@@ -261,7 +261,7 @@ Item {
                     Layout.fillWidth: true
                     text: mb.p?.trackTitle || "Unknown track"
                     color: app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(18)
                     font.bold: true
                     elide: Text.ElideRight
@@ -273,7 +273,7 @@ Item {
                     visible: text !== ""
                     text: mb.p?.trackArtist ?? ""
                     color: app.mBlue
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(13)
                     elide: Text.ElideRight
                 }
@@ -282,7 +282,7 @@ Item {
                     visible: text !== ""
                     text: mb.p?.trackAlbum ?? ""
                     color: app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(11)
                     elide: Text.ElideRight
                 }
@@ -346,7 +346,7 @@ Item {
                 Layout.preferredWidth: 44
                 text: app.fmtTime(mb.frac * mb.len)
                 color: app.cDim
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: app.fs(11)
             }
 
@@ -406,7 +406,7 @@ Item {
                 horizontalAlignment: Text.AlignRight
                 text: app.fmtTime(mb.len)
                 color: app.cDim
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: app.fs(11)
             }
         }
@@ -433,7 +433,7 @@ Item {
                         : mb.app.lyricsState === "plain" ? "Lyrics (not timed)"
                         : "Lyrics"
                     color: mb.app.cDim
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: mb.app.fs(11)
                 }
                 // show or hide them
@@ -449,7 +449,7 @@ Item {
                         anchors.centerIn: parent
                         text: mb.app.lyricsOn ? "Hide" : "Show"
                         color: mb.app.cDim
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.weight: Font.Medium
                         font.pixelSize: mb.app.fs(11)
                     }
@@ -495,7 +495,7 @@ Item {
                     text: modelData.text !== "" ? modelData.text : "\u266a"
                     color: cur ? mb.app.cFg
                          : Qt.rgba(mb.app.cFg.r, mb.app.cFg.g, mb.app.cFg.b, Math.max(0.18, 0.55 - dist * 0.12))
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.weight: cur ? Font.DemiBold : Font.Normal
                     font.pixelSize: mb.app.fs(cur ? 15 : 12)
                     Behavior on color { ColorAnimation { duration: mb.app.animNormal } }
@@ -519,7 +519,7 @@ Item {
                     lineHeight: 1.25
                     text: mb.app.lyricsPlain
                     color: Qt.rgba(mb.app.cFg.r, mb.app.cFg.g, mb.app.cFg.b, 0.7)
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: mb.app.fs(12)
                 }
             }
@@ -572,7 +572,7 @@ Item {
                 horizontalAlignment: Text.AlignRight
                 text: Math.round((mb.p?.volume ?? 0) * 100) + "%"
                 color: app.cDim
-                font.family: "Inter"
+                font.family: Theme.uiFont
                 font.pixelSize: app.fs(11)
             }
         }

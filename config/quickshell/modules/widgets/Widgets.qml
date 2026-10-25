@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
 import qs.modules.plugins
+import qs.services
 
 // ============================================================
 //   DESKTOP WIDGETS
@@ -80,7 +81,7 @@ Variants {
                           ? "Drag widgets to move them. The \u00d7 removes one."
                           : "No widgets on this screen. Add some in Settings, Widgets."
                     color: app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(13)
                 }
                 Rectangle {
@@ -94,7 +95,7 @@ Variants {
                         anchors.centerIn: parent
                         text: "Done"
                         color: app.cOnAccent
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(13)
                         font.bold: true
                     }
@@ -230,7 +231,7 @@ Variants {
                                   ? Qt.formatDateTime(app.now, "HH:mm")
                                   : Qt.formatDateTime(app.now, "h:mm AP").split(" ")[0]
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(72)
                             font.weight: Font.Light
                         }
@@ -239,7 +240,7 @@ Variants {
                             anchors.baseline: clT.baseline
                             text: Qt.formatDateTime(app.now, "AP")
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(20)
                         }
                     }
@@ -247,7 +248,7 @@ Variants {
                         Layout.alignment: Qt.AlignHCenter
                         text: Qt.formatDateTime(app.now, "dddd, d MMMM")
                         color: app.cDim
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(15)
                     }
                 }
@@ -280,7 +281,7 @@ Variants {
                         Text {
                             text: app.wxOk ? app.wxTemp : "\u2014"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(34)
                             font.weight: Font.Light
                         }
@@ -288,7 +289,7 @@ Variants {
                             Layout.fillWidth: true
                             text: app.wxOk ? app.wxCond : (app.wxHasPlace ? "No weather yet" : "Set a location in Settings, Weather")
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                             elide: Text.ElideRight
                         }
@@ -296,7 +297,7 @@ Variants {
                             Layout.fillWidth: true
                             text: app.wxPlace + (app.wxOk ? ", feels " + app.wxFeel : "")
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(11)
                             elide: Text.ElideRight
                         }
@@ -340,7 +341,7 @@ Variants {
                     Text {
                         text: Qt.formatDateTime(app.now, "MMMM yyyy")
                         color: app.cFg
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(15)
                         font.bold: true
                     }
@@ -358,7 +359,7 @@ Variants {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: ["S", "M", "T", "W", "T", "F", "S"][dow]
                                 color: (dow === 0 || dow === 6) ? app.cPeach : app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(11)
                                 font.bold: true
                             }
@@ -378,7 +379,7 @@ Variants {
                                     text: parent.modelData.d
                                     color: parent.modelData.today ? app.cOnAccent
                                          : parent.modelData.hol ? app.cPeach : app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                     font.bold: parent.modelData.today === true
                                 }
@@ -432,13 +433,13 @@ Variants {
                                     Layout.fillWidth: true
                                     text: sysRow.row.k
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                 }
                                 Text {
                                     text: sysRow.row.t
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                     font.bold: true
                                 }
@@ -532,7 +533,7 @@ Variants {
                             Layout.fillWidth: true
                             text: app.player?.trackTitle || "Nothing playing"
                             color: app.cFg
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(15)
                             font.bold: true
                             elide: Text.ElideRight
@@ -542,7 +543,7 @@ Variants {
                             visible: text !== ""
                             text: app.player?.trackArtist ?? ""
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                             elide: Text.ElideRight
                         }
@@ -639,7 +640,7 @@ Variants {
                     anchors.margins: 20
                     text: parent.parent.entry?.text || ""
                     color: app.cFg
-                    font.family: "Inter"
+                    font.family: Theme.uiFont
                     font.pixelSize: app.fs(14)
                     wrapMode: Text.WordWrap
                     lineHeight: 1.2

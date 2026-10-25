@@ -51,7 +51,7 @@ RowLayout {
             anchors.centerIn: parent
             text: sl.label
             color: sl.muted ? sl.app.cFaint : sl.app.cFg
-            font.family: "Inter"
+            font.family: app.uiFont
             font.pixelSize: sl.app.fs(12)
             font.bold: true
         }

@@ -11,6 +11,7 @@ import "../../lib/models.mjs" as Models
 import "../../lib/keybinds.mjs" as Keybinds
 import qs.modules.plugins
 import qs.common.widgets
+import qs.services
 
 // ============================================================
 //   SETTINGS
@@ -621,14 +622,14 @@ Variants {
                                 Text {
                                     text: "Settings"
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(15)
                                     font.bold: true
                                 }
                                 Text {
                                     text: "Shell preferences"
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(11)
                                 }
                             }
@@ -662,7 +663,7 @@ Variants {
                             color: app.cFg
                             selectionColor: app.cBlue
                             selectedTextColor: app.cOnAccent
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(13)
                             clip: true
                             onTextChanged: win.query = text
@@ -717,7 +718,7 @@ Variants {
                                 wrapMode: Text.WordWrap
                                 text: "Nothing matches \u201c" + win.query.trim() + "\u201d"
                                 color: app.cDim
-                                font.family: "Inter"
+                                font.family: Theme.uiFont
                                 font.pixelSize: app.fs(12)
                             }
                             Repeater {
@@ -741,7 +742,7 @@ Variants {
                                             width: parent.width
                                             text: res.modelData.title
                                             color: res.on ? app.cFg : app.cDim
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(13)
                                             font.bold: res.on
                                             elide: Text.ElideRight
@@ -750,7 +751,7 @@ Variants {
                                             width: parent.width
                                             text: res.modelData.page + (res.modelData.section ? "  \u203a  " + res.modelData.section : "")
                                             color: app.cFaint
-                                            font.family: "Inter"
+                                            font.family: Theme.uiFont
                                             font.pixelSize: app.fs(11)
                                             elide: Text.ElideRight
                                         }
@@ -838,7 +839,7 @@ Variants {
                                         anchors.bottomMargin: 6
                                         text: navItem.modelData.sec ?? ""
                                         color: app.cFaint
-                                        font.family: "Inter"
+                                        font.family: Theme.uiFont
                                         font.pixelSize: app.fs(11)
                                     }
 
@@ -868,7 +869,7 @@ Variants {
                                                 Layout.fillWidth: true
                                                 text: navItem.modelData.t ?? ""
                                                 color: navItem.on ? app.cFg : app.cDim
-                                                font.family: "Inter"
+                                                font.family: Theme.uiFont
                                                 font.pixelSize: app.fs(13)
                                                 font.bold: navItem.on
                                             }
@@ -883,7 +884,7 @@ Variants {
                                                     anchors.centerIn: parent
                                                     text: navItem.badge
                                                     color: app.cDim
-                                                    font.family: "Inter"
+                                                    font.family: Theme.uiFont
                                                     font.pixelSize: app.fs(10)
                                                 }
                                             }
@@ -911,7 +912,7 @@ Variants {
                         Layout.bottomMargin: 12
                         text: armed ? "Click again to reset everything" : "Reset all"
                         color: armed ? app.cRed : resetHov.hovered ? app.cFg : app.cFaint
-                        font.family: "Inter"
+                        font.family: Theme.uiFont
                         font.pixelSize: app.fs(11)
                         font.bold: armed
                         HoverHandler { id: resetHov }
@@ -983,14 +984,14 @@ Variants {
                                 Text {
                                     text: win.pages[win.page].t
                                     color: app.cFg
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(22)
                                     font.bold: true
                                 }
                                 Text {
                                     text: win.pages[win.page].d
                                     color: app.cDim
-                                    font.family: "Inter"
+                                    font.family: Theme.uiFont
                                     font.pixelSize: app.fs(12)
                                 }
                             }

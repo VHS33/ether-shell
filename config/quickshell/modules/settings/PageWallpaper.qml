@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.common.widgets
+import qs.services
 
 ColumnLayout {
     // what the Settings window passes in (named so nothing in Settings can
@@ -160,7 +161,7 @@ ColumnLayout {
                             width: parent.width - 14
                             text: String(thumb.modelData).split("/").pop()
                             color: "white"
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(10)
                             elide: Text.ElideMiddle
                             horizontalAlignment: Text.AlignHCenter

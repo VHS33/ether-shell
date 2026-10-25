@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Mpris
+import qs.services
 
 // ============================================================
 //   CENTER PILL
@@ -85,7 +86,7 @@ Variants {
                         Text {
                             text: app.player?.trackTitle || "Unknown track"
                             color: winC.playing ? app.cFg : app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                             font.weight: Font.DemiBold
                         }
@@ -93,7 +94,7 @@ Variants {
                             visible: text !== ""
                             text: app.player?.trackArtist ?? ""
                             color: app.cDim
-                            font.family: "Inter"
+                            font.family: Theme.uiFont
                             font.pixelSize: app.fs(12)
                         }
                     }
