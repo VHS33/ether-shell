@@ -11,7 +11,7 @@ jobs:
   checks:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install the tools
         run: |
@@ -22,7 +22,7 @@ jobs:
             qml-qt6 qml6-module-qtquick qml6-module-qtqml-workerscript \
             libpipewire-0.3-dev libwayland-dev libwayland-bin libgl-dev
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -47,7 +47,7 @@ jobs:
           echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
           git config --system --add safe.directory '*'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0          # the whole history: the update starts from the release before
 
@@ -81,7 +81,7 @@ jobs:
 
       - name: Keep the logs and screenshot
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: install-test
           path: /tmp/ether-test

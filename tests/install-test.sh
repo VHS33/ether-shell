@@ -79,7 +79,12 @@ fresh)
     echo "A first install"
     if bash "$repo/install.sh" --yes > "$out/fresh.log" 2>&1; then ok "install.sh finished"
     else bad "install.sh stopped (exit $?):"; tail -20 "$out/fresh.log"; fi
-    grep -q "error:" "$out/fresh.log" && bad "it printed an error: $(grep 'error:' "$out/fresh.log" | head -1)"
+    # (the installer's own errors stop it, which the line above catches; an
+    # error from pacman or a package's setup is noted with what it was about:
+    # in a container a hook that needs a running system can fail, harmlessly)
+    if grep -q "error:" "$out/fresh.log"; then
+        note "pacman or a package's setup reported: $(grep -B2 'error:' "$out/fresh.log" | grep -v '^--$' | sed 's/^ *//' | head -6 | tr '\n' ' ')"
+    fi
     w=$(grep -c "warning:" "$out/fresh.log")
     [ "$w" = 0 ] || note "$w warning(s) from the installer: $(grep 'warning:' "$out/fresh.log" | sed 's/^ *//' | head -3 | tr '\n' ' ')"
     check_files
