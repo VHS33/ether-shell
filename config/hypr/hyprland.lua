@@ -467,7 +467,7 @@ hl.bind(key("files", mainMod .. " + E"), hl.dsp.exec_cmd(app(fileManager)),
 
 -- the shell's own launcher: apps, maths, emoji, clipboard, commands
 hl.bind("SUPER_L", hl.dsp.exec_cmd("qs ipc call launcher toggle"),
-    { release = true, ignore_mods = true, description = "Launcher (tap SUPER)" })
+    { release = true, ignore_mods = true, description = "Launcher (SUPER on its own)" })
 
 -- ---- windows --------------------------------------------------
 hl.bind(key("close", mainMod .. " + Q"), hl.dsp.window.close(),

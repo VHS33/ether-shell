@@ -159,11 +159,12 @@ if [ -n "$qml" ] && have node; then
     qt=$(QT_QPA_PLATFORM=offscreen timeout 20 "$qml" tests/qml/modules.qml 2>&1 | sed -n 's/.*RESULT //p')
     js=$(node --input-type=module -e '
         import * as C from "./config/quickshell/lib/colour.mjs"; import * as T from "./config/quickshell/lib/text.mjs"
-        import * as W from "./config/quickshell/lib/windows.mjs"; import * as S from "./config/quickshell/lib/settingsindex.mjs"
+        import * as W from "./config/quickshell/lib/windows.mjs"; import * as S from "./config/quickshell/lib/settingsindex.mjs" ; import * as SC from "./config/quickshell/lib/screens.mjs"
         console.log(JSON.stringify({ accents: [["#5d0d09","#1a1110"],["#2a568f","#111318"],["#d66c4c","#fff8f6"],["#808080","#101010"]].map(p => C.readableAccent(p[0], p[1])),
           text: C.textOn("#d66c4c","#1a110f","#f1dfda"), third: C.thirdAccent("#d66c4c","#c9c5a0","#3e79a3","scheme-content",true),
           typo: T.oneTypo("firefox","fierfox"), calc: T.calc("2^10 + sqrt(16)"), fromQt: C.readableAccent("#5d0d09","#1a1110"),
           win: [W.command("move to 4"), W.bareTitle("YouTube \u2014 Mozilla Firefox", "Firefox")],
+          scr: SC.tiles(SC.draftOf([{ name: "A", w: 2560, h: 1440, hz: 165, scale: 1, modes: ["2560x1440@165.00Hz", "1920x1080@60.00Hz"] }, { name: "B", w: 1920, h: 1080, hz: 60, scale: 1, modes: ["1920x1080@60.00Hz"] }]), { A: { x: 0, y: 0 }, B: { x: 2560, y: 0 } }, "A"),
           set: S.parsePage(`readonly property int pageNo: 11\nSectionLabel { text: "Pointer" }\nCard {\n title: "Natural scrolling"\n Seg {\n options: ["Off", "On"]\n current: app.cfg.naturalScroll === true ? 1 : 0\n onPicked: i => app.setting("naturalScroll", i === 1)\n }\n}\n`).entries }))')
     if [ -n "$qt" ] && [ "$qt" = "$js" ]; then ok "Qt and Node agree"; else bad "Qt: ${qt:-nothing}  Node: $js"; fi
 else skip "needs Qt's qml tool and node"; fi

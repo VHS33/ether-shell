@@ -78,10 +78,23 @@ function closing(src, open) {
         } else if (c === "/" && src[i + 1] === "*") {
             const e = src.indexOf("*/", i + 2)
             i = e < 0 ? src.length : e + 1
+        } else if (c === "/" && /[(,=:[!&|?{};]/.test(prevChar(src, i))) {
+            // a pattern (/'/g): its quotes and braces aren't code
+            for (i++; i < src.length && src[i] !== "/" && src[i] !== "\n"; i++) {
+                if (src[i] === "\\") i++
+                else if (src[i] === "[") { while (i < src.length && src[i] !== "]" && src[i] !== "\n") i++ }
+            }
         } else if (c === "{") depth++
         else if (c === "}" && --depth === 0) return i + 1
     }
     return -1
+}
+
+// the last character before i that isn't a space (what comes before a "/"
+// tells a pattern from a division)
+function prevChar(src, i) {
+    for (let j = i - 1; j >= 0; j--) if (!/\s/.test(src[j])) return src[j]
+    return ""
 }
 
 // a card's own lines: its block without the blocks inside it
@@ -139,7 +152,8 @@ function objects(src) {
         if (/\/\/|^\s*\*/.test(before) || (before.split('"').length - 1) % 2 === 1) continue
         const open = m.index + m[0].length - 1
         const end = closing(src, open)
-        if (end < 0) break
+        // one that can't be read is left out, not the rest of the page
+        if (end < 0) continue
         out.push({ type: m[1], start: m.index, open, end })
     }
     return out

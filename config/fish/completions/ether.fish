@@ -13,6 +13,7 @@ complete -c ether -n __fish_use_subcommand -s d -d 'Check the whole setup (docto
 complete -c ether -n __fish_use_subcommand -s u -d 'Update to the newest version'
 complete -c ether -n '__fish_seen_subcommand_from update -u' -l yes -d "Don't ask first"
 complete -c ether -n __fish_use_subcommand -a restart   -d 'Restart the shell'
+complete -c ether -n __fish_use_subcommand -a welcome   -d 'The first-run setup again'
 complete -c ether -n __fish_use_subcommand -a perf      -d 'Where its memory and time go'
 complete -c ether -n __fish_use_subcommand -a wallpaper -d 'Set a wallpaper, or open the selector'
 complete -c ether -n __fish_use_subcommand -a theme     -d 'Theme everything again from the wallpaper'

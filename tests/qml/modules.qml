@@ -14,6 +14,7 @@ import "../../config/quickshell/lib/overlay.mjs" as OverlayLib
 import "../../config/quickshell/lib/profiles.mjs" as ProfilesLib
 import "../../config/quickshell/lib/windows.mjs" as WinLib
 import "../../config/quickshell/lib/settingsindex.mjs" as SetIndex
+import "../../config/quickshell/lib/screens.mjs" as ScreensLib
 // the shipped plugins' own modules too
 import "../../plugins/countdown/Countdown.mjs" as CountdownLib
 QtObject {
@@ -28,6 +29,7 @@ QtObject {
             fromQt: Colour.readableAccent(Qt.color("#5d0d09").toString(), Qt.color("#1a1110").toString()),
             // run, not only read: a function Qt's engine lacks (matchAll) only fails when called
             win: [WinLib.command("move to 4"), WinLib.bareTitle("YouTube \u2014 Mozilla Firefox", "Firefox")],
+            scr: ScreensLib.tiles(ScreensLib.draftOf([{ name: "A", w: 2560, h: 1440, hz: 165, scale: 1, modes: ["2560x1440@165.00Hz", "1920x1080@60.00Hz"] }, { name: "B", w: 1920, h: 1080, hz: 60, scale: 1, modes: ["1920x1080@60.00Hz"] }]), { A: { x: 0, y: 0 }, B: { x: 2560, y: 0 } }, "A"),
             set: SetIndex.parsePage('readonly property int pageNo: 11\nSectionLabel { text: "Pointer" }\nCard {\n title: "Natural scrolling"\n Seg {\n options: ["Off", "On"]\n current: app.cfg.naturalScroll === true ? 1 : 0\n onPicked: i => app.setting("naturalScroll", i === 1)\n }\n}\n').entries
         }
         console.log("RESULT " + JSON.stringify(out))

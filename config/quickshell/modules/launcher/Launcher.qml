@@ -358,6 +358,7 @@ Variants {
             { title: "Restart",              glyph: "restart_alt",        act: "reboot" },
             { title: "Power off",            glyph: "power_settings_new", act: "poweroff" },
             { title: "Settings",             glyph: "settings",           act: "settings" },
+            { title: "Welcome setup",        glyph: "waving_hand",        act: "welcome" },
             { title: "Change wallpaper",     glyph: "wallpaper",          act: "wallpaper" },
             { title: "Screenshot a region",  glyph: "screenshot_region",  act: "shot" },
             { title: "Screenshot the screen",glyph: "screenshot_monitor", act: "shotfull" },
@@ -629,6 +630,7 @@ Variants {
                 if (a === "lock") sh("sleep 0.3; \"$HOME/.local/bin/lock\" || loginctl lock-session")
                 else if (a === "logout" || a === "reboot" || a === "poweroff") app.powerShown = true
                 else if (a === "settings") app.settingsShown = true
+                else if (a === "welcome") app.openWelcome()
                 else if (a === "wallpaper") { app.settingsPage = 3; app.settingsShown = true }
                 else if (a === "shot") sh("sleep 0.4; $HOME/.local/bin/shot")
                 else if (a === "shotfull") sh("sleep 0.4; $HOME/.local/bin/shot full")

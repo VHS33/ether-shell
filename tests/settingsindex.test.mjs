@@ -119,6 +119,7 @@ test("the real pages: settings are found, messages aren't", () => {
     assert.ok(find("Mouse", "Cursor size"))
     assert.ok(find("General", "Font"))
     assert.ok(find("Game overlay", "Layout"))           // only shows while the overlay is on: still found
+    assert.ok(find("About", "Welcome setup"))           // the first-run setup, again
     assert.equal(find("Mouse", "Natural scrolling").sw.key, "naturalScroll")
     for (const t of ["Nothing is playing", "No app is recording", "No widgets yet",
                      "MangoHud isn't installed", "Restart Steam once", "Keep these display settings?"])

@@ -98,6 +98,8 @@ Singleton {
     // almost empty one.  A file that can't be understood is never written
     // over: it's renamed settings.json.broken-<date> and you're told.
     property bool loaded: false
+    // no settings file at start-up: a new install (the welcome shows)
+    property bool firstRun: false
     property bool earlyChanges: false      // something changed before `loaded`
     property var earlyResets: []           // keys reset before `loaded`
     property bool earlyResetAll: false
@@ -196,7 +198,7 @@ Singleton {
         const body = nl < 0 ? "" : text.slice(nl + 1).trim()
 
         if (head === "NONE") {
-            if (!loaded) afterFirstRead({})
+            if (!loaded) { firstRun = true; afterFirstRead({}) }
             else user = ({})
             return
         }

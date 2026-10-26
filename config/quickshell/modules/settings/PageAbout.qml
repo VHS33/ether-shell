@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.common.widgets
 import qs.services
 
@@ -58,10 +59,17 @@ ColumnLayout {
 
     SectionLabel { app: settingsRoot.app; text: "Software" }
 
+    // the version that came with the shell's files (as ether -d shows it)
+    FileView {
+        id: versionFile
+        path: Quickshell.shellPath("VERSION")
+        blockLoading: false
+    }
     Card {
         app: settingsRoot.app
         title: "Desktop"
-        desc: "Hyprland " + (app.aboutInfo.hyprland || "?")
+        desc: (versionFile.text().trim() ? "Ether Shell " + versionFile.text().trim() + ", " : "")
+              + "Hyprland " + (app.aboutInfo.hyprland || "?")
               + ", " + (app.aboutInfo.quickshell || "Quickshell")
               + (app.aboutInfo.shell ? ", " + app.aboutInfo.shell + " shell" : "")
         trailing: [
@@ -80,6 +88,19 @@ ColumnLayout {
                     else
                         app.run("xdg-open \"$HOME/.config/quickshell\"")
                 }
+            }
+        ]
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "Welcome setup"
+        desc: "The first-run setup again: your wallpaper and colours, which screen gets the bar, and the weather."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Run it again"]
+                onPicked: { app.settingsShown = false; app.openWelcome() }
             }
         ]
     }

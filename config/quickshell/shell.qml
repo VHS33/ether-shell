@@ -37,6 +37,7 @@ import qs.modules.widgets
 import qs.modules.backdrop
 // the lock screen's folder (loaded by path below, so a fault in it can't stop the shell)
 import qs.modules.lock
+import qs.modules.welcome
 
 ShellRoot {
     id: root
@@ -898,6 +899,34 @@ ShellRoot {
     // drift from the real config.
     // settings panel; the audio pages live inside it
     property bool settingsShown: false
+    // ---- the welcome (modules/welcome): first-run setup ----
+    // A new install saves welcomeDone: false; while it's false the welcome
+    // shows at start-up (so a restart mid-setup brings it back).  Settings
+    // from before it existed have no welcomeDone, so it never shows there
+    // by itself.  welcomePage: where it is, kept here so it carries on if
+    // the bar moves to another screen.
+    property bool welcomeShown: false
+    property int welcomePage: 0
+    function openWelcome() { welcomePage = 0; welcomeShown = true }
+    function welcomeCheck() {
+        if (!Config.loaded) return
+        if (Config.firstRun && Config.cfg.welcomeDone === undefined) Config.setting("welcomeDone", false)
+        welcomeSoon.restart()
+    }
+    // (settings can finish loading before or after the shell is built)
+    Connections { target: Config; function onLoadedChanged() { root.welcomeCheck() } }
+    // a moment after start-up, once the bar and wallpaper are up
+    Timer {
+        id: welcomeSoon
+        interval: 2500
+        onTriggered: if (Config.cfg.welcomeDone === false) root.welcomeShown = true
+        Component.onCompleted: root.welcomeCheck()
+    }
+    IpcHandler {
+        target: "welcome"
+        function open(): void { root.openWelcome() }
+        function close(): void { root.welcomeShown = false }
+    }
     // 0 general, 1 glass, 2 theme, 3 wallpaper, 4 bar, 5 windows,
     // 6 dock, 7 notifications, 8 idle, 9 displays, 10 keyboard,
     // 11 mouse, 12 output, 13 apps, 14 input, 15 recording,
@@ -1478,6 +1507,7 @@ ShellRoot {
     Osd { app: root }
     Cheatsheet { app: root }
     SettingsPanel { app: root }
+    Welcome { app: root }
     DisplayConfirm { app: root }          // "Keep these display settings?" after Apply
     // The lock screen (qs ipc call lock lock), loaded on its own: if it ever
     // fails to load, the rest of the shell still starts (the error is in
@@ -1599,7 +1629,8 @@ ShellRoot {
     function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) { return Wallpaper.wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) }
     Binding { target: Wallpaper; property: "nativeItem"; value: root.nativeOk ? nativeLoader.item : null }
     Binding { target: Wallpaper; property: "mainScreen"; value: root.mainScreen }
-    Binding { target: Wallpaper; property: "listing"; value: root.settingsShown && root.settingsPage === 3 }
+    // (the welcome's Your look page lists them too)
+    Binding { target: Wallpaper; property: "listing"; value: (root.settingsShown && root.settingsPage === 3) || root.welcomeShown }
     Connections {
         target: Wallpaper
         function onWidgetsShouldMove() { arrangeLater.restart() }

@@ -6,6 +6,7 @@
 #   ether update, ether -u        update to the newest version (asks first;
 #                                 -u --yes doesn't)
 #   ether restart                 restart the shell
+#   ether welcome                 the first-run setup again
 #   ether wallpaper FILE          set a wallpaper (a path, or a name from
 #                                 ~/Pictures/wallpapers), and theme from it
 #   ether wallpaper random        a random one from ~/Pictures/wallpapers
@@ -356,7 +357,7 @@ update() {
     else exec bash "$src/install.sh" --update; fi
 }
 
-usage() { sed -n '4,20s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '4,21s/^# \{0,1\}//p' "$0"; }
 plugins="$HOME/.config/ether-shell/plugins"
 
 # ---- ether perf: where the shell's memory and time go ----
@@ -545,6 +546,7 @@ case "${1:-}" in
     update|-u) shift; update "$@" ;;
     perf) perf "${2:-}" ;;
     restart) exec "$bin/ether-shell" ;;
+    welcome) needs_shell; exec qs ipc call welcome open ;;
     theme) needs_shell; exec qs ipc call wallpaper reapply ;;
     wallpaper)
         case "${2:-}" in
