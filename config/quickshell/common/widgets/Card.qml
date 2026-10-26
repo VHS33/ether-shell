@@ -17,8 +17,12 @@ Rectangle {
     radius: 18
     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
-    // search finds settings by these (see win.searchIndex)
+    // search finds settings by these (see win.searchIndex, and the
+    // launcher's lib/settingsindex.mjs, which reads the page files)
     readonly property bool settingCard: true
+    // false for a message rather than a setting ("Nothing is playing"),
+    // so searches don't offer it.  Written as plain `searchable: false`.
+    property bool searchable: true
     // a moment's outline, when search brings you here
     property bool flash: false
     Rectangle {

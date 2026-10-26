@@ -34,6 +34,7 @@ ColumnLayout {
         visible: app.gameHud !== "off" && !app.mangoOk
         color: Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.14)
         title: "MangoHud isn't installed"
+        searchable: false
         desc: "It draws the overlay. Install it (both parts, for 64 and 32-bit games): sudo pacman -S mangohud lib32-mangohud"
         trailing: [
             Seg { app: settingsRoot.app; options: ["Copy the command"]; current: -1; onPicked: app.copyText("sudo pacman -S mangohud lib32-mangohud") }
@@ -43,6 +44,7 @@ ColumnLayout {
         app: settingsRoot.app
         visible: app.gameHud === "steam"
         title: "Restart Steam once"
+        searchable: false
         desc: "Then every game Steam starts has the overlay (Steam's own windows don't). Start Steam from the launcher or the dock; if it starts with your computer, quit it and start it again from there."
     }
     Card {

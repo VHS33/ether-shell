@@ -115,6 +115,7 @@ ColumnLayout {
         app: settingsRoot.app
         visible: app.widgets.length === 0
         title: "No widgets yet"
+        searchable: false
         desc: "Add one above, then use Arrange to put it where you want it."
     }
 

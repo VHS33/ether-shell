@@ -17,7 +17,7 @@ qtbin() { for p in "$(command -v "$1" 2>/dev/null)" "/usr/lib/qt6/bin/$1" "/usr/
 
 echo "Shell scripts (shellcheck)"
 if have shellcheck; then
-    for f in install.sh local/bin/* config/ether-greeter/start tests/run.sh; do
+    for f in install.sh local/bin/* config/ether-greeter/start tests/run.sh tests/install-test.sh; do
         head -1 "$f" | grep -qE '^#!.*(sh|bash)' || continue
         out=$(shellcheck -S warning "$f" 2>&1) && ok "$f" || { bad "$f"; echo "$out" | head -20; }
     done
@@ -159,9 +159,12 @@ if [ -n "$qml" ] && have node; then
     qt=$(QT_QPA_PLATFORM=offscreen timeout 20 "$qml" tests/qml/modules.qml 2>&1 | sed -n 's/.*RESULT //p')
     js=$(node --input-type=module -e '
         import * as C from "./config/quickshell/lib/colour.mjs"; import * as T from "./config/quickshell/lib/text.mjs"
+        import * as W from "./config/quickshell/lib/windows.mjs"; import * as S from "./config/quickshell/lib/settingsindex.mjs"
         console.log(JSON.stringify({ accents: [["#5d0d09","#1a1110"],["#2a568f","#111318"],["#d66c4c","#fff8f6"],["#808080","#101010"]].map(p => C.readableAccent(p[0], p[1])),
           text: C.textOn("#d66c4c","#1a110f","#f1dfda"), third: C.thirdAccent("#d66c4c","#c9c5a0","#3e79a3","scheme-content",true),
-          typo: T.oneTypo("firefox","fierfox"), calc: T.calc("2^10 + sqrt(16)"), fromQt: C.readableAccent("#5d0d09","#1a1110") }))')
+          typo: T.oneTypo("firefox","fierfox"), calc: T.calc("2^10 + sqrt(16)"), fromQt: C.readableAccent("#5d0d09","#1a1110"),
+          win: [W.command("move to 4"), W.bareTitle("YouTube \u2014 Mozilla Firefox", "Firefox")],
+          set: S.parsePage(`readonly property int pageNo: 11\nSectionLabel { text: "Pointer" }\nCard {\n title: "Natural scrolling"\n Seg {\n options: ["Off", "On"]\n current: app.cfg.naturalScroll === true ? 1 : 0\n onPicked: i => app.setting("naturalScroll", i === 1)\n }\n}\n`).entries }))')
     if [ -n "$qt" ] && [ "$qt" = "$js" ]; then ok "Qt and Node agree"; else bad "Qt: ${qt:-nothing}  Node: $js"; fi
 else skip "needs Qt's qml tool and node"; fi
 

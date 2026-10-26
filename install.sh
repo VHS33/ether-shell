@@ -8,6 +8,10 @@
 #   ./install.sh --dry-run    show what would happen, change nothing
 #   ./install.sh --no-packages  skip package installation
 #   ./install.sh --yes        don't ask before installing packages
+#   ./install.sh --update     the quick way, for an update (what `ether -u`
+#                             runs): no first-time setup, your wallpaper and
+#                             look kept, the native plugin rebuilt only if it
+#                             changed
 #
 #   Needs an Arch-based system (Arch, EndeavourOS, CachyOS, ...) and
 #   Hyprland 0.55 or newer, which uses a Lua config.
@@ -23,14 +27,16 @@ if [ -n "$SELF" ] && [ -f "$SELF" ]; then
 else
     HERE="$(pwd)"
 fi
-REPO_URL="https://github.com/VHS33/ether-shell.git"
-DRY=0; PKGS=1; YES=0
+# (ETHER_REPO: another copy to fetch from, for testing)
+REPO_URL="${ETHER_REPO:-https://github.com/VHS33/ether-shell.git}"
+DRY=0; PKGS=1; YES=0; UPD=0
 for a in "$@"; do
     case "$a" in
         --dry-run)     DRY=1 ;;
         --no-packages) PKGS=0 ;;
         --yes|-y)      YES=1 ;;
-        -h|--help)     sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --update)      UPD=1 ;;
+        -h|--help)     sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $a (try --help)"; exit 1 ;;
     esac
 done
@@ -68,6 +74,15 @@ if [ ! -d "$HERE/config/quickshell" ]; then
         exec bash "$SRC/install.sh" "$@"
     fi
 fi
+
+# ---- which version this is (config/quickshell/VERSION, installed with the
+# shell's files, so it's there however they got there), and what's installed now ----
+# (not $VERSION: /etc/os-release, read below, can set that)
+ETHER_VERSION="$(head -1 "$HERE/config/quickshell/VERSION" 2>/dev/null || true)"; ETHER_VERSION="${ETHER_VERSION:-unknown}"
+STATE="$HOME/.local/state/ether-shell/installed"
+# (|| true: no record yet, on a first install, isn't an error)
+was() { sed -n "s/^$1=//p" "$STATE" 2>/dev/null | head -1 || true; }
+OLDVER="$(head -1 "$HOME/.config/quickshell/VERSION" 2>/dev/null || true)"; [ -n "$OLDVER" ] || OLDVER="$(was version)"
 
 # ---- output ----------------------------------------------------
 if [ -t 1 ]; then B=$'\e[1m'; D=$'\e[2m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; N=$'\e[0m'
@@ -113,7 +128,11 @@ banner() {
     done
     printf '\n   %sa Hyprland desktop, built on Quickshell%s\n' "$D" "$N"
 }
-banner
+if [ "$UPD" = 1 ]; then
+    printf '\n%sUpdating Ether Shell%s  %s -> %s\n' "$B" "$N" "${OLDVER:-unknown}" "$ETHER_VERSION"
+else
+    banner
+fi
 [ "$DRY" = 1 ] && info "${Y}Dry run: nothing will be changed.${N}"
 
 # ---- checks ----------------------------------------------------
@@ -124,8 +143,8 @@ if [ -r /etc/os-release ]; then
     . /etc/os-release
 fi
 case " ${ID:-} ${ID_LIKE:-} " in
-    *" arch "*) info "Arch-based system: ${PRETTY_NAME:-unknown}" ;;
-    *) [ -f /etc/arch-release ] && info "Arch-based system" \
+    *" arch "*) [ "$UPD" = 1 ] || info "Arch-based system: ${PRETTY_NAME:-unknown}" ;;
+    *) [ -f /etc/arch-release ] && { [ "$UPD" = 1 ] || info "Arch-based system"; } \
          || die "This installer is for Arch-based systems (Arch, EndeavourOS, CachyOS...)." ;;
 esac
 command -v pacman >/dev/null || die "pacman not found."
@@ -264,7 +283,7 @@ if command -v Hyprland >/dev/null; then
         if [ "$maj" -eq 0 ] && [ "$min" -lt 55 ]; then
             warn "Hyprland $hv found. Ether Shell's config is Lua, which needs 0.55 or newer."
         else
-            info "Hyprland $hv"
+            [ "$UPD" = 1 ] || info "Hyprland $hv"
         fi
     fi
 fi
@@ -294,7 +313,7 @@ if [ -z "$qs_ver" ]; then
 elif [ "$(printf '%s\n0.2\n' "$qs_ver" | sort -V | head -1)" != "0.2" ]; then
     die "Quickshell $qs_ver is too old: Ether Shell needs 0.2 or newer. Update it: sudo pacman -Syu quickshell"
 else
-    info "Quickshell $qs_ver (0.2 or newer, as the shell needs)"
+    [ "$UPD" = 1 ] || info "Quickshell $qs_ver (0.2 or newer, as the shell needs)"
 fi
 
 step "Installing configs"
@@ -420,7 +439,7 @@ fi
 # the example plugins (off until switched on in Settings, Plugins); plugins
 # already there are never overwritten
 if [ -d "$HERE/plugins" ]; then
-    info "Example plugins in ~/.config/ether-shell/plugins (off until you switch them on)"
+    [ "$UPD" = 1 ] || info "Example plugins in ~/.config/ether-shell/plugins (off until you switch them on)"
     run mkdir -p "$HOME/.config/ether-shell/plugins"
     for pd in "$HERE"/plugins/*/; do
         name=$(basename "$pd")
@@ -445,7 +464,13 @@ fi
 # readers, so a failure here only costs a little efficiency.
 step "Building the native plugin"
 qmldir="$HOME/.local/lib/ether-shell/qml"
-if command -v cmake >/dev/null 2>&1 && command -v c++ >/dev/null 2>&1; then
+# a fingerprint of its code: an update rebuilds it only when that changed
+native_hash() { (cd "$HERE/native" 2>/dev/null && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16); }
+NHASH="$(native_hash || true)"
+if [ "$UPD" = 1 ] && [ -n "$NHASH" ] && [ "$NHASH" = "$(was native)" ] \
+        && [ -f "$qmldir/Ether/Native/qmldir" ]; then
+    info "Unchanged since last time, so not rebuilt"
+elif command -v cmake >/dev/null 2>&1 && command -v c++ >/dev/null 2>&1; then
     nb="$(mktemp -d)"
     if run cmake -S "$HERE/native" -B "$nb" -DCMAKE_BUILD_TYPE=Release -DETHER_QML_DIR="$qmldir" >/dev/null \
             && run cmake --build "$nb" -j"$(nproc)" >/dev/null \
@@ -464,7 +489,47 @@ run mkdir -p "$HOME/Pictures/wallpapers" "$HOME/Pictures/screenshots"
 for w in "$HERE"/wallpapers/*; do
     [ -e "$HOME/Pictures/wallpapers/$(basename "$w")" ] || run cp "$w" "$HOME/Pictures/wallpapers/"
 done
-info "Three Ether Shell wallpapers are in ~/Pictures/wallpapers. Add your own there too."
+[ "$UPD" = 1 ] || info "Three Ether Shell wallpapers are in ~/Pictures/wallpapers. Add your own there too."
+
+# folders matugen writes themes into, so it needn't create them itself
+# (~/.config/ether: fzf's colours, read by the terminal additions)
+run mkdir -p "$HOME/.cache/ether" "$HOME/.config/btop/themes" "$HOME/.config/ether"
+
+# ---- what's installed now: what `ether -u` and the doctor compare with ----
+record() {
+    [ "$DRY" = 1 ] && return
+    local commit=""
+    commit="$(git -C "$HERE" rev-parse HEAD 2>/dev/null || true)"
+    mkdir -p "$(dirname "$STATE")"
+    { echo "# what Ether Shell installed last (install.sh); ether -u and ether -d read it"
+      echo "version=$ETHER_VERSION"
+      echo "commit=$commit"
+      echo "native=$NHASH"
+      echo "when=$(date '+%Y-%m-%d %H:%M')"
+    } > "$STATE"
+}
+
+# ---- an update: the new files in use, the rest left as you have it ----
+if [ "$UPD" = 1 ]; then
+    record
+    step "Putting it in use"
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        run hyprctl reload >/dev/null || true
+        # your wallpaper's colours again, through the new version's templates
+        wall="$(cat "$HOME/.cache/wallpaper" 2>/dev/null || true)"
+        if [ -n "$wall" ] && [ -f "$wall" ]; then
+            run "$HOME/.local/bin/setwall" --theme-only "$wall" < /dev/null >/dev/null 2>&1 || warn "Couldn't theme from your wallpaper again; pick it again in the wallpaper selector."
+        fi
+        if pgrep -x quickshell >/dev/null 2>&1; then
+            info "Restarting the shell, so it runs the new files together"
+            run "$HOME/.local/bin/ether-shell"
+        fi
+    else
+        info "Not inside Hyprland right now: it all takes effect when you log in."
+    fi
+    printf '\n%s%sEther Shell is updated to %s.%s\n' "$G" "$B" "$ETHER_VERSION" "$N"
+    exit 0
+fi
 
 # ---- one-time system setup ------------------------------------------
 step "System setup"
@@ -496,10 +561,6 @@ if ! systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
     warn "NetworkManager isn't running, so the Wi-Fi tile and network speeds won't show."
     info "If nothing else manages your network, turn it on with: sudo systemctl enable --now NetworkManager"
 fi
-
-# folders matugen writes themes into, so it needn't create them itself
-# (~/.config/ether: fzf's colours, read by the terminal additions)
-run mkdir -p "$HOME/.cache/ether" "$HOME/.config/btop/themes" "$HOME/.config/ether"
 
 # btop: use the wallpaper's colours (the theme matugen writes)
 bt="$HOME/.config/btop/btop.conf"
@@ -549,6 +610,8 @@ else
     info "Not inside Hyprland right now, so this waits until you log in."
     info "After logging in, run:  setwall ~/Pictures/wallpapers/ether-nightfall.jpg"
 fi
+
+record
 
 # ---- done ------------------------------------------------------------
 cat << DONE

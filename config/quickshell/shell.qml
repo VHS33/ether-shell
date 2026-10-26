@@ -904,6 +904,8 @@ ShellRoot {
     // 16 weather, 17 calendar, 18 about, 19 widgets, 20 lock screen,
     // 21 default apps
     property int settingsPage: 0
+    // a setting's title to open Settings at, outlined (the launcher sets it)
+    property string settingsFocus: ""
 
     property bool cheatShown: false
     onCheatShownChanged: if (cheatShown) Shortcuts.refreshCheat()

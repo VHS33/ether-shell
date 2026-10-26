@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Pipewire
 import "../../lib/search.mjs" as SearchLib
+import "../../lib/settingsindex.mjs" as SetIndex
 import "../../lib/layout.mjs" as LayoutLib
 import "../../lib/models.mjs" as Models
 import "../../lib/keybinds.mjs" as Keybinds
@@ -141,6 +142,7 @@ Variants {
             function onKeysCapturingChanged() { if (!app.keysCapturing && win.kbCapture !== "") { win.kbCapture = ""; kbTimeout.stop() } }
             function onSettingsShownChanged() { if (!app.settingsShown) win.endKeyCapture() }
             function onSettingsPageChanged() { win.endKeyCapture() }
+            function onSettingsFocusChanged() { if (app.settingsFocus !== "") focusSoon.restart() }
         }
         // a key as Hyprland names it ("" for a modifier on its own).  With
         // SHIFT held, Qt reports the symbol; this gives back the key itself.
@@ -202,7 +204,7 @@ Variants {
                     for (let k = 0; k < it.children.length; k++) {
                         const c = it.children[k]
                         if (c.sectionLabel) { section = c.text; continue }
-                        if (c.settingCard && c.title) {
+                        if (c.settingCard && c.title && c.searchable) {
                             out.push({ title: c.title, desc: c.desc, section: section,
                                        page: (win.pages[pg.pageNo] || {}).t || "", pageNo: pg.pageNo, item: c })
                         }
@@ -224,12 +226,25 @@ Variants {
             goTo.target = r.item
             goTo.restart()
         }
+        // the launcher asked for a setting (app.settingsFocus: its title):
+        // find it on its page once that's laid out
+        function focusAsked() {
+            const t = app.settingsFocus
+            if (t === "") return
+            app.settingsFocus = ""
+            const hit = searchIndex().find(e => e.pageNo === app.settingsPage && e.title === t)
+            if (hit) openResult(hit)
+        }
+        Timer { id: focusSoon; interval: 120; onTriggered: win.focusAsked() }
+        Component.onCompleted: if (app.settingsFocus !== "") focusSoon.restart()
         Timer {
             id: goTo
             property var target: null
             interval: 60                    // once the page has laid out
             onTriggered: {
                 if (!target) return
+                // one that isn't showing now (Game overlay off...): the page's top
+                if (!target.visible) { flick.contentY = 0; return }
                 const y = target.mapToItem(pagesCol, 0, 0).y - 16
                 flick.contentY = Math.max(0, Math.min(y, flick.contentHeight - flick.height))
                 target.flash = true
@@ -243,34 +258,8 @@ Variants {
         readonly property var sinkAu: sink?.audio ?? null
         readonly property var sourceAu: source?.audio ?? null
 
-        readonly property var pages: [
-            { t: "General",        d: "File search, the clipboard, and text across the whole shell" },
-            { t: "Glass",          d: "How far the desktop shows through" },
-            { t: "Theme",          d: "How colours are drawn from the wallpaper" },
-            { t: "Wallpaper",      d: "The image everything takes its colours from" },
-            { t: "Bar",            d: "The clock and what the top bar shows" },
-            { t: "Windows",        d: "Spacing, shape and motion for app windows" },
-            { t: "Dock",           d: "The window dock, along the bottom or down a side" },
-            { t: "Notifications",  d: "Popups and on-screen indicators" },
-            { t: "Idle",           d: "Locking, screens off and sleep when you step away; power saver on laptops" },
-            { t: "Displays",       d: "Arrange your screens by dragging, and each one's resolution, refresh, scale and rotation" },
-            { t: "Keyboard",       d: "How keys repeat when held" },
-            { t: "Mouse",          d: "Pointer speed, scrolling and focus" },
-            { t: "Output",         d: "Where sound plays and how loud it is" },
-            { t: "Applications",   d: "Volume for each app that is playing sound" },
-            { t: "Input",          d: "Which microphone is used and its level" },
-            { t: "Recording apps", d: "Apps currently listening to a microphone" },
-            { t: "Weather",        d: "Where the forecast is for, and its units" },
-            { t: "Calendar",       d: "Holidays and the first day of the week" },
-            { t: "About",          d: "This machine and the software running it" },
-            { t: "Widgets",        d: "Clocks, weather and more on the desktop, behind your windows" },
-            { t: "Lock screen",    d: "What you see when the screen is locked" },
-            { t: "Default apps",   d: "Which terminal, file manager and browser open" },
-            { t: "AI assistant",   d: "Which AI answers in the assistant panel, and your key for it" },
-            { t: "Plugins",        d: "Add-ons from other people (or you): bar items, launcher results, widgets and settings" },
-            { t: "Keybinds",       d: "Every shortcut, and changing them" },
-            { t: "Game overlay",   d: "Frame rate, GPU and CPU on top of your games, in your theme" }
-        ]
+        // the pages' names and what each is for (shared with the launcher)
+        readonly property var pages: SetIndex.PAGES
 
         // (one handler only: a second one stops the whole panel loading)
         onPageChanged: {

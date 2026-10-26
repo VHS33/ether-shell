@@ -28,3 +28,60 @@ jobs:
 
       - name: Run every check
         run: tests/run.sh
+
+  # A real install on a clean Arch machine (tests/install-test.sh): a first
+  # install, the same again, an update from the release before, ether -u never
+  # going backwards, and the shell starting on a test desktop.  The logs, the
+  # shell's warnings and a screenshot are kept with the run (Artifacts).
+  install:
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    timeout-minutes: 45
+    steps:
+      - name: Prepare Arch
+        run: |
+          # (in a container pacman can't tell how much disk is free)
+          sed -i 's/^CheckSpace/#CheckSpace/' /etc/pacman.conf
+          pacman -Syu --noconfirm --needed git sudo base-devel sway grim dbus
+          useradd -m tester
+          echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
+          git config --system --add safe.directory '*'
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the whole history: the update starts from the release before
+
+      - name: Hand it to a normal user
+        run: |
+          cp -a "$GITHUB_WORKSPACE" /home/tester/ether-shell
+          chown -R tester:tester /home/tester/ether-shell
+
+      - name: A first install
+        run: sudo -u tester -H bash -c 'cd ~/ether-shell && tests/install-test.sh fresh'
+
+      - name: The same again changes nothing
+        run: sudo -u tester -H bash -c 'cd ~/ether-shell && tests/install-test.sh again'
+
+      - name: Updating from the release before
+        run: sudo -u tester -H bash -c 'cd ~/ether-shell && tests/install-test.sh upgrade'
+
+      - name: The shell starts
+        run: sudo -u tester -H bash -c 'cd ~/ether-shell && tests/install-test.sh start'
+
+      - name: The shell's warnings
+        if: always()
+        run: |
+          {
+            echo "### The shell's warnings on the test desktop"
+            echo "(no Hyprland or system services there, so some are expected)"
+            echo '```'
+            cat /tmp/ether-test/warnings.txt 2>/dev/null || echo "(it didn't get that far)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the logs and screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-test
+          path: /tmp/ether-test

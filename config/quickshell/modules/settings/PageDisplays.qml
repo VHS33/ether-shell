@@ -22,6 +22,7 @@ ColumnLayout {
         visible: app.revertLeft > 0
         color: Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.18)
         title: "Keep these display settings?"
+        searchable: false
         desc: "Going back to the previous settings in " + app.revertLeft
               + (app.revertLeft === 1 ? " second." : " seconds.")
         trailing: [

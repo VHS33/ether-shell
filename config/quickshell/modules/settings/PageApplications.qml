@@ -20,6 +20,7 @@ ColumnLayout {
         app: settingsRoot.app
         visible: settingsWin.count(settingsWin.isPlay) === 0
         title: "Nothing is playing"
+        searchable: false
         desc: "Apps appear here while they play sound, each with its own volume."
     }
 

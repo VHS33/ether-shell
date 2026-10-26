@@ -1,7 +1,10 @@
 #!/bin/sh
 # ether: Ether Shell's own command.
 #
-#   ether doctor                  check the whole setup (it only looks)
+#   ether doctor, ether -d        check the whole setup (it only looks),
+#                                 and whether there's a newer version
+#   ether update, ether -u        update to the newest version (asks first;
+#                                 -u --yes doesn't)
 #   ether restart                 restart the shell
 #   ether wallpaper FILE          set a wallpaper (a path, or a name from
 #                                 ~/Pictures/wallpapers), and theme from it
@@ -38,6 +41,26 @@ unit_of() { cut -d: -f3 "$P/$1/cgroup" 2>/dev/null | sed 's|.*/||'; }
 
 doctor() {
     printf "${b}Ether Shell doctor${n} (it only looks; nothing is changed)\n"
+
+    # ---- the version: installed, and the newest on GitHub (one quick ask) ----
+    section "Version"
+    v=$(has_version); latest=$(latest_version)
+    if [ "$latest" = none ]; then
+        vv=$v; [ -n "$vv" ] || vv="(which version isn't recorded)"
+        ok "Ether Shell $vv (GitHub's copy doesn't say which version it is yet)"
+    elif [ -z "$latest" ]; then
+        if [ -n "$v" ]; then ok "Ether Shell $v (couldn't reach GitHub to look for a newer one)"
+        else note "Ether Shell: which version is installed isn't recorded, and GitHub couldn't be reached"; fi
+    elif [ -z "$v" ]; then
+        note "Ether Shell: which version is installed isn't recorded (the newest is $latest)"
+        fix "ether -u (it asks first, as it can't tell if yours is older)"
+    elif newer "$latest" "$v"; then
+        note "Ether Shell $v; $latest is out"; fix "ether -u"
+    elif [ "$latest" = "$v" ]; then
+        ok "Ether Shell $v, the newest"
+    else
+        ok "Ether Shell $v (newer than GitHub's $latest)"
+    fi
 
     # ---- the shell ----
     section "Ether Shell"
@@ -246,7 +269,94 @@ bin="$HOME/.local/bin"
 walls="$HOME/Pictures/wallpapers"
 running() { pgrep -x quickshell >/dev/null 2>&1; }
 needs_shell() { running || { echo "ether: Ether Shell isn't running (start it: ether restart)" >&2; exit 1; }; }
-usage() { sed -n '4,17s/^# \{0,1\}//p' "$0"; }
+# ---- versions: what's installed (install.sh records it) and what's on GitHub ----
+repo="${ETHER_REPO:-https://github.com/VHS33/ether-shell.git}"
+state="$HOME/.local/state/ether-shell/installed"
+installed() { sed -n "s/^$1=//p" "$state" 2>/dev/null | head -1; }
+# the version installed: the VERSION file that came with the shell's files
+# (however they were put there), or else what the installer recorded
+has_version() {
+    v=$(head -1 "$HOME/.config/quickshell/VERSION" 2>/dev/null)
+    [ -n "$v" ] || v=$(installed version)
+    printf '%s' "$v"
+}
+# is version $1 newer than $2?  (0.5.10 is newer than 0.5.9)
+newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
+# the newest version's name, from the VERSION file on GitHub: one small
+# download (from a copy elsewhere, ETHER_REPO, its main branch's)
+# ("none": reached, but it has no VERSION file; nothing: not reached)
+latest_version() {
+    case "$repo" in
+        https://github.com/*)
+            p=${repo#https://github.com/}; p=${p%.git}
+            out=$(timeout 8 curl -fsSL "https://raw.githubusercontent.com/$p/main/config/quickshell/VERSION" 2>/dev/null); rc=$?
+            if [ "$rc" = 0 ]; then printf '%s' "$out" | head -1
+            elif [ "$rc" = 22 ]; then echo none; fi ;;          # 22: the page isn't there
+        *)  if git --git-dir="$repo" rev-parse -q --verify main >/dev/null 2>&1; then
+                git --git-dir="$repo" show main:config/quickshell/VERSION 2>/dev/null | head -1 || true
+                git --git-dir="$repo" cat-file -e main:config/quickshell/VERSION 2>/dev/null || echo none
+            fi ;;
+    esac
+}
+
+# ---- ether update: fetch the newest, then the installer's quick way ----
+# The installer's own copy (~/.local/share/ether-shell, where the curl
+# install puts it) is brought to the newest version, and its install.sh runs
+# with --update: changed files only (each replaced one backed up), packages
+# only if new ones are needed, your look and settings kept.  Only GitHub is
+# asked, and only when you run this.
+update() {
+    yes=0
+    for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; *) echo "ether: ether -u [--yes]" >&2; exit 1 ;; esac; done
+    have git || { echo "ether: updating needs git: sudo pacman -S git" >&2; exit 1; }
+    src="${ETHER_DIR:-$HOME/.local/share/ether-shell}"
+    printf "Checking GitHub for a newer Ether Shell...\n"
+    mkdir -p "$src"
+    if [ ! -d "$src/.git" ]; then
+        git -C "$src" init -q && git -C "$src" remote add origin "$repo" || { echo "ether: couldn't set up $src" >&2; exit 1; }
+    else
+        git -C "$src" remote set-url origin "$repo"
+    fi
+    if ! timeout 120 git -C "$src" fetch -q --depth 1 origin main 2>/dev/null; then
+        echo "ether: couldn't reach GitHub ($repo). Online? Try again in a moment." >&2; exit 1
+    fi
+    newver=$(git -C "$src" show FETCH_HEAD:config/quickshell/VERSION 2>/dev/null | head -1)
+    hasver=$(has_version)
+    # never backwards: only a newer version is installed
+    if [ -z "$newver" ]; then
+        echo "GitHub's copy doesn't say which version it is (it's from before versions), so nothing was changed."; return 0
+    fi
+    if [ -n "$hasver" ] && [ "$newver" = "$hasver" ]; then
+        printf "${g}Up to date${n}: Ether Shell %s\n" "$hasver"; return 0
+    fi
+    if [ -n "$hasver" ] && newer "$hasver" "$newver"; then
+        printf "${g}Nothing to do${n}: you have Ether Shell %s, newer than GitHub's %s\n" "$hasver" "$newver"; return 0
+    fi
+    printf "  installed:  %s\n" "${hasver:-not recorded}"
+    printf "  newest:     %s   %s\n" "$newver" "$(git -C "$src" log -1 --format=%s FETCH_HEAD 2>/dev/null)"
+    if [ "$yes" = 0 ]; then
+        if [ -z "$hasver" ]; then
+            # nothing to compare with: what you have might be newer, so it's
+            # only done when you say so
+            echo "  Which version you have isn't recorded, so it can't tell if this is newer."
+            echo "  If you installed from your own copy of the code, yours may be newer: answer n."
+            ask="Install $newver anyway? [y/N] "; def=n
+        else
+            ask="Update now? [Y/n] "; def=y
+        fi
+        if { : < /dev/tty; } 2>/dev/null; then
+            printf "%s" "$ask"; read -r ans < /dev/tty
+            case "${ans:-$def}" in [Yy]*) ;; *) echo "Left as it is."; return 0 ;; esac
+        elif [ -z "$hasver" ]; then
+            echo "Left as it is (run ether -u --yes to install it anyway)."; return 0
+        fi
+    fi
+    git -C "$src" checkout -q -f -B main FETCH_HEAD || { echo "ether: couldn't unpack the new version in $src" >&2; exit 1; }
+    if [ "$yes" = 1 ]; then exec bash "$src/install.sh" --update --yes
+    else exec bash "$src/install.sh" --update; fi
+}
+
+usage() { sed -n '4,20s/^# \{0,1\}//p' "$0"; }
 plugins="$HOME/.config/ether-shell/plugins"
 
 # ---- ether perf: where the shell's memory and time go ----
@@ -431,7 +541,8 @@ plugin_list() {
 }
 
 case "${1:-}" in
-    doctor) doctor ;;
+    doctor|-d) doctor ;;
+    update|-u) shift; update "$@" ;;
     perf) perf "${2:-}" ;;
     restart) exec "$bin/ether-shell" ;;
     theme) needs_shell; exec qs ipc call wallpaper reapply ;;

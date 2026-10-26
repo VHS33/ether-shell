@@ -8,17 +8,24 @@ import Quickshell.Hyprland
 import "../../lib/text.mjs" as TextLib
 import "../../lib/plugins.mjs" as Plugins
 import "../../lib/models.mjs" as Models
+import "../../lib/windows.mjs" as WinLib
+import "../../lib/settingsindex.mjs" as SetIndex
+import "../../lib/search.mjs" as SearchLib
 import qs.services
 
 // ============================================================
 //   LAUNCHER  (tap SUPER)
 //   One search box for everything.  Start typing for apps (ranked by
-//   how often you open them), or start with:
+//   how often you open them) and the windows you have open, or start with:
+//       #   your open windows (focus, move, float, fullscreen, close)
 //       =   a calculator (maths without it works too)
 //       :   emoji, copied when chosen
 //       ;   clipboard history
 //       >   commands: lock, restart, settings, night light...
-//   Anything else can go to a web search, the last row.
+//       ?   settings: find one, flip an on/off one, or open it in Settings
+//   Anything else can go to a web search, the last row.  Plain words work
+//   too: "ws 3" (go to workspace 3), "move 4" (the window you're on),
+//   "close discord", "focus firefox".
 //
 //   On the long bar it grows out of the bar's centre as a drawer,
 //   the bar and drawer drawn as one shape by BarStrip; in the
@@ -107,6 +114,7 @@ Variants {
             grabReady = false
             if (open) grabDelay.restart()
             if (open) {
+                settingsWanted = true
                 search.text = app.launcherPrefill
                 sel = 0
                 search.forceActiveFocus()
@@ -136,6 +144,45 @@ Variants {
             }
         }
 
+        // ---- every setting, read from Settings' page files (lib/settingsindex.mjs)
+        // the first time the launcher opens; Settings itself needn't be open ----
+        property bool settingsWanted: false
+        property var pageTexts: ({})
+        Instantiator {
+            model: lw.settingsWanted ? SetIndex.PAGES : []
+            delegate: FileView {
+                required property var modelData
+                required property int index
+                path: Quickshell.shellPath("modules/settings/" + modelData.f + ".qml")
+                blockLoading: false
+                onLoaded: {
+                    const m = Object.assign({}, lw.pageTexts)
+                    m[index] = text()
+                    lw.pageTexts = m
+                }
+            }
+        }
+        readonly property var settingsList: {
+            const out = []
+            for (let i = 0; i < SetIndex.PAGES.length; i++)
+                if (pageTexts[i] !== undefined) for (const e of SetIndex.parsePage(pageTexts[i]).entries) out.push(e)
+            return out
+        }
+        // a setting, as a row (its On/Off read now, so it changes as you flip it)
+        function settingRow(e) { return SetIndex.row(e, app) }
+        // open it in Settings, outlined for a moment
+        function openSetting(r) {
+            app.launcherShown = false
+            app.settingsPage = r.pageNo
+            app.settingsFocus = r.title
+            app.settingsShown = true
+        }
+        // an on/off one: flip it, and stay open to show it changed
+        function flipSetting(r) {
+            if (!r.sw) { openSetting(r); return }
+            app.setting(r.sw.key, !SetIndex.isOn(r.sw, app))
+        }
+
         // ---- searching ----
         readonly property string q: search.text
         // a plugin's own prefix (Settings, Plugins): just its results
@@ -143,11 +190,24 @@ Variants {
         readonly property var pluginHit: Plugins.prefixFor(q, launchers)
         readonly property string mode:
             pluginHit ? "plugin" :
+            q.startsWith("#") ? "win" : q.startsWith("?") ? "set" :
             q.startsWith("=") ? "calc" : q.startsWith(":") ? "emoji"
             : q.startsWith(";") ? "clip" : q.startsWith(">") ? "cmd" : q.startsWith("@") ? "scene"
             : q.startsWith("/") ? "files" : "apps"
         readonly property string term: (mode === "apps" ? q : q.slice(1)).trim().toLowerCase()
         property int sel: 0
+        // (headings can't be chosen: the selection steps over them)
+        function selectable(i) { const r = results[i]; return !!r && r.kind !== "head" }
+        function step(from, d) {
+            let i = from
+            for (let k = 0; k < results.length; k++) {
+                i += d
+                if (i < 0 || i >= results.length) return from
+                if (selectable(i)) return i
+            }
+            return from
+        }
+        onResultsChanged: { if (!selectable(sel)) sel = step(-1, 1) === -1 ? 0 : step(-1, 1); closeArmed = "" }
         // (a moment later: what's typed changes first, and what it means (the
         // mode, which plugin, the term) only after; told straight away,
         // plugins got the previous search, one step behind)
@@ -187,12 +247,14 @@ Variants {
         // files: "/" searches only them; typing normally shows the best few
         // under your apps once there are three letters
         readonly property bool filesOn: app.nativeOk && app.cfg.fileSearch !== false
+        // (to Apps itself: the shell's app.fileQuery is only a read-only copy,
+        // so writing that did nothing and the search never got what's typed)
         Binding {
-            target: app; property: "fileQuery"; restoreMode: Binding.RestoreNone
+            target: Apps; property: "fileQuery"; restoreMode: Binding.RestoreNone
             value: lw.filesOn && app.launcherShown && (lw.mode === "files" || (lw.mode === "apps" && lw.term.length >= 3))
                    ? lw.term : ""
         }
-        Binding { target: app; property: "fileLimit"; value: lw.mode === "files" ? 40 : 6; restoreMode: Binding.RestoreNone }
+        Binding { target: Apps; property: "fileLimit"; value: lw.mode === "files" ? 40 : 6; restoreMode: Binding.RestoreNone }
         readonly property var fileGlyphs: ({ folder: "folder", image: "image", video: "movie", audio: "music_note",
                                              pdf: "picture_as_pdf", code: "code", archive: "folder_zip",
                                              document: "description", file: "draft" })
@@ -213,6 +275,83 @@ Variants {
         function calc(expr) { return TextLib.calc(expr) }      // lib/text.mjs
         readonly property bool looksLikeMaths: /^[0-9.(\s]/.test(q) && /[0-9]\s*[-+*/^%]\s*[0-9(]/.test(q)
 
+        // ---- your windows (Hyprland's own list, fresh when the launcher opens) ----
+        // a window being moved (Ctrl+M): the list becomes its workspaces
+        property var moving: null            // { addr, name, title }
+        // Delete on a window asks first; the second press closes it
+        property string closeArmed: ""
+        Connections {
+            target: app
+            function onLauncherShownChanged() {
+                if (app.launcherShown) Hyprland.refreshToplevels()
+                else { lw.moving = null; lw.closeArmed = "" }
+            }
+        }
+        // the app a window belongs to: its desktop entry by name first; Quickshell's
+        // guess only when it really is that app (a guess for an app that isn't
+        // installed was once an image viewer, and "New window" opened that)
+        function entryForClass(cls) {
+            if (!cls) return null
+            const c = cls.toLowerCase(), last = c.split(".").pop()
+            let e = DesktopEntries.byId(cls) || DesktopEntries.byId(c) || DesktopEntries.byId(cls + ".desktop") || null
+            if (e) return e
+            try { if (typeof DesktopEntries.heuristicLookup === "function") e = DesktopEntries.heuristicLookup(cls) } catch (err) {}
+            if (!e) return null
+            const id = (e.id || "").toLowerCase(), wm = (e.startupClass || "").toLowerCase(), nm = (e.name || "").toLowerCase()
+            return wm === c || id === c || id.indexOf(last) !== -1 || nm.indexOf(last) !== -1 ? e : null
+        }
+        function monitorName(id) {
+            for (const m of Hyprland.monitors.values) if (m.id === id) return m.name
+            return ""
+        }
+        // every window: [{ addr, cls, name, title, ws, mon, icon, entry, focused }]
+        function windowList() {
+            const out = []
+            const active = Hyprland.activeToplevel ? (Hyprland.activeToplevel.lastIpcObject?.address ?? "") : ""
+            for (const t of Hyprland.toplevels.values) {
+                const ipc = t.lastIpcObject
+                if (!ipc || !ipc.address || ipc.mapped === false) continue
+                const ws = ipc.workspace ? ipc.workspace.id : 0
+                const e = lw.entryForClass(ipc.class || ipc.initialClass || "")
+                out.push({ addr: ipc.address, cls: ipc.class || "", title: ipc.title || "",
+                           name: e ? e.name : (ipc.class || "Window"), icon: e ? (e.icon || "") : "",
+                           entry: e ? e.id : "", ws: ws, wsName: ipc.workspace ? (ipc.workspace.name || "") : "",
+                           mon: lw.monitorName(ipc.monitor), focused: ipc.address === active })
+            }
+            return out
+        }
+        // (the matching, the rows and the plain words: lib/windows.mjs, tested
+        // on their own)
+        function windowRow(w, kind) { return WinLib.row(w, kind) }
+        function matchingWindows(t, max) { return WinLib.match(lw.windowList(), t, max) }
+        // what's on each workspace, for "Move to…" and "ws 3"
+        function workspaceSummary(id) {
+            let mon = ""
+            for (const m of Hyprland.monitors.values) if (m.activeWorkspace && m.activeWorkspace.id === id) mon = m.name
+            return WinLib.summary(lw.windowList(), id, mon)
+        }
+        function dsp(cmd) { Hyprland.dispatch(cmd) }
+        function focusWin(addr) { dsp("hl.dsp.focus({ window = \"address:" + addr + "\" })") }
+        function moveWin(addr, ws, follow) {
+            dsp("hl.dsp.window.move({ workspace = " + ws + ", window = \"address:" + addr + "\", follow = " + (follow ? "true" : "false") + " })")
+        }
+        function closeWin(addr) { focusWin(addr); dsp("hl.dsp.window.close()") }
+        function floatWin(addr) { focusWin(addr); dsp("hl.dsp.window.float({ action = \"toggle\" })") }
+        function fullscreenWin(addr) { focusWin(addr); dsp("hl.dsp.window.fullscreen({ mode = \"fullscreen\", action = \"toggle\" })") }
+        function goWorkspace(ws) { dsp("hl.dsp.focus({ workspace = " + ws + " })") }
+        // a window's actions (the row under it, and their keys)
+        function windowAction(a, r) {
+            if (!r || !r.addr) return
+            if (a === "move") { lw.moving = { addr: r.addr, title: r.title }; search.text = ""; lw.sel = 0; return }
+            if (a === "close" && lw.closeArmed !== r.addr) { lw.closeArmed = r.addr; return }
+            app.launcherShown = false
+            if (a === "focus") lw.focusWin(r.addr)
+            else if (a === "close") lw.closeWin(r.addr)
+            else if (a === "float") lw.floatWin(r.addr)
+            else if (a === "fullscreen") lw.fullscreenWin(r.addr)
+            else if (a === "new") { const d = DesktopEntries.byId(r.entry); if (d) { app.launchEntry(d); app.noteLaunch(r.entry) } }
+        }
+
         readonly property var commands: [
             { title: "Lock",                 glyph: "lock",               act: "lock" },
             { title: "Log out",              glyph: "logout",             act: "logout" },
@@ -231,6 +370,34 @@ Variants {
 
         readonly property var results: {
             const t = term, out = []
+            // moving a window: where to
+            if (lw.moving) {
+                out.push({ kind: "head", title: "Move " + lw.moving.title.split("  \u2014  ")[0] + " to" })
+                const nums = []
+                for (let i = 1; i <= 10; i++) nums.push(i)
+                for (const n of nums.filter(n => t === "" || String(n).startsWith(t) || ("workspace " + n).indexOf(t) !== -1))
+                    out.push({ kind: "moveto", ws: n, addr: lw.moving.addr, glyph: "grid_view",
+                               title: "Workspace " + n, sub: lw.workspaceSummary(n) + "  \u2022  Shift+Enter goes there too",
+                               badge: n === app.activeWorkspace ? "You're here" : "" })
+                return out
+            }
+            if (mode === "win") {
+                for (const w of lw.matchingWindows(t, 40)) out.push(lw.windowRow(w))
+                return out
+            }
+            if (mode === "set") {
+                // nothing typed: every setting, under its page
+                if (t === "") {
+                    let page = -1
+                    for (const e of lw.settingsList) {
+                        if (e.pageNo !== page) { page = e.pageNo; out.push({ kind: "head", title: e.page }) }
+                        out.push(lw.settingRow(e))
+                    }
+                    return out
+                }
+                for (const e of SearchLib.search(lw.settingsList, t, 40)) out.push(lw.settingRow(e))
+                return out
+            }
             if (mode === "plugin") {
                 const l = launchers.find(x => x.id === pluginHit.id)
                 const rows = l ? pluginRows(l, 40) : []
@@ -299,6 +466,29 @@ Variants {
                 return out
             }
 
+            // ---- plain words: workspaces and windows (lib/windows.mjs) ----
+            const said = WinLib.command(q)
+            if (said && said.type === "go")
+                out.push({ kind: "gows", ws: said.ws, glyph: "grid_view", title: "Go to workspace " + said.ws, sub: lw.workspaceSummary(said.ws) })
+            if (said && said.type === "move") {
+                const here = Hyprland.activeToplevel ? Hyprland.activeToplevel.lastIpcObject : null
+                if (here && here.address) {
+                    const w = lw.windowList().find(x => x.addr === here.address)
+                    const nm = w ? w.name : (here.class || "the window")
+                    out.push({ kind: "moveto", ws: said.ws, addr: here.address, glyph: "move_down",
+                               title: "Move " + nm + " to workspace " + said.ws, sub: "The window you're on  \u2022  you stay where you are" })
+                    out.push({ kind: "movefollow", ws: said.ws, addr: here.address, glyph: "swap_horiz",
+                               title: "Move " + nm + " to workspace " + said.ws + ", and go there", sub: "Follow it" })
+                }
+                out.push({ kind: "gows", ws: said.ws, glyph: "grid_view", title: "Go to workspace " + said.ws, sub: lw.workspaceSummary(said.ws) })
+                return out
+            }
+            if (said && (said.type === "close" || said.type === "focus")) {
+                const ws = lw.matchingWindows(said.what, 8)
+                for (const w of ws) out.push(lw.windowRow(w, said.type === "close" ? "winclose" : "win"))
+                if (ws.length) return out
+            }
+
             // ---- apps ----
             // "timer 5m", "timer 90s": start one
             const tm = q.trim().match(/^timer\s+(.+)$/i)
@@ -342,6 +532,14 @@ Variants {
                               title: d.name, sub: d.comment || d.genericName || "", icon: d.icon || "" })
             }
             scored.sort((a, b) => b.s - a.s || a.title.localeCompare(b.title))
+            // your open windows first (from two letters): Enter goes to the one
+            // that's open instead of starting another
+            const wins = t.length >= 2 ? lw.matchingWindows(t, 4) : []
+            if (wins.length) {
+                out.push({ kind: "head", title: "Open windows" })
+                for (const w of wins) out.push(lw.windowRow(w))
+                if (scored.length) out.push({ kind: "head", title: "Apps" })
+            }
             // with files to show, the top apps, then the files
             const files = t.length >= 3 && lw.filesOn ? lw.fileRows(6) : []
             for (const a of scored.slice(0, t === "" ? 24 : files.length ? 8 : 40))
@@ -350,6 +548,12 @@ Variants {
             // plugins without a prefix: a few each, labelled with their name
             if (t.length >= 2)
                 for (const l of launchers) if (!l.prefix) for (const r of pluginRows(l, 4)) out.push(r)
+            // a few settings that match (from three letters)
+            const sets = t.length >= 3 ? SearchLib.search(lw.settingsList, t, 3) : []
+            if (sets.length) {
+                out.push({ kind: "head", title: "Settings" })
+                for (const e of sets) out.push(lw.settingRow(e))
+            }
             if (t !== "")
                 out.push({ kind: "web", title: "Search the web for \u201c" + q.trim() + "\u201d",
                            sub: "Opens in your browser", glyph: "travel_explore" })
@@ -375,7 +579,17 @@ Variants {
         }
         function activate(i) {
             const r = results[i]
-            if (!r || r.kind === "info") return
+            if (!r || r.kind === "info" || r.kind === "head") return
+            if (r.kind === "win") { lw.windowAction("focus", r); return }
+            if (r.kind === "winclose") { app.launcherShown = false; lw.closeWin(r.addr); return }
+            if (r.kind === "moveto" || r.kind === "movefollow") {
+                app.launcherShown = false
+                lw.moveWin(r.addr, r.ws, r.kind === "movefollow")
+                lw.moving = null
+                return
+            }
+            if (r.kind === "gows") { app.launcherShown = false; lw.goWorkspace(r.ws); return }
+            if (r.kind === "setting") { lw.flipSetting(r); return }
             app.launcherShown = false
             if (r.kind === "app") {
                 const d = DesktopEntries.byId(r.id)
@@ -502,7 +716,7 @@ Variants {
                         Text {
                             text: lw.mode === "plugin" ? "extension" : lw.mode === "calc" ? "calculate" : lw.mode === "emoji" ? "mood"
                                 : lw.mode === "clip" ? "content_paste" : lw.mode === "cmd" ? "terminal"
-                                : lw.mode === "scene" ? "view_quilt" : "search"
+                                : lw.mode === "scene" ? "view_quilt" : lw.mode === "set" ? "settings" : "search"
                             color: app.cBlue
                             font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(22)
@@ -519,23 +733,44 @@ Variants {
                             Text {
                                 visible: !search.text
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Search apps, or start with  =  :  ;  >"
+                                text: lw.moving ? "Which workspace? (a number, or pick one)" : "Search apps, windows and settings, or start with  #  ?  =  :  ;  >"
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
                                 font: search.font
                             }
                             Keys.onPressed: e => {
                                 const n = lw.results.length
+                                const cur = lw.results[lw.sel]
+                                const isWin = cur && cur.kind === "win"
+                                const ctrl = (e.modifiers & Qt.ControlModifier) !== 0
+                                const shift = (e.modifiers & Qt.ShiftModifier) !== 0
                                 if (e.key === Qt.Key_Escape) {
-                                    if (search.text !== "") search.text = ""
+                                    if (lw.moving) { lw.moving = null; search.text = "" }
+                                    else if (lw.closeArmed !== "") lw.closeArmed = ""
+                                    else if (search.text !== "") search.text = ""
                                     else app.launcherShown = false
-                                } else if (e.key === Qt.Key_Down || (e.key === Qt.Key_Tab && !(e.modifiers & Qt.ShiftModifier))) {
-                                    lw.sel = Math.min(n - 1, lw.sel + 1)
+                                } else if (e.key === Qt.Key_Down || (e.key === Qt.Key_Tab && !shift)) {
+                                    lw.sel = lw.step(lw.sel, 1)
                                 } else if (e.key === Qt.Key_Up || e.key === Qt.Key_Backtab) {
-                                    lw.sel = Math.max(0, lw.sel - 1)
+                                    lw.sel = lw.step(lw.sel, -1)
                                 } else if (e.key === Qt.Key_PageDown) {
-                                    lw.sel = Math.min(n - 1, lw.sel + 6)
+                                    let i = lw.sel; for (let k = 0; k < 6; k++) i = lw.step(i, 1); lw.sel = i
                                 } else if (e.key === Qt.Key_PageUp) {
-                                    lw.sel = Math.max(0, lw.sel - 6)
+                                    let i = lw.sel; for (let k = 0; k < 6; k++) i = lw.step(i, -1); lw.sel = i
+                                // ---- a window's actions ----
+                                } else if (isWin && (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && shift) {
+                                    lw.windowAction("new", cur)
+                                } else if (cur && cur.kind === "setting" && (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && shift) {
+                                    lw.openSetting(cur)
+                                } else if (isWin && ctrl && e.key === Qt.Key_M) {
+                                    lw.windowAction("move", cur)
+                                } else if (isWin && ctrl && e.key === Qt.Key_F) {
+                                    lw.windowAction(shift ? "fullscreen" : "float", cur)
+                                } else if (isWin && e.key === Qt.Key_Delete) {
+                                    lw.windowAction("close", cur)
+                                } else if (cur && cur.kind === "moveto" && lw.moving && (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && shift) {
+                                    app.launcherShown = false
+                                    lw.moveWin(cur.addr, cur.ws, true)
+                                    lw.moving = null
                                 } else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
                                            && (e.modifiers & Qt.ControlModifier) && lw.results[lw.sel]?.kind === "scene") {
                                     app.launcherShown = false
@@ -555,12 +790,44 @@ Variants {
                 }
 
                 // ---- the modes, as chips; click one to switch ----
-                Row {
+                // (more than fit across: the row slides to the one in use,
+                // and scrolls with the wheel)
+                Flickable {
+                    id: chipsView
                     Layout.fillWidth: true
+                    implicitHeight: 30
+                    contentWidth: chipsRow.implicitWidth
+                    flickableDirection: Flickable.HorizontalFlick
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
+                    function showOn() {
+                        for (let i = 0; i < chipsRep.count; i++) {
+                            const c = chipsRep.itemAt(i)
+                            if (!c || !c.on) continue
+                            let x = contentX
+                            if (c.x - 12 < x) x = c.x - 12
+                            else if (c.x + c.width + 12 > x + width) x = c.x + c.width + 12 - width
+                            chipsSlide.to = Math.max(0, Math.min(contentWidth - width, x))
+                            chipsSlide.restart()
+                        }
+                    }
+                    NumberAnimation { id: chipsSlide; target: chipsView; property: "contentX"; duration: app.dur(220); easing.type: Easing.OutCubic }
+                    Connections { target: lw; function onModeChanged() { Qt.callLater(chipsView.showOn) } }
+                    WheelHandler {
+                        onWheel: e => {
+                            const d = e.angleDelta.y !== 0 ? e.angleDelta.y : e.angleDelta.x
+                            chipsView.contentX = Math.max(0, Math.min(chipsView.contentWidth - chipsView.width, chipsView.contentX - d / 2))
+                        }
+                    }
+                Row {
+                    id: chipsRow
                     spacing: 6
                     Repeater {
+                        id: chipsRep
                         model: [
                             { m: "apps",  label: "Apps",       p: "" },
+                            { m: "win",   label: "Windows",    p: "#" },
+                            { m: "set",   label: "Settings",   p: "?" },
                             { m: "calc",  label: "Calculator", p: "=" },
                             { m: "emoji", label: "Emoji",      p: ":" },
                             { m: "clip",  label: "Clipboard",  p: ";" },
@@ -612,6 +879,7 @@ Variants {
                         }
                     }
                 }
+                }
 
                 // ---- the results ----
                 ListView {
@@ -621,24 +889,86 @@ Variants {
                     clip: true
                     spacing: 2
                     boundsBehavior: Flickable.StopAtBounds
-                    model: ScriptModel { values: Models.keyed(lw.results, r => r.kind + ":" + (r.id || r.path || r.pid || r.act || r.name || r.emoji || r.title)); objectProp: "_key" }
+                    model: ScriptModel { values: Models.keyed(lw.results, r => r.kind + ":" + (r.addr ? r.addr + ":" + (r.ws || "") : "") + (r.kind === "gows" || r.kind === "moveto" || r.kind === "movefollow" ? r.ws : "") + (r.key || r.id || r.path || r.pid || r.act || r.name || r.emoji || r.title)); objectProp: "_key" }
+                    // the list moves its own choice along with a row when the
+                    // results change (and stops following lw.sel), so put it back
                     currentIndex: lw.sel
-                    highlightFollowsCurrentItem: true
-                    highlightMoveDuration: app.animQuick
+                    onCurrentIndexChanged: if (currentIndex !== lw.sel) currentIndex = Qt.binding(() => lw.sel)
+                    onCountChanged: if (currentIndex !== lw.sel) currentIndex = Qt.binding(() => lw.sel)
+                    // keep the chosen row in sight (the list doesn't, as the
+                    // highlight is placed by hand): on choosing, and as it grows
+                    // glides there; a row that's growing is followed straight away
+                    cacheBuffer: 600
+                    function revealY() {
+                        const it = itemAtIndex(lw.sel)
+                        if (!it) return NaN
+                        const pad = 4, top = originY, bot = originY + Math.max(0, contentHeight - height)
+                        let y = contentY
+                        // the first row: right at the top, so a heading over it shows
+                        if (lw.step(lw.sel, -1) === lw.sel) y = originY
+                        else if (it.y - pad < y) y = it.y - pad
+                        else if (it.y + it.height + pad > y + height) y = it.y + it.height + pad - height
+                        return Math.max(top, Math.min(bot, y))
+                    }
+                    function reveal(glide) {
+                        if (lw.sel < 0 || lw.sel >= count) return
+                        const y = revealY()
+                        if (isNaN(y)) { scrollAnim.stop(); positionViewAtIndex(lw.sel, ListView.Contain); return }
+                        if (Math.abs(y - contentY) < 0.5) return
+                        if (glide) { scrollAnim.stop(); scrollAnim.to = y; scrollAnim.start() }
+                        else if (!scrollAnim.running) contentY = y
+                        else { scrollAnim.stop(); scrollAnim.to = y; scrollAnim.start() }
+                    }
+                    NumberAnimation { id: scrollAnim; target: list; property: "contentY"; duration: app.dur(220); easing.type: Easing.OutCubic }
+                    Connections { target: lw; function onSelChanged() { Qt.callLater(list.reveal, true) } }
+                    // follows the chosen row's own place and size, since rows
+                    // grow (a window's actions) and are swapped as you type
+                    highlightFollowsCurrentItem: false
                     highlight: Rectangle {
                         radius: 16
                         color: app.cPrimC
+                        width: list.width
+                        visible: list.currentItem !== null && !list.currentItem.isHead
+                        y: list.currentItem ? list.currentItem.y : 0
+                        height: list.currentItem ? list.currentItem.height : 0
+                        Behavior on y { NumberAnimation { duration: app.dur(220); easing.type: Easing.OutCubic } }
                     }
                     delegate: Item {
                         id: row
                         required property var modelData
                         required property int index
                         readonly property bool current: index === lw.sel
+                        readonly property bool isHead: modelData.kind === "head"
+                        readonly property bool isWin: modelData.kind === "win"
+                        // a window's actions show under it while it's chosen
+                        readonly property bool showActs: isWin && current
                         width: ListView.view.width
-                        height: 52
+                        height: isHead ? 30 : 52 + (showActs ? actFlow.height + 8 : 0)
+                        Behavior on height { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
+                        onHeightChanged: if (current) list.reveal(false)
+
+                        // a heading: "Open windows", "Apps"
+                        Text {
+                            visible: row.isHead
+                            anchors.left: parent.left
+                            anchors.leftMargin: 14
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 6
+                            text: row.modelData.title
+                            color: app.cFaint
+                            font.family: Theme.uiFont
+                            font.weight: Font.DemiBold
+                            font.pixelSize: app.fs(11)
+                            font.capitalization: Font.AllUppercase
+                            font.letterSpacing: 0.6
+                        }
 
                         RowLayout {
-                            anchors.fill: parent
+                            visible: !row.isHead
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            height: 52
                             anchors.leftMargin: 12
                             anchors.rightMargin: 14
                             spacing: 12
@@ -648,10 +978,11 @@ Variants {
                                 implicitHeight: 34
                                 IconImage {
                                     anchors.centerIn: parent
-                                    visible: row.modelData.kind === "app"
+                                    readonly property bool hasIcon: row.modelData.kind === "app"
+                                        || ((row.modelData.kind === "win" || row.modelData.kind === "winclose") && !!row.modelData.icon)
+                                    visible: hasIcon
                                     implicitSize: 30
-                                    source: row.modelData.kind === "app"
-                                            ? Quickshell.iconPath(row.modelData.icon, "application-x-executable") : ""
+                                    source: hasIcon ? Quickshell.iconPath(row.modelData.icon, "application-x-executable") : ""
                                 }
                                 Text {
                                     anchors.centerIn: parent
@@ -662,6 +993,7 @@ Variants {
                                 Rectangle {
                                     anchors.fill: parent
                                     visible: row.modelData.kind !== "app" && row.modelData.kind !== "emoji"
+                                             && !((row.modelData.kind === "win" || row.modelData.kind === "winclose") && !!row.modelData.icon)
                                     radius: 12
                                     color: row.current ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                     Text {
@@ -700,6 +1032,24 @@ Variants {
                                     textFormat: Text.PlainText
                                 }
                             }
+                            // a small tag on the right: "WS 2", "You're here"
+                                Rectangle {
+                                    visible: !!row.modelData.badge
+                                    implicitWidth: badgeText.implicitWidth + 14
+                                    implicitHeight: 20
+                                    radius: 10
+                                    color: row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.14)
+                                                       : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
+                                    Text {
+                                        id: badgeText
+                                        anchors.centerIn: parent
+                                        text: row.modelData.badge || ""
+                                        color: row.current ? app.cOnPrimC : app.cDim
+                                        font.family: Theme.uiFont
+                                        font.weight: Font.Medium
+                                        font.pixelSize: app.fs(10)
+                                    }
+                                }
                             Text {
                                 visible: row.current
                                 text: "keyboard_return"
@@ -710,10 +1060,77 @@ Variants {
                         }
                         MouseArea {
                             anchors.fill: parent
+                            visible: !row.isHead
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onEntered: lw.sel = row.index
                             onClicked: lw.activate(row.index)
+                        }
+                        // ---- the chosen window's actions ----
+                        Flow {
+                            id: actFlow
+                            visible: row.showActs
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.topMargin: 50
+                            anchors.leftMargin: 58
+                            spacing: 6
+                            Repeater {
+                                model: row.showActs ? [
+                                    { a: "focus",      g: "open_in_new",       t: "Focus",       k: "\u23ce" },
+                                    { a: "move",       g: "move_down",         t: "Move to\u2026", k: "Ctrl+M" },
+                                    { a: "float",      g: "picture_in_picture", t: "Float",       k: "Ctrl+F" },
+                                    { a: "fullscreen", g: "fullscreen",        t: "Fullscreen",  k: "Ctrl+Shift+F" },
+                                    { a: "new",        g: "add",               t: "New window",  k: "Shift+\u23ce" },
+                                    { a: "close",      g: "close",             t: lw.closeArmed === row.modelData.addr ? "Press Delete again" : "Close", k: "Del" }
+                                ] : []
+                                delegate: Rectangle {
+                                    id: act
+                                    required property var modelData
+                                    readonly property bool danger: modelData.a === "close"
+                                    implicitWidth: actRow.implicitWidth + 20
+                                    implicitHeight: 28
+                                    radius: 14
+                                    color: actHov.hovered ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.22)
+                                         : modelData.a === "focus" ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.18)
+                                         : Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.08)
+                                    HoverHandler { id: actHov }
+                                    Row {
+                                        id: actRow
+                                        anchors.centerIn: parent
+                                        spacing: 5
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: act.modelData.g
+                                            color: act.danger ? app.cRed : app.cOnPrimC
+                                            font.family: "Material Symbols Rounded"
+                                            font.pixelSize: app.fs(14)
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: act.modelData.t
+                                            color: act.danger ? app.cRed : app.cOnPrimC
+                                            font.family: Theme.uiFont
+                                            font.weight: Font.Medium
+                                            font.pixelSize: app.fs(11)
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: act.modelData.k
+                                            color: Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.55)
+                                            font.family: Theme.uiFont
+                                            font.weight: Font.DemiBold
+                                            font.pixelSize: app.fs(10)
+                                        }
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: lw.windowAction(act.modelData.a, row.modelData)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -723,6 +1140,7 @@ Variants {
                         text: lw.mode === "scene" ? "No scenes yet: type a name after @ to save this desktop"
                             : lw.mode === "clip" ? "Nothing copied yet"
                             : lw.mode === "emoji" && !lw.emoji.length ? "Loading emoji\u2026"
+                            : lw.mode === "set" && !lw.settingsList.length ? "Loading settings\u2026"
                             : "Nothing matches"
                         color: app.cFaint
                         font.family: Theme.uiFont
@@ -733,7 +1151,13 @@ Variants {
                 // ---- hints ----
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: lw.results[lw.sel]?.kind === "file"
+                    text: lw.moving ? "Enter moves it   \u2022   Shift + Enter moves it and goes there   \u2022   Esc goes back"
+                          : lw.results[lw.sel]?.kind === "win"
+                          ? "Enter to go to it   \u2022   Ctrl + M to move it   \u2022   Delete to close it   \u2022   Esc to close"
+                          : lw.results[lw.sel]?.kind === "setting"
+                          ? (lw.results[lw.sel].sw ? "Enter turns it " + (lw.results[lw.sel].badge === "On" ? "off" : "on") + "   \u2022   Shift + Enter opens it in Settings   \u2022   Esc to close"
+                                                   : "Enter opens it in Settings   \u2022   Esc to close")
+                          : lw.results[lw.sel]?.kind === "file"
                           ? "Enter to open   \u2022   Alt + Enter to show it in its folder   \u2022   Esc to close"
                           : "\u2191 \u2193 to move   \u2022   Enter to open   \u2022   Esc to close"
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)

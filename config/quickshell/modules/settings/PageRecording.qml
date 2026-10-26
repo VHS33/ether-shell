@@ -20,6 +20,7 @@ ColumnLayout {
         app: settingsRoot.app
         visible: settingsWin.count(settingsWin.isRec) === 0
         title: "No app is recording"
+        searchable: false
         desc: "Apps appear here while they use a microphone, each with its own input level."
     }
 
