@@ -109,9 +109,14 @@ again)
     ;;
 upgrade)
     echo "Updating from the release before this one"
-    # the newest release commit ("v0.5.7: ...") that isn't this one
+    # the newest release commit ("v0.5.7: ...") with another version than this
+    # one (a fix pushed after a release has the same version, so its release
+    # isn't "before"); one from before versions counts as another
     prev=$(git -C "$repo" log --format='%H %s' | awk '$2 ~ /^v[0-9]+\.[0-9]/ {print $1}' \
-           | while read -r c; do [ "$c" != "$(git -C "$repo" rev-parse HEAD)" ] && { echo "$c"; break; }; done)
+           | while read -r c; do
+                 v=$(git -C "$repo" show "$c:config/quickshell/VERSION" 2>/dev/null | head -1)
+                 [ "$v" != "$version" ] && { echo "$c"; break; }
+             done)
     if [ -z "$prev" ]; then note "no earlier release in the history (needs the full history: fetch-depth 0)"; exit 0; fi
     echo "  from $(git -C "$repo" log -1 --format='%s' "$prev" | cut -c1-70)"
     old=$(mktemp -d); git -C "$repo" archive "$prev" | tar x -C "$old"
