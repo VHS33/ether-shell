@@ -171,8 +171,12 @@ start)
     echo "The shell starts"
     rt=$(mktemp -d); chmod 700 "$rt"; export XDG_RUNTIME_DIR="$rt"
     printf 'output HEADLESS-1 resolution 1920x1080\n' > "$rt/sway.conf"
+    # a plain copy of sway: Arch's carries a capability (to raise its own
+    # priority) that a container won't run a program with; the copy has none
+    sw="${ETHER_SWAY:-}"
+    if [ -z "$sw" ]; then cp "$(command -v sway)" "$rt/sway" && sw="$rt/sway"; fi
     WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 \
-        ${ETHER_SWAY:-sway} -c "$rt/sway.conf" > "$out/sway.log" 2>&1 &
+        "$sw" -c "$rt/sway.conf" > "$out/sway.log" 2>&1 &
     sway_pid=$!
     for _ in $(seq 50); do [ -S "$rt/wayland-1" ] && break; sleep 0.2; done
     if [ ! -S "$rt/wayland-1" ]; then bad "the test desktop (sway) didn't start"; tail -5 "$out/sway.log"; exit 1; fi
@@ -184,7 +188,7 @@ start)
         $bus ${ETHER_QS:-qs} -p "$HOME/.config/quickshell/shell.qml" > "$out/shell.log" 2>&1 &
     qs_pid=$!
     # (Quickshell's own lines only: "  ERROR: ...", not a driver's VK_ERROR_...)
-    plain() { sed 's/\x1b\[[0-9;]*m//g' "$out/shell.log"; }
+    plain() { sed 's/\x1b\[[0-9;]*m//g' "$out/shell.log" 2>/dev/null; }
     for _ in $(seq 120); do plain | grep -qE "Configuration Loaded|^ *ERROR" && break; sleep 0.5; done
     sleep 8                                           # let it settle, and anything late show
     if plain | grep -q "Configuration Loaded" && ! plain | grep -qE "^ *ERROR"; then ok "it loaded, with no errors"
