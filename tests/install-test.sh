@@ -189,10 +189,18 @@ start)
     qs_pid=$!
     # (Quickshell's own lines only: "  ERROR: ...", not a driver's VK_ERROR_...)
     plain() { sed 's/\x1b\[[0-9;]*m//g' "$out/shell.log" 2>/dev/null; }
-    for _ in $(seq 120); do plain | grep -qE "Configuration Loaded|^ *ERROR" && break; sleep 0.5; done
+    # The shell's own errors fail it: not loading ("Failed to load
+    # configuration", and what caused it), a QML error.  Errors from
+    # Quickshell's services ("ERROR quickshell.service.pipewire...") are the
+    # test machine lacking a system service (no sound server, no
+    # NetworkManager in a container): noted, as a real desktop has them.
+    own() { plain | grep -E "^ *ERROR" | grep -vE "^ *ERROR quickshell\."; }
+    for _ in $(seq 120); do plain | grep -q "Configuration Loaded" && break; [ -n "$(own)" ] && break; sleep 0.5; done
     sleep 8                                           # let it settle, and anything late show
-    if plain | grep -q "Configuration Loaded" && ! plain | grep -qE "^ *ERROR"; then ok "it loaded, with no errors"
-    else bad "it didn't load:"; plain | grep -E -A3 "^ *ERROR" | head -10; fi
+    if plain | grep -q "Configuration Loaded" && [ -z "$(own)" ]; then ok "it loaded, with no errors of its own"
+    else bad "it didn't load:"; plain | grep -E -A3 "^ *ERROR" | grep -vE "^ *ERROR quickshell\." | head -10; fi
+    svc=$(plain | grep -E "^ *ERROR quickshell\." | sed 's/^ *ERROR //' | sort -u)
+    [ -z "$svc" ] || note "missing on the test machine (fine on a desktop): $(printf '%s\n' "$svc" | cut -d: -f1 | tr '\n' ' ')"
     kill -0 "$qs_pid" 2>/dev/null && ok "still running after 8 seconds" || bad "it stopped (crashed?)"
     WAYLAND_DISPLAY=wayland-1 grim "$out/screen.png" 2>/dev/null && ok "screenshot kept (screen.png)" || note "no screenshot (grim)"
     # its warnings, for a look (the test desktop has no Hyprland, so some are expected)
