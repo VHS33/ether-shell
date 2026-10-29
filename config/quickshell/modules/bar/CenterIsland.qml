@@ -65,7 +65,24 @@ Variants {
         readonly property bool open: app.cardShown
         readonly property bool playing: app.player?.playbackState === MprisPlaybackState.Playing
 
-        readonly property real pillW: Math.min(centerRow.implicitWidth + 16, 720)
+        // As wide as the title needs, within the room between the side pills
+        // (so it never runs over them): 10 px before the cover, 16 after the
+        // little bars.  Centred when it fits; otherwise it slides toward the
+        // narrower side pill, just far enough, so it can use all the room
+        // there is rather than only twice its tighter side.
+        readonly property real loX: app.leftReach + app.gap * 2
+        readonly property real hiX: modelData.width - app.rightReach - app.gap * 2
+        readonly property real roomW: Math.max(240, Math.min(1000, hiX - loX))
+        readonly property real pillW: Math.min(centerRow.implicitWidth + 26, roomW)
+        // the same for the panel it opens into (three-pill style): centred,
+        // or slid clear of a wide side pill when there's room on the other side
+        function slide(w) {
+            const c = (modelData.width - w) / 2
+            return Math.max(loX, Math.min(hiX - w, c)) - c
+        }
+        readonly property real pillShift: slide(pillW)
+        readonly property real panelShift: att ? pillShift : slide(openW)
+        readonly property real shift: open && !att ? panelShift : pillShift
         // audio only: the media card and its margins
         readonly property real openW: 616
         readonly property real openH: panel.implicitHeight
@@ -76,7 +93,11 @@ Variants {
         readonly property bool att: app.barAttached
         anchors { top: true }
         margins { top: att ? 0 : app.gap }
-        implicitWidth: openW + shadowRoom * 2
+        // wide enough for the pill and its panel where they have slid to
+        // (sized for both places, so opening never resizes the window: a
+        // resize as it opened lost the keyboard, and Esc stopped closing it)
+        implicitWidth: Math.max(openW, pillW) + 2 * Math.max(Math.abs(pillShift), Math.abs(panelShift))
+                       + shadowRoom * 2
         // On the long bar just the bar's height: the drawer's contents are
         // drawn in the glass window (BarStrip), so a drawer-tall window here
         // only held bigger buffers and redraw area for nothing.
@@ -143,12 +164,14 @@ Variants {
         Rectangle {
             id: shape
             anchors.horizontalCenter: parent.horizontalCenter
+            anchors.horizontalCenterOffset: isl.shift
+            Behavior on anchors.horizontalCenterOffset { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
             y: isl.att ? app.barTop : 0
             width: isl.open && !isl.att ? isl.openW : isl.pillW
             height: isl.att ? app.barH : (isl.open ? isl.openH : app.pillH)
             // attached: square along the top (it's part of the bar),
             // rounded at the bottom once it's a drawer
-            radius: isl.att ? app.barH / 2 : (isl.open ? 30 : app.pillH / 2)
+            radius: app.rr(isl.att ? app.barH / 2 : (isl.open ? 30 : app.pillH / 2))
             // edgeless glass while it's a pill; hovering brightens it a
             // touch.  The hairline edge returns once it opens into a panel.
             color: isl.att
@@ -182,7 +205,7 @@ Variants {
                 anchors.top: parent.top
                 anchors.margins: 1
                 height: 120
-                radius: shape.radius
+                radius: app.rr(shape.radius)
                 // only for the three-pill style, where the panel opens around
                 // it; on the long bar it drew a tinted pill, rounded corners
                 // and all, inside the section whenever a drawer was open
@@ -206,7 +229,9 @@ Variants {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                height: app.pillH / 2
+                // square: just the top edge and its corners, so it doesn't stop
+                // halfway down a straight side
+                height: app.squareCorners ? app.cornerSq + 1 : app.pillH / 2
                 clip: true
                 opacity: isl.open || isl.att ? 0 : 1
                 visible: opacity > 0
@@ -214,7 +239,7 @@ Variants {
                 Rectangle {
                     width: parent.width
                     height: app.pillH
-                    radius: app.pillH / 2
+                    radius: app.rr(app.pillH / 2)
                     color: "transparent"
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.14)
@@ -232,12 +257,15 @@ Variants {
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
 
-                // the media group: a tonal container behind the cover and title
+                // the media group: a tonal container behind the cover and title,
+                // inset from the pill by the same gap on every side (it used to
+                // run the pill's full width, out over its ends)
                 Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width
+                    id: mediaGroup
+                    anchors.centerIn: parent
+                    width: parent.width - (parent.height - height)
                     height: 28
-                    radius: 14
+                    radius: app.rrPill(14)
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, isl.open || shapeHov.hovered ? 0.12 : 0.07)
                     Behavior on color { ColorAnimation { duration: app.animQuick } }
                 }
@@ -246,7 +274,7 @@ Variants {
                 RowLayout {
                     id: centerRow
                     anchors.verticalCenter: parent.verticalCenter
-                    x: 4
+                    x: 10
                     spacing: 8
 
                     // a tiny rounded cover
@@ -255,7 +283,7 @@ Variants {
                         implicitHeight: 20
                         Rectangle {
                             anchors.fill: parent
-                            radius: 10
+                            radius: app.rrPill(10)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                             Text {
                                 anchors.centerIn: parent
@@ -280,7 +308,7 @@ Variants {
                             anchors.fill: parent
                             layer.enabled: true
                             visible: false
-                            Rectangle { anchors.fill: parent; radius: 10; color: "black" }
+                            Rectangle { anchors.fill: parent; radius: app.rrPill(10); color: "black" }
                         }
                         MultiEffect {
                             anchors.fill: parent
@@ -296,7 +324,9 @@ Variants {
                     // when they don't fit
                     Item {
                         id: marquee
-                        readonly property real maxW: 560
+                        // what's left of the room once the cover (20), the
+                        // little bars (10), the gaps (16) and the padding (26) are in
+                        readonly property real maxW: Math.max(80, isl.roomW - 72)
                         readonly property real overflow: Math.max(0, line.implicitWidth - maxW)
                         implicitWidth: Math.min(line.implicitWidth, maxW)
                         implicitHeight: line.implicitHeight
@@ -413,7 +443,7 @@ Variants {
                                 required property int index
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 2
-                                radius: 1
+                                radius: app.rr(1)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.75)
                                 opacity: isl.playing ? 1 : 0.5
                                 // a new height ten times a second; animating them
@@ -437,13 +467,14 @@ Variants {
                     readonly property real frac: len > 0
                         ? Math.max(0, Math.min(1, (app.player?.position ?? 0) / len)) : 0
                     visible: len > 0
-                    anchors.left: parent.left
-                    anchors.bottom: parent.bottom
-                    anchors.leftMargin: app.pillH / 2
-                    anchors.bottomMargin: 3
-                    width: (parent.width - app.pillH) * frac
+                    // inside the media group, along its bottom
+                    anchors.left: mediaGroup.left
+                    anchors.bottom: mediaGroup.bottom
+                    anchors.leftMargin: 12
+                    anchors.bottomMargin: 2
+                    width: (mediaGroup.width - 24) * frac
                     height: 2
-                    radius: 1
+                    radius: app.rr(1)
                     color: app.mBlue
                     opacity: 0.8
                 }
@@ -521,7 +552,7 @@ Variants {
                             Rectangle {
                                 implicitWidth: 30
                                 implicitHeight: 28
-                                radius: 14
+                                radius: app.rr(14)
                                 color: colHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                                 HoverHandler { id: colHov }
                                 Text {
@@ -553,7 +584,7 @@ Variants {
                                 Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } } }
                             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
                             implicitHeight: media.implicitHeight
-                            radius: 24
+                            radius: app.rr(24)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                             MediaBody {
                                 id: media
@@ -561,7 +592,7 @@ Variants {
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 app: rootV.app
-                                radius: 24
+                                radius: app.rr(24)
                             }
                         }
                     }

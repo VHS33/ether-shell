@@ -28,7 +28,7 @@ Variants {
 
         implicitWidth: sgRow.implicitWidth + 16
         implicitHeight: 24
-        radius: 12
+        radius: app.rrPill(12)
         color: lit ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
              : sgHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
              : "transparent"
@@ -70,6 +70,15 @@ Variants {
         anchors { top: true; right: true }
         margins { top: app.gap; right: app.gap }
         implicitWidth: rightRow.implicitWidth + 16
+        // how far this pill reaches in from the screen's edge (the centre
+        // pill keeps clear of it)
+        Binding {
+            target: app
+            property: "rightReach"
+            restoreMode: Binding.RestoreNone
+            when: winR.visible
+            value: app.gap + winR.implicitWidth
+        }
         implicitHeight: app.pillH
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -94,7 +103,7 @@ Variants {
 
         Rectangle {
             anchors.fill: parent
-            radius: app.pillH / 2
+            radius: app.rr(app.pillH / 2)
             color: app.cBg
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -197,7 +206,7 @@ Variants {
                             required property var modelData
                             width: 26
                             height: 24
-                            radius: 12
+                            radius: app.rrPill(12)
                             color: trHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11) : "transparent"
                             Behavior on color { ColorAnimation { duration: app.animQuick } }
                             HoverHandler { id: trHov }

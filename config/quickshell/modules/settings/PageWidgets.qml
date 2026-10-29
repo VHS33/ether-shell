@@ -150,7 +150,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 visible: wCard.modelData.type === "note"
                 implicitHeight: Math.max(38, noteEdit.contentHeight + 20)
-                radius: 14
+                radius: app.rr(14)
                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                 border.width: noteEdit.activeFocus ? 1 : 0
                 border.color: app.cBlue

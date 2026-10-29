@@ -106,7 +106,7 @@ Variants {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         implicitHeight: body.implicitHeight + 28
-                        radius: 20
+                        radius: app.rr(20)
                         color: app.cCard
                         border.width: 1
                         border.color: pop.crit ? app.cRed
@@ -150,7 +150,7 @@ Variants {
                                 Layout.alignment: Qt.AlignTop
                                 implicitWidth: 40
                                 implicitHeight: 40
-                                radius: 12
+                                radius: app.rr(12)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 IconImage {
                                     anchors.centerIn: parent
@@ -230,7 +230,7 @@ Variants {
                                     Layout.topMargin: 6
                                     visible: pop.canReply
                                     implicitHeight: 36
-                                    radius: 18
+                                    radius: app.rr(18)
                                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                     border.width: replyIn.activeFocus ? 1 : 0
                                     border.color: app.cBlue
@@ -268,7 +268,7 @@ Variants {
                                         Rectangle {
                                             implicitWidth: 26
                                             implicitHeight: 26
-                                            radius: 13
+                                            radius: app.rr(13)
                                             color: replyIn.text ? app.cBlue : "transparent"
                                             Text {
                                                 anchors.centerIn: parent
@@ -298,7 +298,7 @@ Variants {
                                             required property var modelData
                                             implicitWidth: actT.implicitWidth + 28
                                             implicitHeight: 30
-                                            radius: 15
+                                            radius: app.rr(15)
                                             color: actHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                                             Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -328,7 +328,7 @@ Variants {
                                 visible: (pop.modelData.image ?? "") !== ""
                                 implicitWidth: 64
                                 implicitHeight: 64
-                                radius: 12
+                                radius: app.rr(12)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 clip: true
                                 Image {
@@ -353,7 +353,7 @@ Variants {
                             anchors.leftMargin: 20
                             anchors.bottomMargin: 6
                             height: 2
-                            radius: 1
+                            radius: app.rr(1)
                             color: pop.crit ? app.cRed : app.cBlue
                             opacity: 0.6
                             NumberAnimation on width {

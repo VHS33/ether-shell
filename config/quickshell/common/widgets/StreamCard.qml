@@ -24,7 +24,7 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: scRow.implicitHeight + 30
-    radius: 18
+    radius: app.rr(18)
     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
     RowLayout {
@@ -39,7 +39,7 @@ Rectangle {
         Rectangle {
             implicitWidth: 46
             implicitHeight: 46
-            radius: 14
+            radius: app.rr(14)
             color: Qt.rgba(sc.app.cFg.r, sc.app.cFg.g, sc.app.cFg.b, 0.08)
             IconImage {
                 anchors.centerIn: parent

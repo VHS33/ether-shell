@@ -13,7 +13,7 @@ Rectangle {
 
     implicitWidth: 36
     implicitHeight: 36
-    radius: 18
+    radius: app.rr(18)
     color: active ? Qt.rgba(accent.r, accent.g, accent.b, 0.26)
          : ibHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
          : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)

@@ -153,7 +153,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 38
                         implicitHeight: 38
-                        radius: 14
+                        radius: app.rr(14)
                         color: app.cPrimC
                         Text {
                             anchors.centerIn: parent
@@ -198,7 +198,7 @@ Variants {
                             required property var modelData
                             implicitWidth: 34
                             implicitHeight: 34
-                            radius: 12
+                            radius: app.rr(12)
                             color: hb.modelData.tip === "setup" && aw.setup ? app.cPrimC
                                  : hbHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                             HoverHandler { id: hbHov }
@@ -265,7 +265,7 @@ Variants {
                                     required property var modelData
                                     implicitWidth: sugT.implicitWidth + 24
                                     implicitHeight: 32
-                                    radius: 16
+                                    radius: app.rr(16)
                                     color: sugHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                                                           : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
                                     HoverHandler { id: sugHov }
@@ -309,7 +309,7 @@ Variants {
                                 anchors.right: parent.right
                                 width: Math.min(msg.width * 0.85, userT.implicitWidth + 28)
                                 height: userT.implicitHeight + 20
-                                radius: 18
+                                radius: app.rr(18)
                                 color: app.cPrimC
                                 Text {
                                     id: userT
@@ -348,7 +348,7 @@ Variants {
                                     visible: !msg.modelData.error
                                     implicitWidth: cpRow.implicitWidth + 16
                                     implicitHeight: 24
-                                    radius: 12
+                                    radius: app.rr(12)
                                     color: cpHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                                     HoverHandler { id: cpHov }
                                     property bool copied: false
@@ -419,7 +419,7 @@ Variants {
                                             required property int index
                                             width: 8
                                             height: 8
-                                            radius: 4
+                                            radius: app.rr(4)
                                             color: app.cBlue
                                             SequentialAnimation on opacity {
                                                 running: app.aiBusy && app.aiStreaming === ""
@@ -486,7 +486,7 @@ Variants {
                                     readonly property bool saved: app.aiKeys[modelData] === true
                                     Layout.fillWidth: true
                                     implicitHeight: 60
-                                    radius: 18
+                                    radius: app.rr(18)
                                     color: chosen ? app.cPrimC
                                          : pcHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                          : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
@@ -501,7 +501,7 @@ Variants {
                                         Rectangle {
                                             implicitWidth: 36
                                             implicitHeight: 36
-                                            radius: 12
+                                            radius: app.rr(12)
                                             color: pc.chosen ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                             Text {
                                                 anchors.centerIn: parent
@@ -533,7 +533,7 @@ Variants {
                                             visible: pc.saved
                                             implicitWidth: kT.implicitWidth + 16
                                             implicitHeight: 22
-                                            radius: 11
+                                            radius: app.rr(11)
                                             color: Qt.rgba(app.cGreen.r, app.cGreen.g, app.cGreen.b, 0.2)
                                             Text {
                                                 id: kT
@@ -572,7 +572,7 @@ Variants {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: getRow.implicitHeight + 20
-                                radius: 16
+                                radius: app.rr(16)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
                                 visible: !aw.hasKey
                                 RowLayout {
@@ -592,7 +592,7 @@ Variants {
                                     Rectangle {
                                         implicitWidth: gkRow.implicitWidth + 22
                                         implicitHeight: 34
-                                        radius: 17
+                                        radius: app.rr(17)
                                         color: gkHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.16)
                                                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                         HoverHandler { id: gkHov }
@@ -630,7 +630,7 @@ Variants {
                                 Rectangle {
                                     Layout.fillWidth: true
                                     implicitHeight: 46
-                                    radius: 16
+                                    radius: app.rr(16)
                                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                     border.width: keyIn.activeFocus ? 1 : 0
                                     border.color: app.cBlue
@@ -677,7 +677,7 @@ Variants {
                                 Rectangle {
                                     implicitWidth: svT.implicitWidth + 30
                                     implicitHeight: 46
-                                    radius: 16
+                                    radius: app.rr(16)
                                     color: keyIn.text.trim() ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                     Behavior on color { ColorAnimation { duration: app.animQuick } }
                                     Text {
@@ -724,7 +724,7 @@ Variants {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: 46
-                                radius: 16
+                                radius: app.rr(16)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 border.width: mIn.activeFocus ? 1 : 0
                                 border.color: app.cBlue
@@ -764,7 +764,7 @@ Variants {
                                 visible: aw.hasKey && aw.setup
                                 implicitWidth: dnT.implicitWidth + 36
                                 implicitHeight: 40
-                                radius: 20
+                                radius: app.rr(20)
                                 color: app.cBlue
                                 Text {
                                     id: dnT
@@ -792,7 +792,7 @@ Variants {
                     // never shorter than the send button and its margins, so
                     // the button sits centred in a one-line box
                     implicitHeight: Math.min(160, Math.max(input.implicitHeight + 24, sendBtn.height + 14))
-                    radius: 22
+                    radius: app.rr(22)
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                     border.width: input.activeFocus ? 1 : 0
                     border.color: Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.6)
@@ -856,7 +856,7 @@ Variants {
                         anchors.margins: 7
                         width: 36
                         height: 36
-                        radius: 18
+                        radius: app.rr(18)
                         readonly property bool can: app.aiBusy || input.text.trim() !== ""
                         color: can ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                         Behavior on color { ColorAnimation { duration: app.animQuick } }

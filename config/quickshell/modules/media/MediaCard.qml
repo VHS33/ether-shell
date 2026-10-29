@@ -62,7 +62,7 @@ Variants {
             Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             implicitHeight: cardBody.implicitHeight
-            radius: 28
+            radius: app.rr(28)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)

@@ -57,12 +57,14 @@ Item {
     // colour style suits it (automatic style), and its calm places (widgets)
     ArtColors {
         id: wallArt
-        source: nat.app ? (nat.app.currentWall || "") : ""
+        // (a moving wallpaper's still)
+        source: nat.app ? (nat.app.currentStill || "") : ""
         onAnalyzed: if (nat.app && lightness >= 0)
             nat.app.wallMeasured(lightness, suggestedScheme, colourfulness,
                                  smartSeed.valid ? smartSeed.toString() : "",
                                  smartSecond.valid ? smartSecond.toString() : "", smartWhy, source,
-                                 smartThird.valid ? smartThird.toString() : "")
+                                 smartThird.valid ? smartThird.toString() : "",
+                                 smartPalette(true, Theme.themeContrast), smartPalette(false, Theme.themeContrast))
     }
     // any wallpaper, measured for its swatches (its own light or dark and style)
     ArtColors {
@@ -70,8 +72,14 @@ Item {
         onAnalyzed: if (nat.app && source !== "")
             nat.app.paletteProbed(source, lightness, suggestedScheme, smartSeed.valid ? smartSeed.toString() : "",
                                   smartSecond.valid ? smartSecond.toString() : "", smartWhy,
-                                  smartThird.valid ? smartThird.toString() : "")
+                                  smartThird.valid ? smartThird.toString() : "",
+                                  smartPalette(true, Theme.themeContrast), smartPalette(false, Theme.themeContrast))
     }
+    // the current wallpaper's palette from the picture, worked out again for
+    // a mode and contrast (the Contrast slider moves without a new reading)
+    function wallPalette(dark, contrast, studio) { return wallArt.smartPalette(dark, contrast, studio || ({})) }
+    // the colours found in it, for Theme Studio
+    function wallColours() { return wallArt.smartColours() }
     function probe(path) {
         probeArt.source = ""             // the same file again still gets measured
         probeArt.source = path

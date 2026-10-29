@@ -15,6 +15,22 @@ ColumnLayout {
     readonly property int pageNo: 5
     spacing: 4
 
+    SectionLabel { app: settingsRoot.app; text: "Layout" }
+
+    Card {
+        app: settingsRoot.app
+        title: "New windows"
+        desc: "Tiling shares the screen between windows. Floating opens each one centred at its own size: move it with SUPER and drag, resize it by its edges (or SUPER and right-drag). Switching changes the windows already open too."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Tiling", "Floating"]
+                current: app.floatingWindows ? 1 : 0
+                onPicked: i => app.setWindowMode(i === 1)
+            }
+        ]
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Spacing" }
 
     Card {

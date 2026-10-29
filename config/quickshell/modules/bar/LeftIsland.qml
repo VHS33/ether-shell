@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import qs.common.widgets
 import qs.modules.plugins
 import qs.services
 
@@ -25,19 +26,24 @@ Variants {
     property var app
     model: Quickshell.screens
 
-    // a stat inside the stats group: its icon (soft) and its number, in a
-    // fixed-width slot so the group doesn't shift as values change
+    // a stat inside the stats group: its icon (soft), then a mini graph of
+    // the last minute and/or its number (Settings > Bar > Resource
+    // monitor), each in a fixed-width slot so the group doesn't shift as
+    // values change
     component Stat: Row {
         id: st
         property var app
         property string icon: ""
         property string value: ""
         property string widest: "100%"
-        property real level: 0
-        property color tint: app.cFg
-        property bool clickable: false
-        signal clicked()
-        spacing: 4
+        property string mode: "number"      // "number", "graph" or "both"
+        property var points: []
+        property real maxValue: 100
+        property color lineColour: app.cFg
+        property color valueColour: app.cFg
+        property bool showIcon: true        // Settings > Bar > Resource monitor > Icons
+        property bool ownGraph: true        // false in "One graph": its line is in the shared one
+        spacing: 5
 
         TextMetrics {
             id: stMetrics
@@ -48,16 +54,28 @@ Variants {
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
+            visible: st.showIcon
             text: st.icon
             color: Qt.rgba(st.app.cFg.r, st.app.cFg.g, st.app.cFg.b, 0.55)
             font.family: "Material Symbols Rounded"
             font.pixelSize: st.app.fs(15)
         }
+        Sparkline {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: st.ownGraph && st.mode !== "number"
+            width: st.app.fs(38)
+            height: st.app.fs(14)
+            points: st.points
+            maxValue: st.maxValue
+            color: st.lineColour
+            fill: true
+        }
         Text {
             anchors.verticalCenter: parent.verticalCenter
+            visible: st.mode !== "graph"
             width: stMetrics.advanceWidth
             text: st.value
-            color: st.app.cFg
+            color: st.valueColour
             font.family: Theme.uiFont
             font.weight: Font.Medium
             font.pixelSize: st.app.fs(12)
@@ -76,57 +94,22 @@ Variants {
 
         Layout.fillWidth: true
         implicitHeight: 128
-        radius: 20
+        radius: app.rr(20)
         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
         clip: true
 
-        // kept up to date even while the drawer is closed (they're small),
-        // so opening shows them already drawn
-        onPointsChanged: plot.requestPaint()
-        onTintChanged: if (visible) plot.requestPaint()
-        onVisibleChanged: if (visible) plot.requestPaint()
-
-        Canvas {
-            id: plot
+        // the last two minutes, drawn only while the panel shows it
+        Sparkline {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: parent.height * 0.62
-            onWidthChanged: requestPaint()
-            onHeightChanged: requestPaint()
-            onPaint: {
-                const ctx = getContext("2d")
-                ctx.reset()
-                const pts = gr.points
-                if (!pts || pts.length < 2) return
-                const n = 60, w = width, h = height
-                const step = w / (n - 1)
-                const x0 = w - (pts.length - 1) * step
-                const y = v => h - Math.max(0, Math.min(1, v / gr.maxValue)) * (h - 4) - 2
-                const c = gr.tint
-                // the area
-                ctx.beginPath()
-                ctx.moveTo(x0, h)
-                for (let i = 0; i < pts.length; i++) ctx.lineTo(x0 + i * step, y(pts[i]))
-                ctx.lineTo(w, h)
-                ctx.closePath()
-                const g = ctx.createLinearGradient(0, 0, 0, h)
-                g.addColorStop(0, Qt.rgba(c.r, c.g, c.b, 0.38))
-                g.addColorStop(1, Qt.rgba(c.r, c.g, c.b, 0.02))
-                ctx.fillStyle = g
-                ctx.fill()
-                // the line on top
-                ctx.beginPath()
-                for (let i = 0; i < pts.length; i++) {
-                    const px = x0 + i * step, py = y(pts[i])
-                    if (i === 0) ctx.moveTo(px, py)
-                    else ctx.lineTo(px, py)
-                }
-                ctx.lineWidth = 2
-                ctx.lineJoin = "round"
-                ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b, 0.95)
-                ctx.stroke()
-            }
+            points: gr.points
+            count: 60
+            maxValue: gr.maxValue
+            color: gr.tint
+            fill: true
+            lineWidth: 2
         }
 
         ColumnLayout {
@@ -174,6 +157,15 @@ Variants {
         // the left drawer runs flush down the bar's left end (the screen's
         // edge, in the wrap style)
         readonly property real finalX: app.barInset
+        // how far the closed pill reaches in from the screen's left edge
+        // (the centre pill keeps clear of it)
+        Binding {
+            target: app
+            property: "leftReach"
+            restoreMode: Binding.RestoreNone
+            when: isl3.visible
+            value: (isl3.att ? app.gap + 10 : app.gap) + isl3.pillW
+        }
         Binding {
             target: app
             property: "leftGeom"
@@ -309,7 +301,7 @@ Variants {
             height: isl3.att ? app.barH : (isl3.open ? isl3.openH : app.pillH)
             // attached: square along the top (it's part of the bar),
             // rounded at the bottom once it's a drawer
-            radius: isl3.att ? app.barH / 2 : (isl3.open ? 28 : app.pillH / 2)
+            radius: app.rr(isl3.att ? app.barH / 2 : (isl3.open ? 28 : app.pillH / 2))
             // edgeless glass while it's a pill; hovering brightens it a
             // touch.  The hairline edge returns once it opens into a panel.
             color: isl3.att
@@ -344,7 +336,7 @@ Variants {
                 anchors.top: parent.top
                 anchors.margins: 1
                 height: 120
-                radius: shape.radius
+                radius: app.rr(shape.radius)
                 // only for the three-pill style, where the panel opens around
                 // it; on the long bar it drew a tinted pill, rounded corners
                 // and all, inside the section whenever a drawer was open
@@ -363,7 +355,9 @@ Variants {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                height: app.pillH / 2
+                // square: just the top edge and its corners, so it doesn't stop
+                // halfway down a straight side
+                height: app.squareCorners ? app.cornerSq + 1 : app.pillH / 2
                 clip: true
                 opacity: isl3.open || isl3.att ? 0 : 1
                 visible: opacity > 0
@@ -371,7 +365,7 @@ Variants {
                 Rectangle {
                     width: parent.width
                     height: app.pillH
-                    radius: app.pillH / 2
+                    radius: app.rr(app.pillH / 2)
                     color: "transparent"
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.14)
@@ -404,7 +398,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 28
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: app.aiShown ? app.cPrimC
                              : aiHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
@@ -430,7 +424,7 @@ Variants {
                     Rectangle {
                         implicitWidth: wsStrip.implicitWidth + 8
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, wsGHov.hovered ? 0.11 : 0.07)
                         Behavior on color { ColorAnimation { duration: app.animQuick } }
                         HoverHandler { id: wsGHov }
@@ -452,7 +446,7 @@ Variants {
                             Rectangle {
                                 width: 28
                                 height: 22
-                                radius: 11
+                                radius: app.rrPill(11)
                                 x: wsStrip.activeIndex * wsStrip.pitch + (wsStrip.slot - width) / 2
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: wsStrip.here ? app.cBlue : Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.3)
@@ -527,7 +521,7 @@ Variants {
                         visible: app.secondScreen !== "" && app.secondWorkspaces.length > 0
                         implicitWidth: wsStrip2.implicitWidth + 8 + 22
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, wsGHov2.hovered ? 0.11 : 0.07)
                         Behavior on color { ColorAnimation { duration: app.animQuick } }
                         HoverHandler { id: wsGHov2 }
@@ -561,7 +555,7 @@ Variants {
                             Rectangle {
                                 width: 28
                                 height: 22
-                                radius: 11
+                                radius: app.rrPill(11)
                                 x: wsStrip2.activeIndex * wsStrip2.pitch + (wsStrip2.slot - width) / 2
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: wsStrip2.here ? app.cBlue : Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.3)
@@ -632,10 +626,10 @@ Variants {
 
                     // ---- stats, in a second group; click it for the system drawer ----
                     Rectangle {
-                        visible: app.barStats || (app.gpuOk && app.barGpu)
+                        visible: app.statsAny
                         implicitWidth: statRow.implicitWidth + 20
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b,
                                        isl3.open || stGHov.hovered ? 0.12 : 0.07)
                         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -645,30 +639,61 @@ Variants {
                             id: statRow
                             anchors.centerIn: parent
                             spacing: 12
+                            // "One graph": every stat's line together, before the numbers
+                            StatGraph {
+                                app: rootV.app
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: app.statOneAny
+                            }
                             Stat {
                                 app: rootV.app
-                                visible: app.barStats
+                                visible: app.statCpu !== "off" && !(app.statOneGraph && app.statCpu === "graph")
+                                mode: app.statCpu
                                 icon: "memory"
                                 value: app.cpuPct + "%"
+                                points: app.cpuHist
+                                lineColour: app.statCpuColour
+                                showIcon: app.statIcons
+                                ownGraph: !app.statOneGraph
+                                valueColour: app.statOneGraph && app.statGraphed(app.statCpu) ? app.statCpuColour : app.cFg
                             }
                             Stat {
                                 app: rootV.app
-                                visible: app.barStats
+                                visible: app.statMem !== "off" && !(app.statOneGraph && app.statMem === "graph")
+                                mode: app.statMem
                                 icon: "memory_alt"
                                 value: app.memPct + "%"
+                                points: app.memHist
+                                lineColour: app.statMemColour
+                                showIcon: app.statIcons
+                                ownGraph: !app.statOneGraph
+                                valueColour: app.statOneGraph && app.statGraphed(app.statMem) ? app.statMemColour : app.cFg
                             }
                             Stat {
                                 app: rootV.app
-                                visible: app.gpuOk && app.barGpu
+                                visible: app.gpuOk && app.statGpu !== "off" && !(app.statOneGraph && app.statGpu === "graph")
+                                mode: app.statGpu
                                 icon: "developer_board"
                                 value: app.gpuPct + "%"
+                                points: app.gpuHist
+                                lineColour: app.statGpuColour
+                                showIcon: app.statIcons
+                                ownGraph: !app.statOneGraph
+                                valueColour: app.statOneGraph && app.statGraphed(app.statGpu) ? app.statGpuColour : app.cFg
                             }
                             Stat {
                                 app: rootV.app
-                                visible: app.gpuOk && app.barGpu
+                                visible: app.gpuOk && app.statTemp !== "off" && !(app.statOneGraph && app.statTemp === "graph")
+                                mode: app.statTemp
                                 icon: "thermostat"
                                 value: app.gpuTemp + "\u00b0"
                                 widest: "100\u00b0"
+                                points: app.tempHist
+                                lineColour: app.statTempColour
+                                showIcon: app.statIcons
+                                ownGraph: !app.statOneGraph
+                                valueColour: app.gpuTemp >= 80 ? app.cRed : app.gpuTemp >= 70 ? app.cYellow
+                                           : app.statOneGraph && app.statGraphed(app.statTemp) ? app.statTempColour : app.cFg
                             }
                         }
                         MouseArea {
@@ -694,7 +719,7 @@ Variants {
                         implicitWidth: Math.min(maxW, 9 + 16 + 7 + awT.implicitWidth + 12)
                         Behavior on implicitWidth { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                         clip: true
                         RowLayout {
@@ -794,7 +819,7 @@ Variants {
                             Rectangle {
                                 implicitWidth: 30
                                 implicitHeight: 28
-                                radius: 14
+                                radius: app.rr(14)
                                 color: shHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                                 HoverHandler { id: shHov }
                                 Text {
@@ -829,14 +854,14 @@ Variants {
                             title: "CPU"
                             value: app.cpuPct + "%"
                             points: app.cpuHist
-                            tint: app.cGreen
+                            tint: app.statCpuColour
                         }
                         Graph {
                             app: rootV.app
                             title: "Memory"
                             value: app.memPct + "%"
                             points: app.memHist
-                            tint: app.cPeach
+                            tint: app.statMemColour
                         }
                         Graph {
                             app: rootV.app
@@ -844,7 +869,7 @@ Variants {
                             title: "GPU"
                             value: app.gpuPct + "%"
                             points: app.gpuHist
-                            tint: app.cMauve
+                            tint: app.statGpuColour
                         }
                         Graph {
                             app: rootV.app
@@ -853,7 +878,7 @@ Variants {
                             value: app.gpuTemp + "\u00b0C"
                             points: app.tempHist
                             maxValue: 100
-                            tint: app.gpuTemp >= 80 ? app.cRed : app.cTeal
+                            tint: app.statTempColour
                         }
                     }
 
@@ -861,7 +886,7 @@ Variants {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: procCol.implicitHeight + 24
-                        radius: 20
+                        radius: app.rr(20)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                         opacity: isl3.revealed > 2 ? 1 : 0
                         transform: Translate { y: isl3.revealed > 2 ? 0 : 10
@@ -935,12 +960,12 @@ Variants {
                                             Rectangle {
                                                 implicitWidth: 42
                                                 implicitHeight: 6
-                                                radius: 3
+                                                radius: app.rr(3)
                                                 color: app.cSurf
                                                 Rectangle {
                                                     width: parent.width * Math.min(1, cell.modelData.v / 100)
                                                     height: parent.height
-                                                    radius: 3
+                                                    radius: app.rr(3)
                                                     color: cell.modelData.c === "green" ? app.cGreen : app.cPeach
                                                 }
                                             }
@@ -968,7 +993,7 @@ Variants {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: playCol.implicitHeight + 24
-                        radius: 20
+                        radius: app.rr(20)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                         opacity: isl3.revealed > 3 ? 1 : 0
                         transform: Translate { y: isl3.revealed > 3 ? 0 : 10
@@ -1011,7 +1036,7 @@ Variants {
                                 visible: app.gameRunning
                                 Layout.fillWidth: true
                                 implicitHeight: 30
-                                radius: 15
+                                radius: app.rr(15)
                                 color: app.cPrimC
                                 RowLayout {
                                     anchors.fill: parent
@@ -1074,12 +1099,12 @@ Variants {
                                         Rectangle {
                                             Layout.fillWidth: true
                                             implicitHeight: 4
-                                            radius: 2
+                                            radius: app.rr(2)
                                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                             Rectangle {
                                                 width: parent.width * Math.max(0.03, gRow.modelData.week / playCol.most)
                                                 height: parent.height
-                                                radius: 2
+                                                radius: app.rr(2)
                                                 color: app.cBlue
                                             }
                                         }
@@ -1103,7 +1128,7 @@ Variants {
                                 Layout.alignment: Qt.AlignLeft
                                 implicitWidth: markRow.implicitWidth + 24
                                 implicitHeight: 30
-                                radius: 15
+                                radius: app.rr(15)
                                 color: markHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.13)
                                                        : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                                 HoverHandler { id: markHov }
@@ -1144,7 +1169,7 @@ Variants {
                         Rectangle {
                             implicitWidth: btT.implicitWidth + 36
                             implicitHeight: 36
-                            radius: 18
+                            radius: app.rr(18)
                             color: btHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.13) : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                             HoverHandler { id: btHov }
                             Text {

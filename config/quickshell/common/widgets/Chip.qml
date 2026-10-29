@@ -12,7 +12,7 @@ Rectangle {
 
     implicitWidth: chipT.implicitWidth + 26
     implicitHeight: 32
-    radius: 16
+    radius: app.rr(16)
     color: selected ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.26)
          : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
          : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)

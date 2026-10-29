@@ -98,6 +98,24 @@ ColumnLayout {
         ]
     }
 
+    SectionLabel { app: settingsRoot.app; text: "Style" }
+
+    Card {
+        app: settingsRoot.app
+        title: "Look"
+        desc: app.cfg.lockStyle === "classic"
+              ? "The clock, greeting and a glass card for your password."
+              : "A heads-up display in your theme's colours: corner brackets that draw in as it locks, a clock whose digits roll over, a line sweeping through each minute, live readouts, and soft glows that drift while you're there and rest when you're not."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Neo", "Classic"]
+                current: app.cfg.lockStyle === "classic" ? 1 : 0
+                onPicked: i => app.setting("lockStyle", i === 1 ? "classic" : "neo")
+            }
+        ]
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Background" }
 
     Card {
@@ -169,7 +187,7 @@ ColumnLayout {
             Layout.fillWidth: true
             visible: app.lockGreetMode === "custom"
             implicitHeight: 38
-            radius: 19
+            radius: app.rr(19)
             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
             border.width: greetIn.activeFocus ? 1 : 0
             border.color: app.cBlue

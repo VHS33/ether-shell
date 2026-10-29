@@ -102,7 +102,7 @@ test("whether a switch is on", () => {
 })
 
 test("the real pages: each file is there, at its page number", () => {
-    assert.equal(PAGES.length, 26)
+    assert.equal(PAGES.length, 27)
     PAGES.forEach((p, i) => {
         assert.ok(fs.existsSync(path.join(pagesDir, p.f + ".qml")), p.f + ".qml is missing")
         assert.equal(parsePage(read(p.f)).pageNo, i, p.f + " has a different pageNo from its place in PAGES")

@@ -99,7 +99,7 @@ Variants {
             anchors.centerIn: parent
             width: Math.min(780, win.width - 80)
             height: Math.min(600, win.height - 80)
-            radius: 32
+            radius: app.rr(32)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
@@ -126,7 +126,7 @@ Variants {
                                 required property int index
                                 width: index === win.at ? 22 : 8
                                 height: 8
-                                radius: 4
+                                radius: app.rr(4)
                                 color: index <= win.at ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.15)
                                 Behavior on width { NumberAnimation { duration: app.animQuick } }
                                 Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -215,7 +215,7 @@ Variants {
                                         readonly property bool isCurrent: modelData === app.currentWall
                                         width: wallGrid.cellW
                                         height: width * 9 / 16
-                                        radius: 12
+                                        radius: app.rr(12)
                                         clip: true
                                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                         border.width: isCurrent ? 3 : thHov.hovered ? 2 : 0
@@ -224,7 +224,7 @@ Variants {
                                         Image {
                                             anchors.fill: parent
                                             anchors.margins: thumb.border.width
-                                            source: "file://" + thumb.modelData
+                                            source: app.stillOf(thumb.modelData) ? "file://" + app.stillOf(thumb.modelData) : ""
                                             sourceSize.width: 320
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
@@ -390,7 +390,7 @@ Variants {
                                         readonly property var d: scr.draft[modelData.name] || null
                                         Layout.fillWidth: true
                                         implicitHeight: monCol.implicitHeight + 28
-                                        radius: 18
+                                        radius: app.rr(18)
                                         color: isMain ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.14) : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.05)
                                         border.width: isMain || modelData.name === scr.selMon ? 2 : 0
                                         border.color: isMain ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
@@ -515,7 +515,7 @@ Variants {
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 44
-                            radius: 22
+                            radius: app.rr(22)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                             border.width: city.activeFocus ? 1 : 0
                             border.color: app.cBlue
@@ -567,7 +567,7 @@ Variants {
                                 required property var modelData
                                 Layout.fillWidth: true
                                 implicitHeight: 46
-                                radius: 14
+                                radius: app.rr(14)
                                 color: plHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.10) : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.04)
                                 HoverHandler { id: plHov }
                                 RowLayout {

@@ -166,6 +166,36 @@ Singleton {
     property string wallThird: ""
     property string wallWhy: ""
     readonly property bool smartOn: themePrefer === "smart" && themeSvc.nativeOk
+    // The whole palette from the picture (Settings > Theme > Palette): the
+    // native plugin's own surfaces, text and three accents for the wallpaper,
+    // for a dark and a light theme ({ surface: "#rrggbb", ... }, matugen's
+    // names), written into every app in place of Material's.  Needs the
+    // Smart colour source; the Monochrome style keeps its greys.
+    property var wallPalDark: ({})
+    property var wallPalLight: ({})
+    readonly property bool pictureOn: Config.cfg.themePalette !== "material" && smartOn
+                                      && themeScheme !== "scheme-monochrome"
+    // Theme Studio's choices for a wallpaper (Settings > Theme Studio): the
+    // colours picked by hand for it (accents and the backgrounds' tone), and
+    // the strength and tint for all
+    function studioFor(path) {
+        const all = Config.cfg.studioPicks
+        const p = (all && typeof all === "object" && all[path]) || {}
+        const hex = v => (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) ? v.toLowerCase() : ""
+        const num = (v, lo, hi) => { const n = Number(v); return isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 1 }
+        return { main: hex(p.main), second: hex(p.second), third: hex(p.third), base: hex(p.base),
+                 strength: num(Config.cfg.studioStrength ?? 1, 0.5, 1.6), tint: num(Config.cfg.studioTint ?? 1, 0, 2.5),
+                 border: Config.cfg.studioBorder === "gradient" ? "gradient" : "single",
+                 borderColour: hex(Config.cfg.studioBorderColour) }
+    }
+    // a palette as setwall reads it: key=#rrggbb,key=#rrggbb (only those
+    // characters: setwall runs its settings file as shell code)
+    function paletteString(p) {
+        const out = []
+        for (const k in p || {})
+            if (/^[a-z_]+$/.test(k) && /^#[0-9a-f]{6}$/i.test(p[k])) out.push(k + "=" + p[k].toLowerCase())
+        return out.join(",")
+    }
     property real wallColourfulness: -1
     readonly property var themePrefers: [ "smart", "dominant", 
         "saturation", "less-saturation", "darkness", "lightness", "value"

@@ -10,7 +10,7 @@ Rectangle {
     signal clicked()
     implicitWidth: btnT.implicitWidth + 40
     implicitHeight: 40
-    radius: 20
+    radius: app.rr(20)
     color: primary ? (hov.hovered ? Qt.lighter(app.cBlue, 1.08) : app.cBlue)
          : hov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.14) : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
     HoverHandler { id: hov }

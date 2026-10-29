@@ -110,7 +110,7 @@ Variants {
             visible: opacity > 0
             Behavior on x { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal } }
-            radius: 26
+            radius: app.rr(26)
             color: app.cBg
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.45)
@@ -127,7 +127,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 38
                         implicitHeight: 38
-                        radius: 14
+                        radius: app.rr(14)
                         color: app.cPrimC
                         Text {
                             anchors.centerIn: parent
@@ -159,7 +159,7 @@ Variants {
                         visible: app.clipItems.length > 0
                         implicitWidth: cw.confirmClear ? clrT.implicitWidth + 24 : 34
                         implicitHeight: 34
-                        radius: 12
+                        radius: app.rr(12)
                         color: cw.confirmClear ? app.cRed
                              : clrHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                         Behavior on implicitWidth { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
@@ -186,7 +186,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 34
                         implicitHeight: 34
-                        radius: 12
+                        radius: app.rr(12)
                         color: xHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                         HoverHandler { id: xHov }
                         Text {
@@ -208,7 +208,7 @@ Variants {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 46
-                    radius: 23
+                    radius: app.rr(23)
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                     RowLayout {
                         anchors.fill: parent
@@ -277,7 +277,7 @@ Variants {
                             readonly property bool on: cw.filter === modelData.f
                             implicitWidth: chipT.implicitWidth + 24
                             implicitHeight: 30
-                            radius: 15
+                            radius: app.rr(15)
                             color: on ? app.cPrimC
                                  : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
@@ -320,7 +320,7 @@ Variants {
                         readonly property bool current: index === cw.sel
                         width: ListView.view.width
                         implicitHeight: modelData.img ? 150 : Math.max(52, entryText.implicitHeight + 26)
-                        radius: 16
+                        radius: app.rr(16)
                         color: current ? app.cPrimC
                              : eHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
@@ -363,7 +363,7 @@ Variants {
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
                                 width: height * 1.6
-                                radius: 10
+                                radius: app.rr(10)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 clip: true
                                 Image {
@@ -414,7 +414,7 @@ Variants {
                             anchors.margins: 8
                             width: 28
                             height: 28
-                            radius: 10
+                            radius: app.rr(10)
                             opacity: eHov.hovered ? 1 : 0
                             color: dHov.hovered ? Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.2) : "transparent"
                             HoverHandler { id: dHov }

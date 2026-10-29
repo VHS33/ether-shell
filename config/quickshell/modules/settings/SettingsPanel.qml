@@ -524,7 +524,7 @@ Variants {
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on scale { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-            radius: 24
+            radius: app.rr(24)
             color: app.cCard
             border.width: 1
             border.color: app.cBorder
@@ -596,7 +596,7 @@ Variants {
                             Rectangle {
                                 implicitWidth: 38
                                 implicitHeight: 38
-                                radius: 12
+                                radius: app.rr(12)
                                 color: app.cBlue
                                 Text {
                                     anchors.centerIn: parent
@@ -632,7 +632,7 @@ Variants {
                         Layout.topMargin: 6
                         Layout.bottomMargin: 6
                         implicitHeight: 38
-                        radius: 19
+                        radius: app.rr(19)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, searchField.activeFocus ? 0.12 : 0.07)
                         border.width: searchField.activeFocus ? 1 : 0
                         border.color: app.cBlue
@@ -719,7 +719,7 @@ Variants {
                                     readonly property bool on: index === win.resultIndex
                                     Layout.fillWidth: true
                                     implicitHeight: resText.implicitHeight + 14
-                                    radius: 12
+                                    radius: app.rr(12)
                                     color: on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                                          : resHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08) : "transparent"
                                     HoverHandler { id: resHov }
@@ -777,6 +777,7 @@ Variants {
                                     { i: 0, t: "General",        g: "text_fields" },
                                     { i: 1, t: "Glass",          g: "blur_on" },
                                     { i: 2, t: "Theme",          g: "palette" },
+                                    { i: 26, t: "Theme Studio",  g: "tune" },
                                     { i: 3, t: "Wallpaper",      g: "wallpaper" },
                                     { sec: "Desktop" },
                                     { i: 4, t: "Bar",            g: "toolbar" },
@@ -835,7 +836,7 @@ Variants {
                                     Rectangle {
                                         visible: !navItem.isSec
                                         anchors.fill: parent
-                                        radius: 22
+                                        radius: app.rr(22)
                                         color: navItem.on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                                              : navHov.hovered ? app.cTile : "transparent"
                                         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -866,7 +867,7 @@ Variants {
                                                 visible: navItem.badge > 0
                                                 implicitWidth: Math.max(22, badgeT.implicitWidth + 12)
                                                 implicitHeight: 20
-                                                radius: 10
+                                                radius: app.rr(10)
                                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                                 Text {
                                                     id: badgeT
@@ -932,7 +933,7 @@ Variants {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: 18
+                    radius: app.rr(18)
                     color: app.isLight ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(0, 0, 0, 0.18)
 
                     ColumnLayout {
@@ -1098,6 +1099,9 @@ Variants {
 
                                     // ================= RECORDING APPS =================
                                     PageRecording { app: rootV.app; settingsWin: win; settingsRoot: rootV; settingsKeys: keys }
+
+                                    // ================= THEME STUDIO =================
+                                    PageThemeStudio { app: rootV.app; settingsWin: win; settingsRoot: rootV; settingsKeys: keys }
                                 }
                             }
 
@@ -1106,7 +1110,7 @@ Variants {
                                 visible: flick.contentHeight > flick.height
                                 anchors.right: parent.right
                                 width: 4
-                                radius: 2
+                                radius: app.rr(2)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 y: flick.visibleArea.yPosition * flick.height
                                 height: Math.max(30, flick.visibleArea.heightRatio * flick.height)

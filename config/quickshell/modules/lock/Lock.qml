@@ -42,6 +42,14 @@ Scope {
     property int fails: 0
     property bool capsLock: false
     signal wrong()                       // a wrong password: the field shakes
+    // The verdict, shown on the password marks for a moment: "ok" (green,
+    // "Authenticated", then it unlocks) or "fail" (red, "Authentication
+    // failed").  heldLen keeps the marks on screen meanwhile; the password
+    // itself is already gone from memory.
+    property string result: ""
+    property int heldLen: 0
+    Timer { id: okHold; interval: 450; onTriggered: { lockRoot.unlocking = true; leave.restart() } }
+    Timer { id: failHold; interval: 1100; onTriggered: { lockRoot.result = ""; lockRoot.heldLen = 0 } }
 
     // ---- the smooth lock and unlock ----
     // Just before locking, each screen is photographed (grim, into your
@@ -86,6 +94,7 @@ Scope {
     function lockNow(withPicture) {
         if (isLocked) return
         buffer = ""; message = ""; messageIsError = false; fails = 0; busy = false
+        result = ""; heldLen = 0
         unlocking = false
         markOn.running = true
         isLocked = true
@@ -94,9 +103,11 @@ Scope {
     }
     // the right password: play the way out, then let go
     function unlockNow() {
-        buffer = ""; message = ""; busy = true; fails = 0
-        unlocking = true
-        leave.restart()
+        heldLen = buffer.length
+        buffer = ""; busy = true; fails = 0
+        failHold.stop()
+        result = "ok"; message = "Authenticated"; messageIsError = false
+        okHold.restart()
     }
     function release() {
         engaged = false
@@ -104,12 +115,14 @@ Scope {
         isLocked = false
         unlocking = false
         busy = false
+        result = ""; heldLen = 0
         hasShots = false
         markOff.running = true
         unshoot.running = true
     }
     function type(text) {
         if (busy || !text) return
+        if (result === "fail") { failHold.stop(); result = ""; heldLen = 0 }
         if (message !== "" && !busy) { message = ""; messageIsError = false }
         buffer += text
     }
@@ -161,11 +174,14 @@ Scope {
                 return
             }
             lockRoot.busy = false
+            lockRoot.heldLen = lockRoot.buffer.length
             lockRoot.buffer = ""
             lockRoot.fails++
+            lockRoot.result = "fail"
+            failHold.restart()
             // keep a message PAM gave (too many tries, say); otherwise ours
             if (!lockRoot.messageIsError || lockRoot.message === "")
-                lockRoot.message = result === PamResult.Failed ? "Wrong password" : "Couldn't check the password"
+                lockRoot.message = result === PamResult.Failed ? "Authentication failed" : "Couldn't check the password"
             lockRoot.messageIsError = true
             lockRoot.wrong()
         }

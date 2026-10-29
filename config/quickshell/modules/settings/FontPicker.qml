@@ -31,7 +31,7 @@ ColumnLayout {
                 readonly property bool isCurrent: modelData === fp.current
                 width: grid.cardW
                 height: 86
-                radius: 14
+                radius: app.rr(14)
                 color: isCurrent ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                      : fcHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.10)
                      : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.05)
@@ -70,7 +70,7 @@ ColumnLayout {
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 38
-        radius: 19
+        radius: app.rr(19)
         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
         border.width: findIn.activeFocus ? 1 : 0
         border.color: app.cBlue
@@ -122,7 +122,7 @@ ColumnLayout {
                 readonly property bool isCurrent: modelData === fp.current
                 width: hitText.implicitWidth + 26
                 height: 32
-                radius: 16
+                radius: app.rr(16)
                 color: isCurrent ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                      : hitHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                      : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)

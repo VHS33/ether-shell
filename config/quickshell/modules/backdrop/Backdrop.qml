@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import qs.services
 
 // The wallpaper, drawn by the shell so it can move: a little larger than the
 // screen.  Switching workspaces gives it a bounce the way you went (left
@@ -11,6 +12,8 @@ import Quickshell.Hyprland
 // over awww's still copy (which shows again when this is switched off:
 // Settings > Windows > Wallpaper moves too).  A new wallpaper crossfades in.
 // Game mode, or animations off: it jumps instead of sliding.
+// A moving wallpaper (a video or GIF) plays over its still (LiveLayer),
+// resting for fullscreen apps and games, while locked, and on battery.
 // Nothing here goes over the network.
 Variants {
     id: rootV
@@ -20,7 +23,10 @@ Variants {
     LazyLoader {
         id: perScreen
         required property var modelData
-        active: rootV.app.cfg.wsWallSlide !== false && rootV.app.currentWall !== ""
+        // (also for a moving wallpaper, which only the shell can play, even
+        // with the slide off)
+        active: rootV.app.currentWall !== ""
+                && (rootV.app.cfg.wsWallSlide !== false || rootV.app.isMovingWall(rootV.app.currentWall))
 
     PanelWindow {
         id: bd
@@ -67,7 +73,7 @@ Variants {
         // animations off
         property real push: 0
         function bounce(dir) {
-            if (app.dur(100) === 0) return
+            if (app.dur(100) === 0 || app.cfg.wsWallSlide === false) return
             out.to = -dir * reach
             bouncer.restart()
         }
@@ -90,7 +96,8 @@ Variants {
             // Two copies, so a new wallpaper fades in over the old one; the
             // hidden copy is let go once the fade is done.
             property int front: 0
-            readonly property string want: bd.app.currentWall
+            // (a moving wallpaper's still, which it plays over)
+            readonly property string want: bd.app.currentStill
             readonly property size decode: Qt.size(Math.round(width * bd.modelData.devicePixelRatio),
                                                     Math.round(height * bd.modelData.devicePixelRatio))
             function url(p) { return p ? "file://" + p.split("/").map(encodeURIComponent).join("/") : "" }
@@ -129,6 +136,28 @@ Variants {
                 opacity: canvas.front === 1 ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: bd.app.dur(500) } }
                 onStatusChanged: if (status === Image.Ready && canvas.front !== 1 && source.toString() !== "") { canvas.front = 1; release.restart() }
+            }
+
+            // ---- a moving wallpaper, over its still ----
+            readonly property string movie: bd.app.isMovingWall(bd.app.currentWall) && bd.app.cfg.wallMotion !== "never"
+                                            ? bd.app.currentWall : ""
+            // resting: something fullscreen on this screen, a game, the lock
+            // screen, battery power, or (if chosen) any window on it
+            readonly property var ws: {
+                const m = Hyprland.monitors.values.find(m => m.name === bd.name)
+                return m ? m.activeWorkspace : null
+            }
+            readonly property bool resting: (ws !== null && ws.hasFullscreen)
+                || bd.app.gameMode || bd.app.screenLocked
+                || (Battery.present && !Battery.pluggedIn)
+                || (bd.app.cfg.wallMotion === "empty" && ws !== null && ws.toplevels.values.length > 0)
+            Loader {
+                id: live
+                anchors.fill: parent
+                active: canvas.movie !== ""
+                source: "LiveLayer.qml"
+                onLoaded: { item.source = Qt.binding(() => canvas.movie); item.playing = Qt.binding(() => !canvas.resting); item.fade = bd.app.dur(500) }
+                onStatusChanged: if (status === Loader.Error) console.log("moving wallpaper: can't play it here (is qt6-multimedia installed?); showing its still")
             }
         }
     }

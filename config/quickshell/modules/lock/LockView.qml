@@ -20,6 +20,33 @@ Item {
 
     readonly property real dim: Math.max(0, Math.min(0.9, 1 - Session.lockDim / 100))
     readonly property var player: Session.lockMedia ? Media.player : null
+    // Settings > Bar > Corners reaches the lock too: round pills and
+    // circles, or square boxes with small corners and, for the password,
+    // bars instead of dots
+    readonly property bool square: view.app.squareCorners === true
+    function rr(r) { return view.app.rr ? view.app.rr(r) : r }
+    // Settings > Lock screen > Style: "neo" (a heads-up display in the
+    // theme's colours: LockAmbient, LockNeoClock) or "classic"
+    readonly property bool neo: Session.lockStyle === "neo"
+    // the Neo glows drift only while you're here: typing, or the first
+    // moments after locking; left alone, the screen goes still
+    property bool awake: true
+    Timer { id: sleepT; interval: 45000; running: true; onTriggered: view.awake = false }
+    function stir() { view.awake = true; sleepT.restart() }
+    readonly property string greetText: {
+        if (Session.lockGreetMode === "off") return ""
+        if (Session.lockGreetMode === "custom") return Session.lockGreetText.trim() || "Welcome back"
+        const h = view.app.now.getHours()
+        const who = Quickshell.env("USER") || ""
+        return (h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 17 ? "Good afternoon"
+                : h >= 17 && h < 22 ? "Good evening" : "Good night") + (who ? ", " + who : "")
+    }
+    // the verdict's colours, the same on any theme (the lock is always dark
+    // glass): a clear green for in, a clear red for wrong
+    readonly property color okColour: "#4ade80"
+    readonly property color failColour: "#f87171"
+    readonly property string result: view.lock.result
+    readonly property color verdict: result === "ok" ? okColour : result === "fail" ? failColour : "white"
     readonly property color glassFill: Qt.rgba(1, 1, 1, 0.09)
     readonly property color glassEdge: Qt.rgba(1, 1, 1, 0.16)
 
@@ -72,7 +99,8 @@ Item {
     Image {
         id: wall
         anchors.fill: parent
-        source: view.app.currentWall ? "file://" + view.app.currentWall : ""
+        // (a moving wallpaper's still: it's frosted, and the lock stays still)
+        source: view.app.currentStill ? "file://" + view.app.currentStill : ""
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         // a screen-sized copy is plenty under a blur
@@ -97,6 +125,14 @@ Item {
         color: "black"
         opacity: view.dim * view.enter
     }
+    // Neo: glows, a dot grid and a line of light as it locks
+    LockAmbient {
+        anchors.fill: parent
+        visible: view.neo
+        app: view.app
+        enter: view.enter
+        awake: view.awake && view.neo
+    }
 
     // everything else fades in
     Item {
@@ -109,6 +145,7 @@ Item {
 
         // ---- typing ----
         Keys.onPressed: ev => {
+            view.stir()
             view.lock.checkCaps()
             if (ev.key === Qt.Key_Return || ev.key === Qt.Key_Enter) view.lock.submit()
             else if (ev.key === Qt.Key_Backspace)
@@ -149,8 +186,25 @@ Item {
             }
         }
 
+        // Neo: the clock as a heads-up display
+        LockNeoClock {
+            id: neoClock
+            visible: view.neo
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: -Math.round(view.height * 0.13)
+            width: implicitWidth
+            height: implicitHeight
+            app: view.app
+            enter: view.enter
+            square: view.square
+            greeting: view.greetText
+            clockSize: Math.round(Math.min(view.height * 0.17, 190))
+        }
+
         Column {
             id: middle
+            visible: !view.neo
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: -Math.round(view.height * 0.13)
@@ -209,11 +263,11 @@ Item {
         Rectangle {
             id: card
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: middle.bottom
-            anchors.topMargin: Math.round(view.height * 0.06)
+            anchors.top: view.neo ? neoClock.bottom : middle.bottom
+            anchors.topMargin: Math.round(view.height * 0.06) - (view.neo ? 36 : 0)
             width: 440
             height: cardCol.implicitHeight + 36
-            radius: 32
+            radius: view.rr(32)
             color: view.glassFill
             border.width: 1
             border.color: view.glassEdge
@@ -231,14 +285,29 @@ Item {
                     id: field
                     width: parent.width
                     height: 54
-                    radius: 27
+                    // square: a touch smaller than the card's, as it sits inside it
+                    radius: view.square ? Math.max(2, view.rr(27) - 2) : 27
                     color: Qt.rgba(1, 1, 1, 0.1)
                     border.width: 1
-                    border.color: view.lock.messageIsError && view.lock.message !== ""
+                    border.color: view.result !== "" ? Qt.rgba(view.verdict.r, view.verdict.g, view.verdict.b, 0.85)
+                                  : view.lock.messageIsError && view.lock.message !== ""
                                   ? Qt.rgba(view.app.cRed.r, view.app.cRed.g, view.app.cRed.b, 0.8)
                                   : Qt.rgba(1, 1, 1, 0.2)
                     Behavior on border.color { ColorAnimation { duration: 200 } }
 
+                    // Neo: a line along the bottom that charges as you type,
+                    // and runs while the password is checked
+                    Rectangle {
+                        visible: view.neo
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: (parent.width - 2 * parent.radius) * (view.result !== "" ? 1 : Math.min(1, view.lock.buffer.length / 14))
+                        height: 2
+                        radius: 1
+                        color: view.result !== "" ? view.verdict : view.app.cBlue
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    }
                     // shakes on a wrong password
                     transform: Translate { id: shakeT; x: 0 }
                     SequentialAnimation {
@@ -260,10 +329,10 @@ Item {
                         font.family: "Material Symbols Rounded"
                         font.pixelSize: 20
                     }
-                    // the typed characters, as dots; a hint while empty
+                    // the typed characters, as dots (bars when square); a hint while empty
                     Text {
                         anchors.centerIn: parent
-                        visible: view.lock.buffer === "" && !view.lock.busy
+                        visible: view.lock.buffer === "" && !view.lock.busy && view.result === ""
                         text: "Enter your password"
                         color: Qt.rgba(1, 1, 1, 0.5)
                         font.family: Theme.uiFont
@@ -277,9 +346,11 @@ Item {
                     Row {
                         id: dots
                         anchors.centerIn: parent
-                        spacing: 7
+                        // square: wider bars, closer together
+                        spacing: view.square ? 3 : 7
                         // at most what fits; the rest are still there
-                        readonly property int shown: Math.min(view.lock.buffer.length, 22)
+                        readonly property int fit: Math.max(1, Math.floor((field.width - 104 + spacing) / ((view.square ? 12 : 9) + spacing)))
+                        readonly property int shown: Math.min(view.result !== "" ? view.lock.heldLen : view.lock.buffer.length, 22, fit)
                         add: Transition {
                             NumberAnimation { property: "scale"; from: 0; to: 1; duration: 150; easing.type: Easing.OutBack }
                         }
@@ -291,29 +362,84 @@ Item {
                             Rectangle {
                                 required property int index
                                 visible: index < dots.shown
-                                width: 9; height: 9; radius: 4.5
-                                color: "white"
-                                opacity: view.lock.busy ? 0.45 : 0.95
-                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                width: view.square ? 12 : 9
+                                height: view.square ? 18 : 9
+                                radius: view.square ? 1.5 : 4.5
+                                id: mark
+                                // lit as the scan passes over it, while checking
+                                readonly property bool lit: scan.running
+                                    && Math.abs(dots.x + mark.x + mark.width / 2 - scan.pos) < 12
+                                color: lit ? view.app.cBlue : view.verdict
+                                opacity: lit ? 1 : view.lock.busy && view.result === "" ? 0.45 : 0.95
+                                // instant while scanning (the light passes quickly); a
+                                // short fade into the verdict's colour
+                                Behavior on opacity { enabled: !scan.running; NumberAnimation { duration: 150 } }
+                                Behavior on color { enabled: !scan.running; ColorAnimation { duration: 150 } }
+                                scale: lit ? 1.25 : 1
+                                Behavior on scale { NumberAnimation { duration: 90 } }
                             }
                         }
                     }
-                    // Enter, or busy while it's checked
+                    // While the password is checked: a bar of light sweeping
+                    // back and forth over the marks, scanning them
+                    Item {
+                        id: scan
+                        anchors.fill: parent
+                        readonly property bool running: view.lock.busy && view.result === "" && dots.shown > 0
+                        visible: running
+                        clip: true
+                        // where the bar is, across the field (sweeping a
+                        // little past the first and last mark)
+                        property real t: 0
+                        readonly property real from: dots.x - 22
+                        readonly property real to: dots.x + dots.width + 22
+                        readonly property real pos: from + (to - from) * t
+                        property bool forward: true
+                        SequentialAnimation on t {
+                            running: scan.running
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 0; to: 1; duration: 620; easing.type: Easing.InOutSine }
+                            ScriptAction { script: scan.forward = false }
+                            NumberAnimation { from: 1; to: 0; duration: 620; easing.type: Easing.InOutSine }
+                            ScriptAction { script: scan.forward = true }
+                        }
+                        onRunningChanged: if (running) { t = 0; forward = true }
+                        // the glow it leaves behind
+                        Rectangle {
+                            readonly property real w: 70
+                            x: scan.forward ? scan.pos - w : scan.pos
+                            width: w
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.margins: 9
+                            radius: view.square ? 2 : 6
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0; color: scan.forward ? "transparent" : Qt.rgba(view.app.cBlue.r, view.app.cBlue.g, view.app.cBlue.b, 0.28) }
+                                GradientStop { position: 1; color: scan.forward ? Qt.rgba(view.app.cBlue.r, view.app.cBlue.g, view.app.cBlue.b, 0.28) : "transparent" }
+                            }
+                        }
+                        // the bar
+                        Rectangle {
+                            x: scan.pos - width / 2
+                            width: 2
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.margins: 7
+                            radius: 1
+                            color: view.app.cBlue
+                        }
+                    }
+                    // Enter (dimmed while it's checked)
                     Text {
                         anchors.right: parent.right
                         anchors.rightMargin: 18
                         anchors.verticalCenter: parent.verticalCenter
-                        text: view.lock.busy ? "progress_activity" : "arrow_forward"
-                        color: Qt.rgba(1, 1, 1, view.lock.buffer !== "" || view.lock.busy ? 0.9 : 0.35)
+                        text: "arrow_forward"
+                        color: Qt.rgba(1, 1, 1, view.lock.buffer !== "" && !view.lock.busy ? 0.9 : 0.35)
+                        Behavior on color { ColorAnimation { duration: 150 } }
                         font.family: "Material Symbols Rounded"
                         font.pixelSize: 20
-                        // spins while busy, and sits straight again after
-                        property real spin: 0
-                        rotation: view.lock.busy ? spin : 0
-                        NumberAnimation on spin {
-                            running: view.lock.busy
-                            from: 0; to: 360; duration: 900; loops: Animation.Infinite
-                        }
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -8
@@ -328,9 +454,12 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     height: text === "" ? 0 : 18
                     Behavior on height { NumberAnimation { duration: 160 } }
-                    text: view.lock.message !== "" ? view.lock.message
+                    readonly property string raw: view.lock.message !== "" ? view.lock.message
                         : view.lock.capsLock ? "Caps Lock is on" : ""
-                    color: view.lock.messageIsError ? view.app.cRed : Qt.rgba(1, 1, 1, 0.7)
+                    text: view.neo ? raw.toUpperCase() : raw
+                    font.letterSpacing: view.neo ? 2.5 : 0
+                    color: view.result !== "" ? view.verdict
+                         : view.lock.messageIsError ? view.app.cRed : Qt.rgba(1, 1, 1, 0.7)
                     font.family: Theme.uiFont
                     font.weight: Font.Medium
                     font.pixelSize: view.app.fs(13)
@@ -349,7 +478,7 @@ Item {
                         anchors.left: parent.left
                         anchors.leftMargin: 4
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 56; height: 56; radius: 14
+                        width: 56; height: 56; radius: view.rr(14)
                         color: Qt.rgba(1, 1, 1, 0.1)
                         Text {
                             anchors.centerIn: parent
@@ -373,7 +502,7 @@ Item {
                             anchors.fill: parent
                             layer.enabled: true
                             visible: false
-                            Rectangle { anchors.fill: parent; radius: 14; color: "black" }
+                            Rectangle { anchors.fill: parent; radius: view.rr(14); color: "black" }
                         }
                         MultiEffect {
                             anchors.fill: parent
@@ -430,7 +559,7 @@ Item {
                                 readonly property bool isPlay: modelData.a === "play"
                                 width: isPlay ? 44 : 36
                                 height: width
-                                radius: width / 2
+                                radius: view.rr(width / 2)
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: isPlay ? "white"
                                      : mHov.hovered ? Qt.rgba(1, 1, 1, 0.14) : "transparent"

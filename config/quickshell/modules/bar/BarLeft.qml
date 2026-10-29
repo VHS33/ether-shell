@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import "../../lib/models.mjs" as Models
+import qs.common.widgets
 import qs.services
 
 // ============================================================
@@ -25,12 +26,18 @@ Variants {
         property string value: ""
         property string widest: "100%"
         property color tint: app.cFg
+        property color valueColour: app.cFg
         property bool clickable: false
+        property string mode: "number"      // "number", "graph" or "both"
+        property var points: []
+        property real maxValue: 100
+        property bool showIcon: true        // Settings > Bar > Resource monitor > Icons
+        property bool ownGraph: true        // false in "One graph": its line is in the shared one
         signal clicked()
 
         implicitWidth: stRow.implicitWidth + 14
         implicitHeight: 24
-        radius: 12
+        radius: app.rrPill(12)
         color: clickable && stHov.hovered
                ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11) : "transparent"
         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -50,17 +57,30 @@ Variants {
             spacing: 5
             Text {
                 anchors.verticalCenter: parent.verticalCenter
+                visible: st.showIcon
                 text: st.glyph
                 color: st.tint
                 font.family: "Material Symbols Rounded"
                 font.pixelSize: st.app.fs(13)
             }
+            // a mini graph of the last minute, in the stat's colour
+            Sparkline {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: st.ownGraph && st.mode !== "number"
+                width: st.app.fs(38)
+                height: st.app.fs(14)
+                points: st.points
+                maxValue: st.maxValue
+                color: st.tint
+                fill: true
+            }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
+                visible: st.mode !== "graph"
                 width: stMetrics.advanceWidth
                 horizontalAlignment: Text.AlignRight
                 text: st.value
-                color: st.app.cFg
+                color: st.valueColour
                 font.family: Theme.uiFont
                 font.pixelSize: st.app.fs(12)
             }
@@ -93,6 +113,15 @@ Variants {
         anchors { top: true; left: true }
         margins { top: app.gap; left: app.gap }
         implicitWidth: leftRow.implicitWidth + 24
+        // how far this pill reaches in from the screen's edge (the centre
+        // pill keeps clear of it)
+        Binding {
+            target: app
+            property: "leftReach"
+            restoreMode: Binding.RestoreNone
+            when: winL.visible
+            value: app.gap + winL.implicitWidth
+        }
         implicitHeight: app.pillH
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -102,7 +131,7 @@ Variants {
 
         Rectangle {
             anchors.fill: parent
-            radius: app.pillH / 2
+            radius: app.rr(app.pillH / 2)
             color: app.cBg
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -140,7 +169,7 @@ Variants {
                     Rectangle {
                         width: 18
                         height: 10
-                        radius: 5
+                        radius: app.rrPill(5)
                         x: wsStrip.activeIndex * wsStrip.pitch + (wsStrip.slot - width) / 2
                         anchors.verticalCenter: parent.verticalCenter
                         color: app.cBlue
@@ -170,7 +199,7 @@ Variants {
                                 readonly property int d: wsHov.hovered ? 10 : 8
                                 width: d
                                 height: d
-                                radius: d / 2
+                                radius: app.rr(d / 2)
                                 color: ws.modelData.occupied ? app.cDim : "transparent"
                                 border.width: ws.modelData.occupied ? 0 : 1.5
                                 border.color: app.cFaint
@@ -191,48 +220,76 @@ Variants {
                 }
 
                 Rectangle {
-                    visible: app.barStats || (app.gpuOk && app.barGpu)
+                    visible: app.statsAny
                     Layout.leftMargin: 4
                     Layout.rightMargin: 2
                     width: 1; height: 14
                     color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.8)
                 }
 
+                // "One graph": every stat's line together, before the numbers
+                StatGraph {
+                    app: rootV.app
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: 4
+                    visible: app.statOneAny
+                }
                 Stat {
                     app: rootV.app
-                    visible: app.barStats
+                    visible: app.statCpu !== "off" && !(app.statOneGraph && app.statCpu === "graph")
+                    mode: app.statCpu
+                    points: app.cpuHist
                     glyph: "memory"
                     value: app.cpuPct + "%"
-                    tint: app.cGreen
+                    tint: app.statCpuColour
+                    showIcon: app.statIcons
+                    ownGraph: !app.statOneGraph
+                    valueColour: app.statOneGraph && app.statGraphed(app.statCpu) ? app.statCpuColour : app.cFg
                     clickable: true
                     onClicked: app.run(app.termCmd + " -e sh -c 'command -v btop >/dev/null && exec btop || exec top'")
                 }
                 Stat {
                     app: rootV.app
-                    visible: app.barStats
+                    visible: app.statMem !== "off" && !(app.statOneGraph && app.statMem === "graph")
+                    mode: app.statMem
+                    points: app.memHist
                     glyph: "memory_alt"
                     value: app.memPct + "%"
-                    tint: app.cPeach
+                    tint: app.statMemColour
+                    showIcon: app.statIcons
+                    ownGraph: !app.statOneGraph
+                    valueColour: app.statOneGraph && app.statGraphed(app.statMem) ? app.statMemColour : app.cFg
                     clickable: true
                     onClicked: app.run(app.termCmd + " -e sh -c 'command -v btop >/dev/null && exec btop || exec top'")
                 }
                 Stat {
                     app: rootV.app
-                    visible: app.gpuOk && app.barGpu
+                    visible: app.gpuOk && app.statGpu !== "off" && !(app.statOneGraph && app.statGpu === "graph")
+                    mode: app.statGpu
+                    points: app.gpuHist
                     glyph: "developer_board"
                     value: app.gpuPct + "%"
-                    tint: app.cMauve
+                    tint: app.statGpuColour
+                    showIcon: app.statIcons
+                    ownGraph: !app.statOneGraph
+                    valueColour: app.statOneGraph && app.statGraphed(app.statGpu) ? app.statGpuColour : app.cFg
                     clickable: true
                     onClicked: app.run("nvidia-settings")
                 }
                 Stat {
                     app: rootV.app
-                    visible: app.gpuOk && app.barGpu
+                    visible: app.gpuOk && app.statTemp !== "off" && !(app.statOneGraph && app.statTemp === "graph")
+                    mode: app.statTemp
+                    points: app.tempHist
                     Layout.rightMargin: 2
                     glyph: "thermostat"
                     value: app.gpuTemp + "\u00b0"
                     widest: "100\u00b0"
-                    tint: app.gpuTemp >= 80 ? app.cRed : app.gpuTemp >= 70 ? app.cPeach : app.cTeal
+                    tint: app.statTempColour
+                    showIcon: app.statIcons
+                    ownGraph: !app.statOneGraph
+                    valueColour: app.gpuTemp >= 80 ? app.cRed : app.gpuTemp >= 70 ? app.cYellow
+                               : app.statOneGraph && app.statGraphed(app.statTemp) ? app.statTempColour : app.cFg
                 }
             }
         }

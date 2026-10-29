@@ -45,7 +45,7 @@ Variants {
 
         implicitWidth: win.cell
         implicitHeight: win.cell
-        radius: width * 0.32
+        radius: app.rr(width * 0.32)
         color: isActive ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
              : itHov.hovered || win.menuKey === modelData.key ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
              : "transparent"
@@ -87,7 +87,7 @@ Variants {
             y: it.win.vertical ? (parent.height - height) / 2 : parent.height - height - 3
             width: it.win.vertical ? 4 : len
             height: it.win.vertical ? len : 4
-            radius: 2
+            radius: app.rr(2)
             color: it.isActive ? it.app.cBlue : it.app.cDim
             Behavior on width { NumberAnimation { duration: it.app.animQuick; easing.type: Easing.OutCubic } }
             Behavior on height { NumberAnimation { duration: it.app.animQuick; easing.type: Easing.OutCubic } }
@@ -172,7 +172,7 @@ Variants {
         Rectangle {
             visible: itHov.hovered && it.win.menuKey === "" && it.win.dragKey === ""
                      && !(it.modelData.running && it.win.previewKey === it.modelData.key)
-            radius: 12
+            radius: app.rr(12)
             color: it.app.cCard
             border.width: 1
             border.color: Qt.rgba(it.app.cBorder.r, it.app.cBorder.g, it.app.cBorder.b, 0.6)
@@ -221,7 +221,7 @@ Variants {
         Layout.fillWidth: true
         implicitWidth: mrRow.implicitWidth + 24
         implicitHeight: 34
-        radius: 10
+        radius: app.rr(10)
         color: mrHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
         HoverHandler { id: mrHov }
         RowLayout {
@@ -461,7 +461,7 @@ Variants {
             Behavior on x { enabled: winD.vertical; NumberAnimation { duration: winD.app.animNormal; easing.type: Easing.OutCubic } }
             width: winD.vertical ? winD.cardH : dockRow.implicitWidth + 16
             height: winD.vertical ? dockRow.implicitHeight + 16 : winD.cardH
-            radius: height / 2.4
+            radius: app.rr(height / 2.4)
             color: winD.app.cBg
             border.width: 1
             border.color: Qt.rgba(winD.app.cBorder.r, winD.app.cBorder.g, winD.app.cBorder.b, 0.5)
@@ -521,7 +521,7 @@ Variants {
             implicitWidth: prevRow.implicitWidth + 16
             x: winD.popX(width, winD.previewX)
             y: winD.popY(height, winD.previewX)
-            radius: 18
+            radius: app.rr(18)
             color: winD.app.cCard
             border.width: 1
             border.color: Qt.rgba(winD.app.cBorder.r, winD.app.cBorder.g, winD.app.cBorder.b, 0.6)
@@ -543,7 +543,7 @@ Variants {
                         readonly property string addr: modelData.lastIpcObject?.address ?? ""
                         width: previews.thumbW
                         height: previews.thumbH + 30
-                        radius: 12
+                        radius: app.rr(12)
                         color: pvHov.hovered ? Qt.rgba(winD.app.cFg.r, winD.app.cFg.g, winD.app.cFg.b, 0.1) : "transparent"
                         HoverHandler { id: pvHov }
                         Item {
@@ -617,7 +617,7 @@ Variants {
             visible: winD.dragKey !== "" && winD.dropIndex >= 0
             width: winD.vertical ? winD.cell * 0.7 : 3
             height: winD.vertical ? 3 : winD.cell * 0.7
-            radius: 1.5
+            radius: app.rr(1.5)
             color: winD.app.cBlue
             x: winD.vertical ? card.x + (winD.cardH - width) / 2 : winD.dropMarkerX() - 1
             y: winD.vertical ? winD.dropMarkerX() - 1 : card.y + (winD.cardH - height) / 2
@@ -639,7 +639,7 @@ Variants {
             implicitWidth: Math.max(220, menuCol.implicitWidth + 12)
             x: winD.popX(width, winD.menuX)
             y: winD.popY(height, winD.menuX)
-            radius: 16
+            radius: app.rr(16)
             color: winD.app.cCard
             border.width: 1
             border.color: Qt.rgba(winD.app.cBorder.r, winD.app.cBorder.g, winD.app.cBorder.b, 0.6)
@@ -670,7 +670,7 @@ Variants {
                         Layout.fillWidth: true
                         implicitWidth: wrRow.implicitWidth + 24
                         implicitHeight: 34
-                        radius: 10
+                        radius: app.rr(10)
                         color: wrHov.hovered ? Qt.rgba(winD.app.cFg.r, winD.app.cFg.g, winD.app.cFg.b, 0.1) : "transparent"
                         HoverHandler { id: wrHov }
                         MouseArea {

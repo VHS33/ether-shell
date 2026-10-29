@@ -51,7 +51,7 @@ ColumnLayout {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 42
-                radius: 12
+                radius: app.rr(12)
                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                 border.width: keyIn.activeFocus ? 2 : 0
                 border.color: app.cBlue
@@ -80,7 +80,7 @@ ColumnLayout {
             Rectangle {
                 implicitWidth: saveT.implicitWidth + 28
                 implicitHeight: 42
-                radius: 12
+                radius: app.rr(12)
                 color: keyIn.text.trim() ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                 Text {
                     id: saveT
@@ -101,7 +101,7 @@ ColumnLayout {
                 visible: app.aiKeys[aiPage.p] === true
                 implicitWidth: remT.implicitWidth + 28
                 implicitHeight: 42
-                radius: 12
+                radius: app.rr(12)
                 color: remHov.hovered ? app.cRed : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                 HoverHandler { id: remHov }
                 Text {
@@ -130,7 +130,7 @@ ColumnLayout {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 42
-            radius: 12
+            radius: app.rr(12)
             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
             border.width: modelIn.activeFocus ? 2 : 0
             border.color: app.cBlue

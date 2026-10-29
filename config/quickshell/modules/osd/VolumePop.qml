@@ -36,7 +36,7 @@ Variants {
         Rectangle {
             implicitWidth: 32
             implicitHeight: 32
-            radius: 16
+            radius: app.rr(16)
             color: vrHov.hovered ? Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.12) : "transparent"
             HoverHandler { id: vrHov }
             Text {
@@ -62,19 +62,19 @@ Variants {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 8
-                radius: 4
+                radius: app.rr(4)
                 color: Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.08)
                 Rectangle {
                     width: vrTrack.width * Math.min(1, vr.v)
                     height: parent.height
-                    radius: 4
+                    radius: app.rr(4)
                     color: vr.muted ? vr.app.cFaint : vr.accent
                 }
             }
             Rectangle {
                 width: 4
                 height: 18
-                radius: 2
+                radius: app.rr(2)
                 anchors.verticalCenter: parent.verticalCenter
                 x: Math.max(0, Math.min(vrTrack.width - width, vrTrack.width * Math.min(1, vr.v) - 2))
                 color: vr.muted ? vr.app.cFaint : vr.accent
@@ -171,7 +171,7 @@ Variants {
             Behavior on anchors.topMargin { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             implicitHeight: col.implicitHeight + 32
-            radius: 22
+            radius: app.rr(22)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.6)
@@ -222,7 +222,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 32
                         implicitHeight: 32
-                        radius: 16
+                        radius: app.rr(16)
                         color: gHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                         HoverHandler { id: gHov }
                         Text {
@@ -287,7 +287,7 @@ Variants {
                             visible: isOut
                             Layout.fillWidth: true
                             implicitHeight: isOut ? 38 : 0
-                            radius: 12
+                            radius: app.rr(12)
                             color: isDefault ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.16)
                                  : oHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                             Behavior on color { ColorAnimation { duration: app.animQuick } }

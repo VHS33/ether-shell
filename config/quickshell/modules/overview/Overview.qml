@@ -200,7 +200,7 @@ Variants {
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on scale { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-            radius: 28
+            radius: app.rr(28)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
@@ -273,7 +273,7 @@ Variants {
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 height: winO.previewH
-                                radius: 16
+                                radius: app.rr(16)
                                 color: tile.current ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.10) : app.cTile
                                 border.width: drop.containsDrag || tile.selected || tile.current ? 2 : 1
                                 border.color: drop.containsDrag ? app.cTeal
@@ -337,7 +337,7 @@ Variants {
 
                                         ClippingRectangle {
                                             anchors.fill: parent
-                                            radius: 8
+                                            radius: app.rr(8)
                                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                             border.width: wHov.hovered || dh.active ? 2 : 0
                                             border.color: app.cBlue
@@ -407,7 +407,7 @@ Variants {
                                         // outline the window you'd swap with
                                         Rectangle {
                                             anchors.fill: parent
-                                            radius: 8
+                                            radius: app.rr(8)
                                             color: "transparent"
                                             border.width: 2
                                             border.color: app.cTeal
@@ -460,7 +460,7 @@ Variants {
                                 Rectangle {
                                     implicitWidth: Math.max(28, numT.implicitWidth + 16)
                                     implicitHeight: 24
-                                    radius: 12
+                                    radius: app.rr(12)
                                     color: tile.current ? app.cBlue
                                          : tile.selected ? Qt.rgba(app.cTeal.r, app.cTeal.g, app.cTeal.b, 0.3)
                                          : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)

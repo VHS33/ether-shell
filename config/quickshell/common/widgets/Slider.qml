@@ -44,7 +44,7 @@ RowLayout {
     Rectangle {
         implicitWidth: Math.max(72, slT.implicitWidth + 20)
         implicitHeight: 32
-        radius: 16
+        radius: app.rr(16)
         color: Qt.rgba(sl.accent.r, sl.accent.g, sl.accent.b, 0.14)
         Text {
             id: slT

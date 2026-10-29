@@ -47,7 +47,7 @@ Variants {
 
         Layout.fillWidth: true
         implicitHeight: 58
-        radius: 18
+        radius: app.rr(18)
         color: on ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
              : tHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
@@ -64,7 +64,7 @@ Variants {
             Rectangle {
                 implicitWidth: 38
                 implicitHeight: 38
-                radius: 19
+                radius: app.rr(19)
                 color: tile.on ? tile.app.cBlue : Qt.rgba(tile.app.cFg.r, tile.app.cFg.g, tile.app.cFg.b, 0.08)
                 Behavior on color { ColorAnimation { duration: app.animQuick } }
                 Text {
@@ -168,7 +168,7 @@ Variants {
 
         implicitWidth: size
         implicitHeight: size
-        radius: size / 2
+        radius: app.rr(size / 2)
         color: rbHov.hovered ? (danger ? app.cRed : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12))
              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -208,7 +208,7 @@ Variants {
         Rectangle {
             implicitWidth: 32
             implicitHeight: 32
-            radius: 16
+            radius: app.rr(16)
             color: vrHov.hovered ? Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.12) : "transparent"
             HoverHandler { id: vrHov }
             Text {
@@ -235,20 +235,20 @@ Variants {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 8
-                radius: 4
+                radius: app.rr(4)
                 color: Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.08)
 
                 Rectangle {
                     width: vrTrack.width * Math.min(1, vr.v)
                     height: parent.height
-                    radius: 4
+                    radius: app.rr(4)
                     color: vr.muted ? vr.app.cFaint : vr.accent
                 }
             }
             Rectangle {
                 width: 4
                 height: 18
-                radius: 2
+                radius: app.rr(2)
                 anchors.verticalCenter: parent.verticalCenter
                 x: Math.max(0, Math.min(vrTrack.width - width, vrTrack.width * Math.min(1, vr.v) - 2))
                 color: vr.muted ? vr.app.cFaint : vr.accent
@@ -313,19 +313,19 @@ Variants {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 8
-                radius: 4
+                radius: app.rr(4)
                 color: Qt.rgba(br.app.cFg.r, br.app.cFg.g, br.app.cFg.b, 0.08)
                 Rectangle {
                     width: brTrack.width * br.v
                     height: parent.height
-                    radius: 4
+                    radius: app.rr(4)
                     color: br.app.cYellow
                 }
             }
             Rectangle {
                 width: 4
                 height: 18
-                radius: 2
+                radius: app.rr(2)
                 anchors.verticalCenter: parent.verticalCenter
                 x: Math.max(0, Math.min(brTrack.width - width, brTrack.width * br.v - 2))
                 color: br.app.cYellow
@@ -436,7 +436,7 @@ Variants {
             visible: opacity > 0
             Behavior on x { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-            radius: 24
+            radius: app.rr(24)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.6)
@@ -660,12 +660,12 @@ Variants {
                     Layout.fillWidth: true
                     visible: app.player !== null
                     implicitHeight: 84
-                    radius: 18
+                    radius: app.rr(18)
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
 
                     RoundImage {
                         anchors.fill: parent
-                        radius: 18
+                        radius: app.rr(18)
                         imgOpacity: 0.25
                         source: app.player?.trackArtUrl ?? ""
                     }
@@ -678,11 +678,11 @@ Variants {
                         Rectangle {
                             implicitWidth: 60
                             implicitHeight: 60
-                            radius: 12
+                            radius: app.rr(12)
                             color: app.cCard
                             RoundImage {
                                 anchors.fill: parent
-                                radius: 12
+                                radius: app.rr(12)
                                 source: app.player?.trackArtUrl ?? ""
                             }
                             Text {
@@ -729,7 +729,7 @@ Variants {
                                 readonly property bool isPlay: modelData.a === "play"
                                 implicitWidth: isPlay ? 40 : 32
                                 implicitHeight: implicitWidth
-                                radius: implicitWidth / 2
+                                radius: app.rr(implicitWidth / 2)
                                 color: isPlay ? app.cBlue : mHov.hovered ? app.cCard : "transparent"
                                 HoverHandler { id: mHov }
                                 Text {
@@ -762,7 +762,7 @@ Variants {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 40
-                    radius: 20
+                    radius: app.rr(20)
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
                     RowLayout {
@@ -781,7 +781,7 @@ Variants {
                                 readonly property int badge: modelData.i === 0 ? app.notifCount : 0
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                radius: 16
+                                radius: app.rr(16)
                                 color: on ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                                      : tabHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                                      : "transparent"
@@ -803,7 +803,7 @@ Variants {
                                         visible: tabItem.badge > 0
                                         implicitWidth: Math.max(18, bT.implicitWidth + 10)
                                         implicitHeight: 18
-                                        radius: 9
+                                        radius: app.rr(9)
                                         color: app.cBlue
                                         Text {
                                             id: bT
@@ -903,7 +903,7 @@ Variants {
                                     readonly property bool marked: app.markedDays.indexOf(modelData.key) !== -1
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 32
-                                    radius: 16
+                                    radius: app.rr(16)
                                     // holidays get a soft tint behind the number
                                     readonly property bool isHol: modelData.hol !== ""
                                     color: modelData.today ? app.cBlue
@@ -977,7 +977,7 @@ Variants {
                             readonly property bool isMarked: app.markedDays.indexOf(key) !== -1
                             property bool yearly: false
                             implicitHeight: dcCol.implicitHeight + 24
-                            radius: 16
+                            radius: app.rr(16)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
                             onKeyChanged: { noteIn.text = ""; yearly = false }
@@ -1090,7 +1090,7 @@ Variants {
                                     Rectangle {
                                         Layout.fillWidth: true
                                         implicitHeight: 32
-                                        radius: 16
+                                        radius: app.rr(16)
                                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                         border.width: noteIn.activeFocus ? 1 : 0
                                         border.color: app.cBlue
@@ -1127,7 +1127,7 @@ Variants {
                                     Rectangle {
                                         implicitWidth: yrT.implicitWidth + 20
                                         implicitHeight: 32
-                                        radius: 16
+                                        radius: app.rr(16)
                                         color: dayCard.yearly ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.26)
                                              : yrHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
@@ -1177,7 +1177,7 @@ Variants {
                                 visible: app.notifCount > 0
                                 implicitWidth: Math.max(18, ncT.implicitWidth + 10)
                                 implicitHeight: 18
-                                radius: 9
+                                radius: app.rr(9)
                                 color: app.cBlue
                                 Text {
                                     id: ncT
@@ -1223,7 +1223,7 @@ Variants {
                                     (modelData.actions || []).some(a => a.key === "default")
                                 width: ListView.view.width
                                 implicitHeight: nRow.implicitHeight + 24
-                                radius: 16
+                                radius: app.rr(16)
                                 color: nHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                                      : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                                 border.width: modelData.urgency >= 2 ? 1 : 0
@@ -1253,7 +1253,7 @@ Variants {
                                         Layout.alignment: Qt.AlignTop
                                         implicitWidth: 32
                                         implicitHeight: 32
-                                        radius: 10
+                                        radius: app.rr(10)
                                         color: app.cCard
                                         IconImage {
                                             anchors.centerIn: parent
@@ -1383,7 +1383,7 @@ Variants {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: 36
-                                radius: 18
+                                radius: app.rr(18)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 border.width: clipSearch.activeFocus ? 1 : 0
                                 border.color: app.cBlue
@@ -1430,7 +1430,7 @@ Variants {
                                 property bool armed: false
                                 implicitWidth: armed ? wipeT.implicitWidth + 24 : 36
                                 implicitHeight: 36
-                                radius: 18
+                                radius: app.rr(18)
                                 color: armed ? app.cRed
                                      : wHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                                      : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
@@ -1478,7 +1478,7 @@ Variants {
                                     /^\[\[ binary data (.+?) (\w+) (\d+x\d+) \]\]/.exec(modelData.preview)
                                 width: ListView.view.width
                                 implicitHeight: cRow.implicitHeight + 18
-                                radius: 12
+                                radius: app.rr(12)
                                 color: cHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                                 Behavior on color { ColorAnimation { duration: app.animQuick } }
                                 HoverHandler { id: cHov }

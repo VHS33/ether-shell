@@ -108,7 +108,7 @@ Variants {
             x: Math.max(8, Math.min(pw.width - width - 8, app.wsHoverX - width / 2))
             y: app.barBottom + 8
             Behavior on x { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-            radius: 18
+            radius: app.rr(18)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -126,13 +126,13 @@ Variants {
                 y: 8
                 width: pw.thumbW
                 height: pw.thumbH
-                radius: 12
+                radius: app.rr(12)
                 color: app.cSurf
 
                 // the wallpaper behind it all
                 Image {
                     anchors.fill: parent
-                    source: app.currentWall ? "file://" + app.currentWall : ""
+                    source: app.currentStill ? "file://" + app.currentStill : ""
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 600
@@ -152,7 +152,7 @@ Variants {
 
                         ClippingRectangle {
                             anchors.fill: parent
-                            radius: 5
+                            radius: app.rr(5)
                             color: app.cCard
                             // the window, captured live only while the preview shows
                             ScreencopyView {
@@ -200,7 +200,7 @@ Variants {
                         pw.shownId === (pw.monName === app.secondScreen ? app.secondActive : app.mainActive)
                     implicitWidth: numT.implicitWidth + 14
                     implicitHeight: 20
-                    radius: 10
+                    radius: app.rr(10)
                     color: current ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                     Text {
                         id: numT

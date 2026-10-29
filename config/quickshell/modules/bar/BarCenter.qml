@@ -29,9 +29,18 @@ Variants {
         screen: modelData
         visible: modelData.name === app.mainScreen && app.player !== null && app.barMedia && !app.barMorph
 
-        anchors { top: true }
-        margins { top: app.gap }
-        implicitWidth: Math.min(centerRow.implicitWidth + 28, 720)
+        // As wide as the title needs, within the room between the side pills
+        // (so it never runs over them).  Centred when it fits; otherwise it
+        // slides toward the narrower side pill, just far enough.
+        readonly property real loX: app.leftReach + app.gap * 2
+        readonly property real hiX: modelData.width - app.rightReach - app.gap * 2
+        readonly property real roomW: Math.max(240, Math.min(1000, hiX - loX))
+        implicitWidth: Math.min(centerRow.implicitWidth + 28, roomW)
+        anchors { top: true; left: true }
+        margins {
+            top: app.gap
+            left: Math.round(Math.max(loX, Math.min(hiX - implicitWidth, (modelData.width - implicitWidth) / 2)))
+        }
         implicitHeight: app.pillH
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -42,7 +51,7 @@ Variants {
 
         Rectangle {
             anchors.fill: parent
-            radius: app.pillH / 2
+            radius: app.rr(app.pillH / 2)
             color: app.cBg
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -51,7 +60,7 @@ Variants {
                 id: hit
                 anchors.fill: parent
                 anchors.margins: 5
-                radius: height / 2
+                radius: app.rrPill(height / 2)
                 color: app.cardShown ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                      : cHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                      : "transparent"
@@ -74,7 +83,8 @@ Variants {
                 // when they don't fit
                 Item {
                     id: marquee
-                    readonly property real maxW: 560
+                    // the room left once the play icon and the pill's padding are in
+                    readonly property real maxW: Math.max(80, winC.roomW - 28 - 24)
                     readonly property real overflow: Math.max(0, line.implicitWidth - maxW)
                     implicitWidth: Math.min(line.implicitWidth, maxW)
                     implicitHeight: line.implicitHeight

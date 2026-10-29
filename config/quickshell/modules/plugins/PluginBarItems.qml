@@ -22,7 +22,7 @@ Repeater {
 
         Rectangle {
             anchors.fill: parent
-            radius: 14
+            radius: app.rr(14)
             color: Qt.rgba(rep.app.cFg.r, rep.app.cFg.g, rep.app.cFg.b, hov.hovered ? 0.12 : 0.07)
             Behavior on color { ColorAnimation { duration: rep.app.animQuick } }
         }

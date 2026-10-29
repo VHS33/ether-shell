@@ -41,7 +41,7 @@ Variants {
             anchors.fill: parent
             anchors.margins: 16
             implicitHeight: col.implicitHeight + 40
-            radius: 26
+            radius: app.rr(26)
             color: dc.app.cBg
             border.width: 1
             border.color: Qt.rgba(dc.app.cBorder.r, dc.app.cBorder.g, dc.app.cBorder.b, 0.6)
@@ -87,7 +87,7 @@ Variants {
                             required property var modelData
                             implicitWidth: label.implicitWidth + 36
                             implicitHeight: 38
-                            radius: 19
+                            radius: app.rr(19)
                             color: modelData.keep ? dc.app.cBlue
                                  : hov.hovered ? Qt.rgba(dc.app.cFg.r, dc.app.cFg.g, dc.app.cFg.b, 0.14)
                                  : Qt.rgba(dc.app.cFg.r, dc.app.cFg.g, dc.app.cFg.b, 0.08)

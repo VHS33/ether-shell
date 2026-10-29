@@ -189,6 +189,9 @@ local winInactive = num(S.inactive_opacity, 1.0, 0.3, 1)
 local blurSize    = int(S.blur_size,        4,   1, 16)
 local blurPasses  = int(S.blur_passes,      3,   1, 4)
 local animOn      = S.animations ~= false
+-- Settings > Windows > New windows: "floating" opens every new window
+-- floating and centred, at the size it asks for, instead of tiling it
+local floatingWindows = S.window_mode == "floating"
 -- game mode (quick settings): blur, shadows and animations off, for the
 -- highest frame rate; everything returns when it's switched off
 local gameMode    = S.game_mode == true
@@ -215,8 +218,9 @@ hl.config({
         gaps_out    = gapsOut,
         border_size = borderSize,
 
-        -- Set to true to enable resizing windows by clicking and dragging on borders and gaps
-        resize_on_border = false,
+        -- resizing a window by dragging its border: on for floating windows
+        -- (Settings > Windows > New windows), where it's how you resize
+        resize_on_border = floatingWindows,
 
         -- Please see https://wiki.hypr.land/Configuring/Advanced-and-Cool/Tearing/ before you turn this on
         allow_tearing = false,
@@ -689,6 +693,18 @@ hl.window_rule({
 --     no_anim = true,
 -- })
 -- overlayLayerRule:set_enabled(false)
+
+-- Floating windows (Settings > Windows > New windows): every new window
+-- opens floating, centred, at its own size.  (The shell floats or tiles the
+-- windows already open when the setting changes.)
+if floatingWindows then
+    hl.window_rule({
+        name   = "float-new-windows",
+        match  = { class = ".*" },
+        float  = true,
+        center = true,
+    })
+end
 
 -- Hyprland-run windowrule
 hl.window_rule({

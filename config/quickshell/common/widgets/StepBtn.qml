@@ -13,7 +13,7 @@ Rectangle {
 
     implicitWidth: 32
     implicitHeight: 32
-    radius: 16
+    radius: app.rr(16)
     color: !enabledBtn ? "transparent"
          : sbMa.pressed ? Qt.rgba(accent.r, accent.g, accent.b, 0.35)
          : sbHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)

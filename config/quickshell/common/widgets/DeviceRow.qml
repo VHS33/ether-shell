@@ -14,7 +14,7 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: 54
-    radius: 14
+    radius: app.rr(14)
     color: isDefault ? Qt.rgba(accent.r, accent.g, accent.b, 0.16)
          : drHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
          : "transparent"
@@ -45,7 +45,7 @@ Rectangle {
         Rectangle {
             implicitWidth: 34
             implicitHeight: 34
-            radius: 11
+            radius: app.rr(11)
             color: dr.isDefault ? dr.accent : Qt.rgba(dr.app.cFg.r, dr.app.cFg.g, dr.app.cFg.b, 0.08)
             Text {
                 anchors.centerIn: parent

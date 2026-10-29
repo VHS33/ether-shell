@@ -177,7 +177,7 @@ Variants {
         readonly property real y0: app.barTop
         readonly property real bw: width - app.barInset * 2
         readonly property real bh: app.barH
-        readonly property real r: bh / 2
+        readonly property real r: app.rr(bh / 2)
         // the bar's corners: square in the wrap style (it runs into the
         // screen's edges).  Set corner by corner with the radius itself
         // left at r: a Rectangle with no radius at all is drawn by Qt in a
@@ -196,8 +196,8 @@ Variants {
         readonly property real dl: app.drawerCurX
         readonly property bool dOpen: active && dh > 0.5 && dw > 1
         readonly property string flush: app.drawerFlush
-        readonly property real f: Math.max(0, Math.min(14, dh, dw / 4))     // the curved join
-        readonly property real rb: Math.max(0, Math.min(24, dh / 2, dw / 2)) // the drawer's bottom corners
+        readonly property real f: Math.max(0, Math.min(app.rr(14), dh, dw / 4))     // the curved join
+        readonly property real rb: Math.max(0, Math.min(app.rr(24), dh / 2, dw / 2)) // the drawer's bottom corners
 
         // ---- the glass: one surface, with no seams ----
         // The bar, the drawer and the curved joins are drawn solid inside one
@@ -228,7 +228,7 @@ Variants {
                 width: strip.bw
                 height: strip.bh
                 color: glass.solid
-                radius: strip.r
+                radius: app.rr(strip.r)
                 topLeftRadius: strip.rc
                 topRightRadius: strip.rc
                 bottomLeftRadius: strip.dOpen && strip.flush === "left" ? Math.max(0, strip.rc - strip.dh) : strip.rc
@@ -370,7 +370,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 36
                             implicitHeight: 36
-                            radius: 12
+                            radius: app.rr(12)
                             color: islandHost.d.urgent ? Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.25)
                                                        : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                             IconImage {
@@ -429,7 +429,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 36
                             implicitHeight: 36
-                            radius: 18
+                            radius: app.rr(18)
                             color: parent.off ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : parent.tint
                             Text {
                                 anchors.centerIn: parent
@@ -460,12 +460,12 @@ Variants {
                             Layout.fillWidth: true
                             visible: !parent.toggleKind
                             implicitHeight: 8
-                            radius: 4
+                            radius: app.rr(4)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                             Rectangle {
                                 width: parent.width * (parent.parent.off ? 0 : Math.min(1, parent.parent.v))
                                 height: parent.height
-                                radius: 4
+                                radius: app.rr(4)
                                 color: parent.parent.tint
                                 Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                             }
@@ -493,7 +493,7 @@ Variants {
                             implicitHeight: 40
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 10
+                                radius: app.rr(10)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                 Text {
                                     anchors.centerIn: parent
@@ -518,7 +518,7 @@ Variants {
                                 anchors.fill: parent
                                 layer.enabled: true
                                 visible: false
-                                Rectangle { anchors.fill: parent; radius: 10; color: "black" }
+                                Rectangle { anchors.fill: parent; radius: app.rr(10); color: "black" }
                             }
                             MultiEffect {
                                 anchors.fill: parent
@@ -572,7 +572,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 40
                             implicitHeight: 40
-                            radius: 12
+                            radius: app.rr(12)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                             // the game's own icon (Steam installs one per game)
                             IconImage {
@@ -635,7 +635,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 36
                             implicitHeight: 36
-                            radius: 18
+                            radius: app.rr(18)
                             color: app.cPrimC
                             Text {
                                 anchors.centerIn: parent
@@ -679,7 +679,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 36
                             implicitHeight: 36
-                            radius: 18
+                            radius: app.rr(18)
                             color: app.cRed
                             Text {
                                 anchors.centerIn: parent
@@ -709,7 +709,7 @@ Variants {
                         Rectangle {
                             implicitWidth: dismissT.implicitWidth + 24
                             implicitHeight: 32
-                            radius: 16
+                            radius: app.rr(16)
                             color: app.cBlue
                             Text {
                                 id: dismissT

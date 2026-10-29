@@ -66,7 +66,7 @@ Variants {
             z: 10
             implicitWidth: tbRow.implicitWidth + 24
             implicitHeight: 52
-            radius: 26
+            radius: app.rr(26)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.6)
@@ -87,7 +87,7 @@ Variants {
                 Rectangle {
                     implicitWidth: doneT.implicitWidth + 32
                     implicitHeight: 36
-                    radius: 18
+                    radius: app.rr(18)
                     color: doneHov.hovered ? Qt.lighter(app.cBlue, 1.1) : app.cBlue
                     HoverHandler { id: doneHov }
                     Text {
@@ -143,7 +143,7 @@ Variants {
                     anchors.fill: parent
                     anchors.margins: -4
                     visible: app.widgetEdit
-                    radius: 28
+                    radius: app.rr(28)
                     color: "transparent"
                     border.width: 2
                     border.color: wd.dragging ? app.cBlue
@@ -214,7 +214,7 @@ Variants {
             Rectangle {
                 implicitWidth: 360
                 implicitHeight: clCol.implicitHeight + 36
-                radius: 24
+                radius: app.rr(24)
                 color: app.cCard
                 border.width: 1
                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -261,7 +261,7 @@ Variants {
             Rectangle {
                 implicitWidth: 320
                 implicitHeight: 136
-                radius: 24
+                radius: app.rr(24)
                 color: app.cCard
                 border.width: 1
                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -327,7 +327,7 @@ Variants {
                 }
                 implicitWidth: 320
                 implicitHeight: calCol.implicitHeight + 36
-                radius: 24
+                radius: app.rr(24)
                 color: app.cCard
                 border.width: 1
                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -370,7 +370,7 @@ Variants {
                                 required property var modelData
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 30
-                                radius: 15
+                                radius: app.rr(15)
                                 color: modelData.today ? app.cBlue
                                      : modelData.hol ? Qt.rgba(app.cPeach.r, app.cPeach.g, app.cPeach.b, 0.18)
                                      : "transparent"
@@ -396,7 +396,7 @@ Variants {
             Rectangle {
                 implicitWidth: 320
                 implicitHeight: sysCol.implicitHeight + 36
-                radius: 24
+                radius: app.rr(24)
                 color: app.cCard
                 border.width: 1
                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -447,12 +447,12 @@ Variants {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: 8
-                                radius: 4
+                                radius: app.rr(4)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                 Rectangle {
                                     width: parent.width * Math.max(0, Math.min(1, sysRow.row.v / 100))
                                     height: parent.height
-                                    radius: 4
+                                    radius: app.rr(4)
                                     color: sysRow.tint
                                     Behavior on width { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                                 }
@@ -471,7 +471,7 @@ Variants {
                 readonly property bool playing: app.player?.playbackState === MprisPlaybackState.Playing
                 implicitWidth: 400
                 implicitHeight: 124
-                radius: 24
+                radius: app.rr(24)
                 color: app.cCard
                 border.width: 1
                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -486,7 +486,7 @@ Variants {
                         implicitHeight: 92
                         Rectangle {
                             anchors.fill: parent
-                            radius: 16
+                            radius: app.rr(16)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                             Text {
                                 anchors.centerIn: parent
@@ -563,7 +563,7 @@ Variants {
                                     readonly property bool isPlay: modelData.a === "play"
                                     implicitWidth: isPlay ? 38 : 32
                                     implicitHeight: implicitWidth
-                                    radius: implicitWidth / 2
+                                    radius: app.rr(implicitWidth / 2)
                                     color: isPlay ? app.cBlue : mbHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : "transparent"
                                     HoverHandler { id: mbHov }
                                     Text {
@@ -605,7 +605,7 @@ Variants {
                 visible: phl.item !== null && phl.item.inner !== null
                 implicitWidth: visible ? phl.item.implicitWidth + 36 : 0
                 implicitHeight: visible ? phl.item.implicitHeight + 36 : 0
-                radius: 24
+                radius: app.rr(24)
                 color: app.cCard
                 border.width: 1
                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -628,7 +628,7 @@ Variants {
             Rectangle {
                 implicitWidth: 280
                 implicitHeight: Math.max(120, noteT.implicitHeight + 40)
-                radius: 20
+                radius: app.rr(20)
                 color: Qt.rgba(app.cYellow.r, app.cYellow.g, app.cYellow.b, 0.22)
                 border.width: 1
                 border.color: Qt.rgba(app.cYellow.r, app.cYellow.g, app.cYellow.b, 0.45)

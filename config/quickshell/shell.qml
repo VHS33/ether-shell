@@ -159,7 +159,27 @@ ShellRoot {
     readonly property int barTop: barWrap ? 0 : gap   // the bar's distance from the top
     readonly property int barInset: barWrap ? 0 : gap // ...and from the screen's sides
     readonly property int barH: 38                    // its height
-    readonly property int wrapR: 18                   // the wrap's curve into the screen's sides
+    readonly property int wrapR: rr(18)               // the wrap's curve into the screen's sides
+
+    // ---- corners: Settings > Bar > Corners -----------------------------
+    // "round" (the default) or "square".  Square caps every corner on the
+    // bar and the panels it opens at cornerSq, so pills become boxes; small
+    // round things already under the cap (dots, the active-workspace pip)
+    // keep their shape.  Never 0: Qt draws a Rectangle with no radius in a
+    // way that turns the rest of a see-through layer black.
+    readonly property bool squareCorners: cfg.barCorners === "square"
+    readonly property int cornerSq: 6
+    function rr(r) { return squareCorners ? Math.min(r, cornerSq) : r }
+    // for something inside a bar pill that runs (nearly) its full height: a
+    // group, the active workspace, the clock, the menu button.  Round, they're
+    // pills themselves, so their curve follows the pill's.  Square, the same
+    // holds: the pill's corner, smaller by the gap between them, so nested
+    // boxes line up instead of looking rounder than the box they sit in.
+    function rrPill(r) {
+        if (!squareCorners) return r
+        const outer = barAttached ? barH / 2 : pillH / 2
+        return Math.max(2, cornerSq - (outer - r))
+    }
     readonly property int drawerGap: 6                // between the bar and a card
     // the space reserved at the top of the main screen
     readonly property int zoneH: barAttached ? barTop + barH + (barWrap ? 0 : 4) : 46
@@ -173,6 +193,11 @@ ShellRoot {
     // bar and the open drawer as one outline; the section's own window
     // draws the drawer's contents, clipped to the same growing shape.
     property var leftGeom: null
+    // how far the left and right bar pills reach in from the screen's edges,
+    // each published by whichever version of the pill is showing.  The
+    // centre pill uses the room between them, and never runs over them.
+    property real leftReach: 0
+    property real rightReach: 0
     // the assistant's place inside the left drawer (LeftIsland publishes it)
     property var aiArea: null
     property var aiClip: null         // the shape's size right now, as it grows
@@ -1513,10 +1538,13 @@ ShellRoot {
     // fails to load, the rest of the shell still starts (the error is in
     // the log).
     LazyLoader {
+        id: lockLoader
         active: true
         source: "modules/lock/Lock.qml"
         onItemChanged: if (item) item.app = root
     }
+    // locked right now (moving wallpapers rest while it is)
+    readonly property bool screenLocked: lockLoader.item ? lockLoader.item.isLocked === true : false
     VolumePop { app: root }
     // under the islands, so a click outside one closes it
     CenterIsland { app: root }
@@ -1611,6 +1639,10 @@ ShellRoot {
     // ---- wallpapers: services/Wallpaper.qml (a singleton; newer code uses
     //      Wallpaper.<name> directly).  Passed on under the old names. ----
     readonly property var currentWall: Wallpaper.currentWall
+    // the picture for it (a moving wallpaper's still), and for any wallpaper
+    readonly property var currentStill: Wallpaper.currentStill
+    function stillOf(p) { return Wallpaper.stillOf(p) }
+    function isMovingWall(p) { return Wallpaper.isMoving(p) }
     readonly property var loginBusy: Wallpaper.loginBusy
     readonly property var loginDefault: Wallpaper.loginDefault
     readonly property var loginError: Wallpaper.loginError
@@ -1620,13 +1652,13 @@ ShellRoot {
     readonly property var wallPalettes: Wallpaper.wallPalettes
     readonly property var wallpapers: Wallpaper.wallpapers
     function applyWallpaper(path) { return Wallpaper.applyWallpaper(path) }
-    function paletteProbed(path, lightness, scheme, seed, second, why, third) { return Wallpaper.paletteProbed(path, lightness, scheme, seed, second, why, third) }
+    function paletteProbed(path, lightness, scheme, seed, second, why, third, palDark, palLight) { return Wallpaper.paletteProbed(path, lightness, scheme, seed, second, why, third, palDark, palLight) }
     function previewLogin() { return Wallpaper.previewLogin() }
     function publishLoginSoon() { return Wallpaper.publishLoginSoon() }
     function randomWallpaper() { return Wallpaper.randomWallpaper() }
     function setLoginBackground(path) { return Wallpaper.setLoginBackground(path) }
     function setLoginFollow(on) { return Wallpaper.setLoginFollow(on) }
-    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) { return Wallpaper.wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) }
+    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third, palDark, palLight) { return Wallpaper.wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third, palDark, palLight) }
     Binding { target: Wallpaper; property: "nativeItem"; value: root.nativeOk ? nativeLoader.item : null }
     Binding { target: Wallpaper; property: "mainScreen"; value: root.mainScreen }
     // (the welcome's Your look page lists them too)
@@ -1681,6 +1713,67 @@ ShellRoot {
 
     readonly property bool barStats: cfg.barStats !== false
     readonly property bool barGpu:   cfg.barGpu !== false
+
+    // ---- the resource monitor: Settings > Bar > Resource monitor --------
+    // Each stat shows "off", "number", "graph" (a mini graph of the last
+    // minute) or "both".  Before these existed, barStats switched CPU and
+    // memory together and barGpu the GPU pair; that choice carries over
+    // until a stat is set on its own.
+    function statMode(v, older) {
+        return (v === "off" || v === "number" || v === "graph" || v === "both")
+               ? v : (older ? "number" : "off")
+    }
+    readonly property string statCpu:  statMode(cfg.statCpu, barStats)
+    readonly property string statMem:  statMode(cfg.statMem, barStats)
+    readonly property string statGpu:  statMode(cfg.statGpu, barGpu)
+    readonly property string statTemp: statMode(cfg.statTemp, barGpu)
+    readonly property bool statsAny: statCpu !== "off" || statMem !== "off"
+                                     || (gpuOk && (statGpu !== "off" || statTemp !== "off"))
+    // "One graph": every stat with a graph draws its line in one shared
+    // graph, and the numbers after it take their line's colour, so it's
+    // clear which is which.  Otherwise each stat has its own.
+    readonly property bool statOneGraph: cfg.statLayout === "one"
+    readonly property bool statIcons: cfg.statIcons !== false
+    function statGraphed(mode) { return mode === "graph" || mode === "both" }
+    readonly property bool statOneAny: statOneGraph && (statGraphed(statCpu) || statGraphed(statMem)
+                                       || (gpuOk && (statGraphed(statGpu) || statGraphed(statTemp))))
+    // each graph's line: "auto" (the default), one of the theme's colours by
+    // name, or any "#rrggbb"; the same colour in the system panel.
+    // Auto starts from the wallpaper's main accent and spreads the four
+    // stats evenly round the colour wheel from it (a quarter turn apart),
+    // at the accent's own brightness.  The wallpaper's second and third
+    // accents can't be used for this: a calm wallpaper gives three nearly
+    // identical ones, and every line came out the same.  A muted accent
+    // gets enough colour to tell the lines apart.
+    readonly property var statColourNames: ["blue", "teal", "green", "yellow", "peach", "red", "mauve"]
+    function statAutoAt(turn) {
+        const a = cBlue
+        const h = a.hslHue >= 0 ? a.hslHue : 0.6          // a grey accent: start from blue
+        const sat = Math.max(0.55, a.hslSaturation)
+        const light = Math.max(darkTheme ? 0.62 : 0.35, Math.min(darkTheme ? 0.78 : 0.5, a.hslLightness))
+        return Qt.hsla((h + turn) % 1, sat, light, 1)
+    }
+    // With the palette from the picture, Auto is the picture's own three
+    // accents (already told apart and readable; greys for a black-and-white
+    // wallpaper) and the soft text colour: nothing the picture doesn't have.
+    // With Material's palette, turns round the wheel from the accent.
+    readonly property var statAuto: Theme.pictureOn ? ({
+        cpu: cBlue, mem: cPeach, gpu: cGreen, temp: cDim
+    }) : ({
+        cpu: statAutoAt(0), mem: statAutoAt(0.25), gpu: statAutoAt(0.5), temp: statAutoAt(0.75)
+    })
+    function statColour(v, stat) {
+        const named = { blue: cBlue, teal: cTeal, green: cGreen, yellow: cYellow,
+                        peach: cPeach, red: cRed, mauve: cMauve }
+        if (typeof v === "string" && named[v] !== undefined) return named[v]
+        if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v
+        return statAuto[stat] ?? cBlue
+    }
+    readonly property color statCpuColour:  statColour(cfg.statCpuColour, "cpu")
+    readonly property color statMemColour:  statColour(cfg.statMemColour, "mem")
+    readonly property color statGpuColour:  statColour(cfg.statGpuColour, "gpu")
+    readonly property color statTempColour: statColour(cfg.statTempColour, "temp")
+
     readonly property bool barNet:   cfg.barNet !== false
     readonly property bool barMedia: cfg.barMedia !== false
     // the centre pill grows into a panel (CenterIsland), or opens the
@@ -1714,6 +1807,56 @@ ShellRoot {
     }
 
     function setting(key, value) { Config.setting(key, value) }
+
+    // ---- floating or tiling: Settings > Windows > New windows ----------
+    // Hyprland's rule (hyprland.lua) opens new windows floating; the ones
+    // already open are floated or tiled here, so the switch takes effect at
+    // once.  Their list is refreshed first and used a moment later.
+    readonly property bool floatingWindows: cfg.windowMode === "floating"
+    function setWindowMode(floating) {
+        setting("windowMode", floating ? "floating" : "tiling")
+        Hyprland.refreshToplevels()
+        windowModeApply.restart()
+    }
+    Timer {
+        id: windowModeApply
+        interval: 400
+        onTriggered: {
+            const d = c => Hyprland.dispatch(c)
+            const on = root.floatingWindows
+            const perWs = {}                       // how many arranged on each workspace
+            for (const t of Hyprland.toplevels.values) {
+                const ipc = t?.lastIpcObject
+                if (!ipc || !ipc.address || ipc.mapped === false) continue
+                const w = "window = \"address:" + ipc.address + "\""
+                if (!on) { d("hl.dsp.window.float({ action = \"disable\", " + w + " })"); continue }
+                // only tiled windows: ones already floating stay where they
+                // were put, and fullscreen ones are left alone
+                if (ipc.floating || (ipc.fullscreen ?? 0) > 0) continue
+                d("hl.dsp.window.float({ action = \"enable\", " + w + " })")
+                // a comfortable size on its own screen, centred, each next one
+                // a little down and right so they don't hide each other
+                let mw = 1920, mh = 1080
+                for (const m of Hyprland.monitors.values) {
+                    const mi = m.lastIpcObject
+                    if (mi && mi.id === ipc.monitor) {
+                        const sc = mi.scale || 1
+                        mw = mi.width / sc
+                        mh = mi.height / sc
+                    }
+                }
+                d("hl.dsp.window.resize({ x = " + Math.round(mw * 0.6) + ", y = " + Math.round(mh * 0.7)
+                  + ", relative = false, " + w + " })")
+                d("hl.dsp.window.center({ " + w + " })")
+                const ws = ipc.workspace?.id ?? 0
+                const n = perWs[ws] ?? 0
+                perWs[ws] = n + 1
+                if (n > 0)
+                    d("hl.dsp.window.move({ x = " + n * 30 + ", y = " + n * 30 + ", relative = true, " + w + " })")
+            }
+        }
+    }
+
     function resetSetting(key) { Config.resetSetting(key) }
     function resetAllSettings() { Config.resetAll() }
 

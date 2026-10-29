@@ -30,7 +30,7 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.topMargin: 4
             implicitHeight: 38
-            radius: 19
+            radius: app.rr(19)
             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
             border.width: placeIn.activeFocus ? 1 : 0
             border.color: app.cBlue

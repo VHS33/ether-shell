@@ -87,7 +87,7 @@ Variants {
             visible: opacity > 0
             Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-            radius: height / 2
+            radius: app.rr(height / 2)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
@@ -102,7 +102,7 @@ Variants {
                 Rectangle {
                     implicitWidth: 48
                     implicitHeight: 48
-                    radius: 24
+                    radius: app.rr(24)
                     color: winOsd.off ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : winOsd.accent
                     Behavior on color { ColorAnimation { duration: app.animQuick } }
                     Text {
@@ -141,12 +141,12 @@ Variants {
                         Layout.fillWidth: true
                         visible: winOsd.hasBar
                         implicitHeight: 8
-                        radius: 4
+                        radius: app.rr(4)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                         Rectangle {
                             width: parent.width * (winOsd.kind === "volume" && winOsd.off ? 0 : winOsd.value)
                             height: parent.height
-                            radius: 4
+                            radius: app.rr(4)
                             color: winOsd.accent
                             Behavior on width { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
                         }

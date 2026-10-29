@@ -48,6 +48,7 @@ export const PAGES = [
     { t: "Plugins",        f: "PagePlugins",       g: "extension",            d: "Add-ons from other people (or you): bar items, launcher results, widgets and settings" },
     { t: "Keybinds",       f: "PageKeybinds",      g: "keyboard_command_key", d: "Every shortcut, and changing them" },
     { t: "Game overlay",   f: "PageGameOverlay",   g: "sports_esports",       d: "Frame rate, GPU and CPU on top of your games, in your theme" },
+    { t: "Theme Studio",   f: "PageThemeStudio",   g: "tune",                 d: "Your wallpaper's palette, previewed and adjusted by hand" },
 ]
 
 // a QML string as written ("..." with JS escapes) -> its text, or null

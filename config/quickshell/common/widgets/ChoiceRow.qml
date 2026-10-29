@@ -15,7 +15,7 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: crCol.implicitHeight + 20
-    radius: 14
+    radius: app.rr(14)
     color: selected ? Qt.rgba(accent.r, accent.g, accent.b, 0.16)
          : crHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
          : "transparent"

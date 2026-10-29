@@ -44,7 +44,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 14
+        radius: app.rr(14)
         color: canvas.app ? Qt.rgba(canvas.app.cFg.r, canvas.app.cFg.g, canvas.app.cFg.b, 0.04) : "transparent"
     }
 
@@ -58,7 +58,7 @@ Item {
             y: canvas.frame.oy + (modelData.y - canvas.frame.minY) * canvas.frame.s
             width: modelData.w * canvas.frame.s
             height: modelData.h * canvas.frame.s
-            radius: 8
+            radius: app.rr(8)
             color: Qt.rgba(canvas.app.cFg.r, canvas.app.cFg.g, canvas.app.cFg.b, drag.active ? 0.22 : sel ? 0.16 : 0.1)
             border.width: sel ? 2 : 1
             border.color: sel ? canvas.app.cBlue : Qt.rgba(canvas.app.cFg.r, canvas.app.cFg.g, canvas.app.cFg.b, 0.25)
@@ -104,7 +104,7 @@ Item {
                     visible: tile.modelData.main && tile.height > 70
                     width: mainText.implicitWidth + 14
                     height: 18
-                    radius: 9
+                    radius: app.rr(9)
                     color: canvas.app.cBlue
                     Text {
                         id: mainText

@@ -41,7 +41,7 @@ Item {
 
         implicitWidth: main ? 56 : 40
         implicitHeight: implicitWidth
-        radius: implicitWidth / 2
+        radius: app.rr(implicitWidth / 2)
         color: main ? app.mBlue
              : lit ? Qt.rgba(app.mBlue.r, app.mBlue.g, app.mBlue.b, 0.22)
              : ctlHov.hovered && usable ? Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
@@ -128,7 +128,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: parent.height * parent.f
-                    radius: width / 2
+                    radius: app.rr(width / 2)
                     color: Qt.tint(app.cMauve, Qt.rgba(app.cTeal.r, app.cTeal.g, app.cTeal.b, index / 28))
                     opacity: 0.25 + 0.35 * parent.f
                     // no animation between readings: cava already smooths
@@ -160,7 +160,7 @@ Item {
                     readonly property bool on: mb.p?.dbusName === modelData.key
                     implicitWidth: plRow.implicitWidth + 24
                     implicitHeight: 30
-                    radius: 15
+                    radius: app.rr(15)
                     color: on ? Qt.rgba(app.mBlue.r, app.mBlue.g, app.mBlue.b, 0.26)
                          : plHov.hovered ? app.cSurf
                          : Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.6)
@@ -204,7 +204,7 @@ Item {
                 implicitHeight: 156
                 Rectangle {
                     anchors.fill: parent
-                    radius: 20
+                    radius: app.rr(20)
                     color: app.cSurf
                     Text {
                         anchors.centerIn: parent
@@ -362,12 +362,12 @@ Item {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     height: 6
-                    radius: 3
+                    radius: app.rr(3)
                     color: Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
                     Rectangle {
                         width: seekTrack.width * mb.frac
                         height: parent.height
-                        radius: 3
+                        radius: app.rr(3)
                         color: app.mBlue
                     }
                 }
@@ -375,7 +375,7 @@ Item {
                     visible: seekBox.canSeek
                     width: seekMa.containsMouse || mb.seeking ? 16 : 12
                     height: width
-                    radius: width / 2
+                    radius: app.rr(width / 2)
                     anchors.verticalCenter: seekTrack.verticalCenter
                     x: seekTrack.width * mb.frac - width / 2
                     color: app.mBlue
@@ -440,7 +440,7 @@ Item {
                 Rectangle {
                     implicitWidth: lyrT.implicitWidth + 18
                     implicitHeight: 24
-                    radius: 12
+                    radius: app.rr(12)
                     color: lyrHov.hovered ? Qt.rgba(mb.app.cFg.r, mb.app.cFg.g, mb.app.cFg.b, 0.12)
                                           : Qt.rgba(mb.app.cFg.r, mb.app.cFg.g, mb.app.cFg.b, 0.06)
                     HoverHandler { id: lyrHov }
@@ -548,12 +548,12 @@ Item {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     height: 6
-                    radius: 3
+                    radius: app.rr(3)
                     color: Qt.rgba(app.cSurf.r, app.cSurf.g, app.cSurf.b, 0.9)
                     Rectangle {
                         width: pvTrack.width * parent.parent.v
                         height: parent.height
-                        radius: 3
+                        radius: app.rr(3)
                         color: app.cMauve
                     }
                 }

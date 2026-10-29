@@ -1,5 +1,8 @@
 #!/bin/sh
 # setwall [image]               show the wallpaper, then retheme everything from it
+#                               (a picture, or a moving one: a video or animated
+#                               GIF, which the shell plays; everything else uses
+#                               a still from it, from wall-still)
 # setwall --show-only [image]   just show it (the shell does this the moment you pick)
 # setwall --theme-only [image]  just retheme from it (the shell does this after)
 # With no image, picks one from ~/Pictures/wallpapers via rofi.
@@ -107,6 +110,8 @@ BEGIN {
 if [ "$1" = --login-background ]; then
     src=$2; dir=$3
     [ -f "$src" ] && [ -n "$dir" ] || { echo "setwall --login-background IMAGE DIR" >&2; exit 1; }
+    # a moving wallpaper: the login screen shows its still
+    src=$("$HOME/.local/bin/wall-still" "$src") || exit 1
     mkdir -p "$dir" || exit 1
     cp "$src" "$dir/background.tmp" && mv "$dir/background.tmp" "$dir/background" || exit 1
     chmod 644 "$dir/background"
@@ -133,7 +138,8 @@ if [ -n "$1" ]; then
     img="$1"
 else
     img=$(find "$WALLDIR" -type f \
-            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) \
+            \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \
+               -o -iname '*.mp4' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.mov' -o -iname '*.gif' \) \
           | sort \
           | rofi -dmenu -i -p "wallpaper" -theme ~/.config/rofi/launcher.rasi)
 fi
@@ -151,9 +157,12 @@ if [ "$show" = 1 ] && [ "$theme" = 1 ] && command -v qs >/dev/null 2>&1; then
     qs ipc call wallpaper set "$img" >/dev/null 2>&1 && exit 0
 fi
 
-# remember it so the session can restore on login
+# remember it so the session can restore on login (a moving one as itself)
 mkdir -p "$HOME/.cache"
 printf '%s' "$img" > "$HOME/.cache/wallpaper"
+
+# the picture to show and theme from: a moving wallpaper's still
+still=$("$HOME/.local/bin/wall-still" "$img") || { notify-send "setwall" "couldn't read a frame from $img"; exit 1; }
 
 if [ "$show" = 1 ]; then
     # the daemon has to be up before the first image
@@ -161,7 +170,7 @@ if [ "$show" = 1 ]; then
     # the transition at the monitors' own refresh rate (240 on a 240 Hz
     # screen), so it's smooth rather than stepping
     fps=$(hyprctl monitors 2>/dev/null | grep -oE '@[0-9]+' | tr -d @ | sort -n | tail -1)
-    awww img "$img" --transition-type grow --transition-fps "${fps:-60}" --transition-duration 0.4
+    awww img "$still" --transition-type grow --transition-fps "${fps:-60}" --transition-duration 0.4
 fi
 [ "$theme" = 1 ] || exit 0
 
@@ -178,6 +187,9 @@ SEED_FOR=
 VIVID=0
 SECOND=
 THIRD=
+PALETTE=
+BORDER=single
+BORDERCOLOUR=
 [ -f "$HOME/.config/matugen/shell-theme" ] && . "$HOME/.config/matugen/shell-theme"
 [ "$MODE" = light ] || MODE=dark
 
@@ -197,6 +209,31 @@ if [ "$PREFER" = smart ] && [ "$SEED_FOR" = "$(printf '%s' "$img" | md5sum | cut
 fi
 case "$PREFER" in smart|dominant) pick="--source-color-index 0" ;; *) pick="--prefer $PREFER" ;; esac
 
+# The whole palette from the picture (Settings > Theme > Palette), worked out
+# by the native plugin for this wallpaper and this mode: its surfaces, text,
+# outlines and three accents, as key=#rrggbb,key=#rrggbb (matugen's names).
+# They're written straight into copies of the templates, in place of
+# Material's; matugen still fills in everything else (error, the fixed
+# colours, the terminal's red, green and yellow).  Only for the wallpaper
+# it was worked out for, and only well-formed.
+[ "$smart" = 1 ] || PALETTE=
+case "$PALETTE" in *[!a-z0-9_=#,]*) PALETTE= ;; esac
+palget() { printf '%s\n' "$PALETTE" | tr ',' '\n' | sed -n "s/^$1=//p" | head -n 1; }
+# palsed FILE...: the palette's colours written into those templates, in
+# every form they use (#hex, hex without the #, and red/green/blue 0-255)
+palsed() {
+    [ -n "$PALETTE" ] || return 0
+    [ -f "$work/palette.sed" ] || printf '%s\n' "$PALETTE" | tr ',' '\n' | awk -F= '
+function hexval(h, i,   c, v, k) { v = 0; for (k = 0; k < 2; k++) { c = index("0123456789abcdef", tolower(substr(h, i + k, 1))) - 1; v = v * 16 + c } return v }
+/^[a-z_]+=#[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]$/ {
+    h = tolower(substr($2, 2)); k = "{{colors\\." $1 "\\.default\\."
+    printf "s/%shex}}/#%s/g\n", k, h
+    printf "s/%shex_stripped}}/%s/g\n", k, h
+    printf "s/%sred}}/%d/g\ns/%sgreen}}/%d/g\ns/%sblue}}/%d/g\n", k, hexval(h, 1), k, hexval(h, 3), k, hexval(h, 5)
+}' > "$work/palette.sed"
+    sed -i -f "$work/palette.sed" "$@"
+}
+
 # matugen with a config and a style, from the smart colour or the image
 theme() {
     cfg=$1; style=$2
@@ -204,7 +241,7 @@ theme() {
         matugen -c "$cfg" color hex "$SEED" --type "$style" --contrast "$CONTRAST" --mode "$MODE"
     else
         # shellcheck disable=SC2086
-        matugen -c "$cfg" image "$img" --type "$style" --contrast "$CONTRAST" $pick --mode "$MODE"
+        matugen -c "$cfg" image "$still" --type "$style" --contrast "$CONTRAST" $pick --mode "$MODE"
     fi
 }
 
@@ -233,6 +270,14 @@ if [ "${VIVID:-0}" = 1 ] && [ "$smart" = 1 ] && [ -n "$surf" ]; then
     if printf '%s' "$SECOND" | grep -qE '^#[0-9a-fA-F]{6}$'; then second=$(readable "$SECOND" "$surf" "$onsurf" | cut -d' ' -f1); fi
     if printf '%s' "$THIRD" | grep -qE '^#[0-9a-fA-F]{6}$'; then third=$(readable "$THIRD" "$surf" "$onsurf" | cut -d' ' -f1); fi
 fi
+# the palette from the picture brings its own accents, already readable on
+# its own background and told apart from each other
+if [ -n "$PALETTE" ]; then
+    pv=$(palget vivid_value); po=$(palget on_vivid_value); p2=$(palget second_value); p3=$(palget third_value)
+    [ -n "$pv" ] && vivid=$pv && onvivid=${po:-$onvivid}
+    [ -n "$p2" ] && second=$p2
+    [ -n "$p3" ] && third=$p3
+fi
 [ -n "$second" ] || second=$vivid
 [ -n "$third" ] || third=$vivid
 [ -n "$vivid" ] || { vivid="#8aadf4"; onvivid="#1e1e2e"; }       # never without one
@@ -240,8 +285,31 @@ accent="vivid = { color = \"$vivid\", blend = false }
 on_vivid = { color = \"$onvivid\", blend = false }
 second = { color = \"$second\", blend = false }
 third = { color = \"$third\", blend = false }"
-# both configs, with the accent added
-{ cat "$HOME/.config/matugen/config.toml"; printf '\n[config.custom_colors]\n%s\n' "$accent"; } > "$work/main.toml"
+# both configs, with the accent added.  The main pass reads copies of the
+# templates: with the palette from the picture, its colours written in, and
+# the window borders as Theme Studio has them.
+rm -f "$work/palette.sed"
+mkdir -p "$work/tplm"
+rm -f "$work/tplm/"*
+cp "$HOME/.config/matugen/templates/"* "$work/tplm/" 2>/dev/null
+# Window borders (Settings > Theme Studio): one colour (the default), or a
+# gradient from it into the third colour.  The colour is the main accent
+# unless one was picked (BORDERCOLOUR, #rrggbb).
+hb="$work/tplm/hyprland-colors.lua"
+if [ -f "$hb" ]; then
+    if printf '%s' "$BORDERCOLOUR" | grep -qE '^#[0-9a-fA-F]{6}$'; then
+        bc=$(printf '%s' "$BORDERCOLOUR" | tr -d '#' | tr 'A-F' 'a-f')
+        sed -i "s/{{colors\.vivid_value\.default\.hex_stripped}}/$bc/g" "$hb"
+    fi
+    if [ "$BORDER" != gradient ]; then
+        # the gradient's second stop becomes the same as its first
+        first=$(grep -m1 -oE 'rgba\([^)]*\)' "$hb")
+        [ -n "$first" ] && sed -i "s/rgba({{colors\.tertiary\.default\.hex_stripped}}99)/$first/" "$hb"
+    fi
+fi
+palsed "$work/tplm/"*
+{ awk -v tpl="$work/tplm/" '/^input_path[ \t]*=/ { sub(/~\/\.config\/matugen\/templates\//, tpl) } { print }' "$HOME/.config/matugen/config.toml"
+  printf '\n[config.custom_colors]\n%s\n' "$accent"; } > "$work/main.toml"
 # The terminal's blue, magenta and cyan come from the wallpaper (the smart
 # colours, or Material's own when the smart pick isn't in use); red, green
 # and yellow keep the fixed colours in config-terminal.toml.
@@ -292,6 +360,7 @@ done
 mkdir -p "$work/tpl"
 rm -f "$work/tpl/"*
 cp "$HOME/.config/matugen/templates/"* "$work/tpl/" 2>/dev/null
+palsed "$work/tpl/"*
 if [ -n "$need" ]; then
     {
         printf '[config]\n\n[config.custom_colors]\n'

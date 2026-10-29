@@ -72,7 +72,7 @@ ColumnLayout {
                         Rectangle {
                             implicitWidth: Math.max(80, chip.implicitWidth + 28)
                             implicitHeight: 32
-                            radius: 16
+                            radius: app.rr(16)
                             color: kc.capturing ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                                  : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.14)
                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)

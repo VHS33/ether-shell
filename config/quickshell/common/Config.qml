@@ -46,6 +46,17 @@ Singleton {
         themeScheme:   "scheme-tonal-spot",
         themeContrast: 0,
         themePrefer:   "smart",        // Ether Shell's own pick: the subject, skin set aside (native plugin)
+        themePalette:  "picture",      // the whole palette from the picture (native plugin), or "material"
+        // Theme Studio: colours picked by hand, per wallpaper ({ path: { main,
+        // second, third } }), and for every wallpaper the accents' strength
+        // and how strongly the backgrounds are tinted (1 = as found)
+        studioPicks:    ({}),
+        studioStrength: 1,
+        studioTint:     1,
+        // the active window's border: one colour ("single") or a gradient
+        // into the third colour ("gradient"); its colour, "" for the main accent
+        studioBorder:       "single",
+        studioBorderColour: "",
         themeMode:     "dark",
         nightLight:    false,
 

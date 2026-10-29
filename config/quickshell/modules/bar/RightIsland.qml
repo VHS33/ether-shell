@@ -39,7 +39,7 @@ Variants {
 
         implicitWidth: sgRow.implicitWidth + 14
         implicitHeight: 26
-        radius: 13
+        radius: app.rr(13)
         color: lit ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
              : sgHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
              : "transparent"
@@ -78,7 +78,7 @@ Variants {
 
         Layout.fillWidth: true
         implicitHeight: 58
-        radius: 18
+        radius: app.rr(18)
         color: on ? app.cPrimC
              : tHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
@@ -93,7 +93,7 @@ Variants {
             Rectangle {
                 implicitWidth: 34
                 implicitHeight: 34
-                radius: 12
+                radius: app.rr(12)
                 color: tile.on ? tile.app.cBlue : Qt.rgba(tile.app.cFg.r, tile.app.cFg.g, tile.app.cFg.b, 0.1)
                 Behavior on color { ColorAnimation { duration: tile.app.animQuick } }
                 Text {
@@ -131,7 +131,7 @@ Variants {
                 visible: tile.chevron
                 implicitWidth: 28
                 implicitHeight: 28
-                radius: 14
+                radius: app.rr(14)
                 color: chevHov.hovered ? Qt.rgba(tile.app.cFg.r, tile.app.cFg.g, tile.app.cFg.b, 0.12) : "transparent"
                 HoverHandler { id: chevHov }
                 Text {
@@ -168,7 +168,7 @@ Variants {
 
         implicitWidth: size
         implicitHeight: size
-        radius: size * 0.36
+        radius: app.rr(size * 0.36)
         color: rbHov.hovered ? (danger ? app.cRed : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.13))
              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
         scale: rbMa.pressed ? 0.94 : 1
@@ -207,14 +207,14 @@ Variants {
 
         Rectangle {
             anchors.fill: parent
-            radius: height / 2
+            radius: app.rr(height / 2)
             color: Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.08)
         }
         Rectangle {
             id: vrFill
             height: parent.height
             width: Math.max(height, parent.width * Math.min(1, vr.v))
-            radius: height / 2
+            radius: app.rr(height / 2)
             color: vr.muted ? Qt.rgba(vr.app.cFg.r, vr.app.cFg.g, vr.app.cFg.b, 0.22) : vr.accent
             Behavior on color { ColorAnimation { duration: vr.app.animQuick } }
         }
@@ -271,13 +271,13 @@ Variants {
 
         Rectangle {
             anchors.fill: parent
-            radius: height / 2
+            radius: app.rr(height / 2)
             color: Qt.rgba(br.app.cFg.r, br.app.cFg.g, br.app.cFg.b, 0.08)
         }
         Rectangle {
             height: parent.height
             width: Math.max(height, parent.width * br.v)
-            radius: height / 2
+            radius: app.rr(height / 2)
             color: br.app.cYellow
         }
         Text {
@@ -332,6 +332,15 @@ Variants {
         // the right drawer runs flush down the bar's right end (the screen's
         // edge, in the wrap style)
         readonly property real finalX: modelData.width - app.barInset - openW
+        // how far the closed pill reaches in from the screen's right edge
+        // (the centre pill keeps clear of it)
+        Binding {
+            target: app
+            property: "rightReach"
+            restoreMode: Binding.RestoreNone
+            when: isr.visible
+            value: (isr.att ? app.gap + 10 : app.gap) + isr.pillW
+        }
         Binding {
             target: app
             property: "rightGeom"
@@ -478,7 +487,7 @@ Variants {
             height: isr.att ? app.barH : (isr.open ? isr.openH : app.pillH)
             // attached: square along the top (it's part of the bar),
             // rounded at the bottom once it's a drawer
-            radius: isr.att ? app.barH / 2 : (isr.open ? 28 : app.pillH / 2)
+            radius: app.rr(isr.att ? app.barH / 2 : (isr.open ? 28 : app.pillH / 2))
             // edgeless glass while it's a pill; hovering brightens it a
             // touch.  The hairline edge returns once it opens into a panel.
             color: isr.att
@@ -513,7 +522,7 @@ Variants {
                 anchors.top: parent.top
                 anchors.margins: 1
                 height: 120
-                radius: shape.radius
+                radius: app.rr(shape.radius)
                 // only for the three-pill style, where the panel opens around
                 // it; on the long bar it drew a tinted pill, rounded corners
                 // and all, inside the section whenever a drawer was open
@@ -537,7 +546,9 @@ Variants {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                height: app.pillH / 2
+                // square: just the top edge and its corners, so it doesn't stop
+                // halfway down a straight side
+                height: app.squareCorners ? app.cornerSq + 1 : app.pillH / 2
                 clip: true
                 opacity: isr.open || isr.att ? 0 : 1
                 visible: opacity > 0
@@ -545,7 +556,7 @@ Variants {
                 Rectangle {
                     width: parent.width
                     height: app.pillH
-                    radius: app.pillH / 2
+                    radius: app.rr(app.pillH / 2)
                     color: "transparent"
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.14)
@@ -575,7 +586,7 @@ Variants {
                         visible: app.timerOn || app.swOn
                         implicitWidth: tcRow.implicitWidth + 20
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: app.timerOn && !app.timerPaused && app.timerLeft <= 10 ? app.cRed : app.cPrimC
                         Behavior on color { ColorAnimation { duration: app.animQuick } }
                         Row {
@@ -610,7 +621,7 @@ Variants {
                     Rectangle {
                         implicitWidth: statusRow.implicitWidth + 8
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                         RowLayout {
                             id: statusRow
@@ -841,7 +852,7 @@ Variants {
                                         required property var modelData
                                         width: 26
                                         height: 24
-                                        radius: 12
+                                        radius: app.rrPill(12)
                                         color: trHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                                         Behavior on color { ColorAnimation { duration: app.animQuick } }
                                         HoverHandler { id: trHov }
@@ -879,7 +890,7 @@ Variants {
                     Rectangle {
                         implicitWidth: clockRow.implicitWidth + 4
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: app.cPrimC
                         RowLayout {
                             id: clockRow
@@ -920,7 +931,7 @@ Variants {
                         id: menuBtn
                         implicitWidth: 28
                         implicitHeight: 28
-                        radius: 14
+                        radius: app.rrPill(14)
                         color: app.quickShown ? app.cPrimC
                              : menuHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12)
                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
@@ -1020,7 +1031,7 @@ Variants {
                             Rectangle {
                                 implicitWidth: 30
                                 implicitHeight: 28
-                                radius: 14
+                                radius: app.rr(14)
                                 color: qcHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                                 HoverHandler { id: qcHov }
                                 Text {
@@ -1054,7 +1065,7 @@ Variants {
                             Layout.fillHeight: true
                             Layout.preferredWidth: 1
                             implicitHeight: 96
-                            radius: 22
+                            radius: app.rr(22)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                             ColumnLayout {
                                 anchors.centerIn: parent
@@ -1107,7 +1118,7 @@ Variants {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1.4
                             implicitHeight: calCol.implicitHeight + 28
-                            radius: 22
+                            radius: app.rr(22)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
 
                             readonly property var cells: {
@@ -1166,7 +1177,7 @@ Variants {
                                             required property var modelData
                                             Layout.fillWidth: true
                                             Layout.preferredHeight: 26
-                                            radius: 13
+                                            radius: app.rr(13)
                                             color: modelData.today ? app.cBlue
                                                  : modelData.hol ? Qt.rgba(app.cPeach.r, app.cPeach.g, app.cPeach.b, 0.18)
                                                  : "transparent"
@@ -1191,7 +1202,7 @@ Variants {
                         Layout.fillWidth: true
                         visible: app.wxOk && app.wxHours.length > 0
                         implicitHeight: 104
-                        radius: 18
+                        radius: app.rr(18)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                         opacity: isr.revealed > 1 ? 1 : 0
                         transform: Translate { y: isr.revealed > 1 ? 0 : 10
@@ -1295,7 +1306,7 @@ Variants {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             implicitHeight: 96
-                            radius: 18
+                            radius: app.rr(18)
                             color: app.timerOn ? app.cPrimC : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                             Behavior on color { ColorAnimation { duration: app.animQuick } }
 
@@ -1330,7 +1341,7 @@ Variants {
                                             required property var modelData
                                             width: 42
                                             height: 30
-                                            radius: 12
+                                            radius: app.rr(12)
                                             color: preHov.hovered ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                             Behavior on color { ColorAnimation { duration: app.animQuick } }
                                             HoverHandler { id: preHov }
@@ -1419,7 +1430,7 @@ Variants {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             implicitHeight: 96
-                            radius: 18
+                            radius: app.rr(18)
                             color: app.swRunning ? app.cPrimC : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                             Behavior on color { ColorAnimation { duration: app.animQuick } }
                             ColumnLayout {
@@ -1465,7 +1476,7 @@ Variants {
                                     Rectangle {
                                         implicitWidth: 32
                                         implicitHeight: 32
-                                        radius: 12
+                                        radius: app.rr(12)
                                         color: app.cBlue
                                         Text {
                                             anchors.centerIn: parent
@@ -1492,7 +1503,7 @@ Variants {
                         Layout.fillWidth: true
                         visible: p !== null
                         implicitHeight: 64
-                        radius: 18
+                        radius: app.rr(18)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                         opacity: isr.revealed > 1 ? 1 : 0
                         transform: Translate { y: isr.revealed > 1 ? 0 : 10
@@ -1511,7 +1522,7 @@ Variants {
                                 implicitHeight: 44
                                 Rectangle {
                                     anchors.fill: parent
-                                    radius: 12
+                                    radius: app.rr(12)
                                     color: app.cCard
                                     Text {
                                         anchors.centerIn: parent
@@ -1538,7 +1549,7 @@ Variants {
                                     anchors.fill: parent
                                     layer.enabled: true
                                     visible: false
-                                    Rectangle { anchors.fill: parent; radius: 12; color: "black" }
+                                    Rectangle { anchors.fill: parent; radius: app.rr(12); color: "black" }
                                 }
                                 MultiEffect {
                                     anchors.fill: parent
@@ -1584,7 +1595,7 @@ Variants {
                                     readonly property bool isPlay: modelData.a === "play"
                                     implicitWidth: isPlay ? 38 : 30
                                     implicitHeight: implicitWidth
-                                    radius: implicitWidth / 2
+                                    radius: app.rr(implicitWidth / 2)
                                     color: isPlay ? app.mBlue : mbHov.hovered ? app.cCard : "transparent"
                                     HoverHandler { id: mbHov }
                                     Text {
@@ -1782,7 +1793,7 @@ Variants {
                         opacity: shown ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: app.animQuick } }
                         clip: true
-                        radius: 18
+                        radius: app.rr(18)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.05)
 
                         ColumnLayout {
@@ -1870,7 +1881,7 @@ Variants {
                                     Rectangle {
                                         Layout.fillWidth: true
                                         implicitHeight: 44
-                                        radius: 14
+                                        radius: app.rr(14)
                                         color: pr.linked ? app.cPrimC
                                              : prHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08) : "transparent"
                                         Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -1945,7 +1956,7 @@ Variants {
                                         Layout.fillWidth: true
                                         visible: pr.asking
                                         implicitHeight: 42
-                                        radius: 14
+                                        radius: app.rr(14)
                                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                         onVisibleChanged: if (visible) pw.forceActiveFocus()
                                         RowLayout {
@@ -1981,7 +1992,7 @@ Variants {
                                             Rectangle {
                                                 implicitWidth: joinT.implicitWidth + 24
                                                 implicitHeight: 32
-                                                radius: 12
+                                                radius: app.rr(12)
                                                 color: app.cBlue
                                                 opacity: pw.text ? 1 : 0.5
                                                 Text {
@@ -2052,7 +2063,7 @@ Variants {
                                 visible: isOut
                                 width: isOut ? outT.implicitWidth + 26 : 0
                                 height: isOut ? 30 : 0
-                                radius: 15
+                                radius: app.rr(15)
                                 color: isDefault ? app.cPrimC
                                      : ocHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                                      : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
@@ -2102,7 +2113,7 @@ Variants {
                             visible: app.notifCount > 0
                             implicitWidth: Math.max(18, qnT.implicitWidth + 10)
                             implicitHeight: 18
-                            radius: 9
+                            radius: app.rr(9)
                             color: app.cBlue
                             Text {
                                 id: qnT
@@ -2179,7 +2190,7 @@ Variants {
                                     readonly property int more: modelData.items.length - 1
                                     width: groupCol.width
                                     implicitHeight: gCol.implicitHeight + 16
-                                    radius: 18
+                                    radius: app.rr(18)
                                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
 
                                     Column {
@@ -2209,7 +2220,7 @@ Variants {
                                                 visible: grp.modelData.items.length > 1
                                                 implicitWidth: cntT.implicitWidth + 12
                                                 implicitHeight: 18
-                                                radius: 9
+                                                radius: app.rr(9)
                                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                                                 Text {
                                                     id: cntT
@@ -2226,7 +2237,7 @@ Variants {
                                                 visible: grp.more > 0
                                                 implicitWidth: 26
                                                 implicitHeight: 26
-                                                radius: 13
+                                                radius: app.rr(13)
                                                 color: expHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1) : "transparent"
                                                 HoverHandler { id: expHov }
                                                 Text {
@@ -2247,7 +2258,7 @@ Variants {
                                             Rectangle {
                                                 implicitWidth: 26
                                                 implicitHeight: 26
-                                                radius: 13
+                                                radius: app.rr(13)
                                                 color: clrHov.hovered ? Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.18) : "transparent"
                                                 HoverHandler { id: clrHov }
                                                 Text {
@@ -2275,7 +2286,7 @@ Variants {
                                                     && (modelData.actions || []).some(a => a.key === "default")
                                                 width: gCol.width
                                                 implicitHeight: itCol.implicitHeight + 14
-                                                radius: 12
+                                                radius: app.rr(12)
                                                 color: itHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06) : "transparent"
                                                 border.width: modelData.urgency >= 2 ? 1 : 0
                                                 border.color: app.cRed

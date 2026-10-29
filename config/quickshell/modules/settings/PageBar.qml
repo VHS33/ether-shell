@@ -85,6 +85,20 @@ ColumnLayout {
         ]
     }
 
+    Card {
+        app: settingsRoot.app
+        title: "Corners"
+        desc: "Round pills, or square boxes with small corners, everywhere: the bar and its panels, the launcher, dock, notifications, on-screen popups, Settings, desktop widgets and the lock screen."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Round", "Square"]
+                current: app.squareCorners ? 1 : 0
+                onPicked: i => app.setting("barCorners", i === 1 ? "square" : "round")
+            }
+        ]
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Centre pill" }
 
     Card {
@@ -135,35 +149,113 @@ ColumnLayout {
         ]
     }
 
+    SectionLabel { app: settingsRoot.app; text: "Resource monitor" }
+
+    Card {
+        app: settingsRoot.app
+        title: "Graphs"
+        desc: "Each stat with its own mini graph, or every line together in one graph, each in its own colour, with the numbers after it in the same colours."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Separate", "One graph"]
+                current: app.statOneGraph ? 1 : 0
+                onPicked: i => app.setting("statLayout", i === 1 ? "one" : "separate")
+            }
+        ]
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "Stat icons"
+        desc: "The small icon in front of each stat."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Off", "On"]
+                current: app.statIcons ? 1 : 0
+                onPicked: i => app.setting("statIcons", i === 1)
+            }
+        ]
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "CPU"
+        desc: "How busy the processor is: a number, a mini graph of the last minute, or both. A graph's line takes the colour picked under it; Auto follows the wallpaper's colours."
+        Seg {
+            app: settingsRoot.app
+            options: ["Off", "Number", "Graph", "Both"]
+            current: ["off", "number", "graph", "both"].indexOf(app.statCpu)
+            onPicked: i => app.setting("statCpu", ["off", "number", "graph", "both"][i])
+        }
+        ColourRow {
+            app: settingsRoot.app
+            visible: app.statCpu === "graph" || app.statCpu === "both"
+            value: typeof app.cfg.statCpuColour === "string" ? app.cfg.statCpuColour : ""
+            stat: "cpu"
+            onPicked: v => app.setting("statCpuColour", v)
+        }
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "Memory"
+        desc: "How much memory is in use."
+        Seg {
+            app: settingsRoot.app
+            options: ["Off", "Number", "Graph", "Both"]
+            current: ["off", "number", "graph", "both"].indexOf(app.statMem)
+            onPicked: i => app.setting("statMem", ["off", "number", "graph", "both"][i])
+        }
+        ColourRow {
+            app: settingsRoot.app
+            visible: app.statMem === "graph" || app.statMem === "both"
+            value: typeof app.cfg.statMemColour === "string" ? app.cfg.statMemColour : ""
+            stat: "mem"
+            onPicked: v => app.setting("statMemColour", v)
+        }
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "GPU load"
+        desc: "How busy the graphics card is. Only shows when the card can be read (NVIDIA)."
+        Seg {
+            app: settingsRoot.app
+            options: ["Off", "Number", "Graph", "Both"]
+            current: ["off", "number", "graph", "both"].indexOf(app.statGpu)
+            onPicked: i => app.setting("statGpu", ["off", "number", "graph", "both"][i])
+        }
+        ColourRow {
+            app: settingsRoot.app
+            visible: app.statGpu === "graph" || app.statGpu === "both"
+            value: typeof app.cfg.statGpuColour === "string" ? app.cfg.statGpuColour : ""
+            stat: "gpu"
+            onPicked: v => app.setting("statGpuColour", v)
+        }
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "GPU temperature"
+        desc: "The graphics card's temperature. The number turns yellow from 70 and red from 80."
+        Seg {
+            app: settingsRoot.app
+            options: ["Off", "Number", "Graph", "Both"]
+            current: ["off", "number", "graph", "both"].indexOf(app.statTemp)
+            onPicked: i => app.setting("statTemp", ["off", "number", "graph", "both"][i])
+        }
+        ColourRow {
+            app: settingsRoot.app
+            visible: app.statTemp === "graph" || app.statTemp === "both"
+            value: typeof app.cfg.statTempColour === "string" ? app.cfg.statTempColour : ""
+            stat: "temp"
+            onPicked: v => app.setting("statTempColour", v)
+        }
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Modules" }
-
-    Card {
-        app: settingsRoot.app
-        title: "CPU and memory"
-        desc: "Usage percentages beside the workspaces."
-        trailing: [
-            Seg {
-                app: settingsRoot.app
-                options: ["Off", "On"]
-                current: app.barStats ? 1 : 0
-                onPicked: i => app.setting("barStats", i === 1)
-            }
-        ]
-    }
-
-    Card {
-        app: settingsRoot.app
-        title: "GPU"
-        desc: "Load and temperature. Only appears when nvidia-smi can read the card."
-        trailing: [
-            Seg {
-                app: settingsRoot.app
-                options: ["Off", "On"]
-                current: app.barGpu ? 1 : 0
-                onPicked: i => app.setting("barGpu", i === 1)
-            }
-        ]
-    }
 
     Card {
         app: settingsRoot.app

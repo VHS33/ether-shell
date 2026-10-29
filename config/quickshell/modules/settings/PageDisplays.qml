@@ -280,7 +280,7 @@ ColumnLayout {
             Rectangle {
                 implicitWidth: 150
                 implicitHeight: 34
-                radius: 10
+                radius: app.rr(10)
                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                 border.width: profileName.activeFocus ? 2 : 0
                 border.color: app.cBlue

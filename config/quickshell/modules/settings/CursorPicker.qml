@@ -24,7 +24,7 @@ ColumnLayout {
                 readonly property bool isCurrent: modelData.id === Cursors.current
                 width: curGrid.cardW
                 height: 96
-                radius: 14
+                radius: app.rr(14)
                 color: isCurrent ? Qt.rgba(app.cBlue.r, app.cBlue.g, app.cBlue.b, 0.22)
                      : ctHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.10)
                      : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.05)

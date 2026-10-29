@@ -107,7 +107,7 @@ Variants {
             Behavior on scale { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             width: Math.min(parent.width - 160, 1080)
             height: Math.min(parent.height - 140, main.implicitHeight + 44)
-            radius: 28
+            radius: app.rr(28)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
@@ -128,7 +128,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 42
                         implicitHeight: 42
-                        radius: 21
+                        radius: app.rr(21)
                         color: app.cBlue
                         Text {
                             anchors.centerIn: parent
@@ -159,7 +159,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 320
                         implicitHeight: 40
-                        radius: 20
+                        radius: app.rr(20)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                         border.width: search.activeFocus ? 1 : 0
                         border.color: app.cBlue
@@ -232,7 +232,7 @@ Variants {
                                         required property var modelData
                                         Layout.fillWidth: true
                                         implicitHeight: gCol.implicitHeight + 22
-                                        radius: 18
+                                        radius: app.rr(18)
                                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
 
                                         ColumnLayout {
@@ -277,7 +277,7 @@ Variants {
                                                                 required property var modelData
                                                                 implicitWidth: Math.max(22, capT.implicitWidth + 12)
                                                                 implicitHeight: 22
-                                                                radius: 6
+                                                                radius: app.rr(6)
                                                                 color: app.cCard
                                                                 border.width: 1
                                                                 border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.9)
@@ -288,7 +288,7 @@ Variants {
                                                                     anchors.bottom: parent.bottom
                                                                     anchors.margins: 1
                                                                     height: 2
-                                                                    radius: 5
+                                                                    radius: app.rr(5)
                                                                     color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.6)
                                                                 }
                                                                 Text {

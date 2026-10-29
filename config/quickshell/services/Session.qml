@@ -87,6 +87,8 @@ Singleton {
         ["time", "custom", "off"].indexOf(Config.cfg.lockGreetMode) >= 0 ? Config.cfg.lockGreetMode : "time"
     readonly property string lockGreetText: Config.cfg.lockGreetText || ""
     readonly property bool lockMedia: Config.cfg.lockMedia !== false
+    // "neo" (the default: a heads-up display in the theme's colours) or "classic"
+    readonly property string lockStyle: Config.cfg.lockStyle === "classic" ? "classic" : "neo"
 
     // ---- idle --------------------------------------------------------
     // hypridle can't reload its config, so the panel regenerates the
@@ -219,6 +221,7 @@ Singleton {
         repeatRate: "repeat_rate", repeatDelay: "repeat_delay",
         sensitivity: "sensitivity", accelFlat: "accel_flat",
         naturalScroll: "natural_scroll", followMouse: "follow_mouse",
+        windowMode: "window_mode",
         monitors: "monitors",
         mainScreen: "main_output", secondScreen: "second_output",
         wsMain: "main_workspaces", wsSecond: "second_workspaces",
@@ -325,7 +328,9 @@ Singleton {
                 || key === "idleSleepMin")
             idleDebounce.restart()
         if (key === "*" || key === "themeScheme" || key === "themeContrast"
-                || key === "themePrefer" || key === "themeMode" || key === "accentStyle")
+                || key === "themePrefer" || key === "themeMode" || key === "accentStyle"
+                || key === "themePalette" || key === "studioPicks" || key === "studioStrength"
+                || key === "studioTint" || key === "studioBorder" || key === "studioBorderColour")
             Wallpaper.applyThemeSoon()
     }
 

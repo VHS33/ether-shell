@@ -13,7 +13,7 @@ Rectangle {
     visible: label !== ""
     implicitWidth: chipRow.implicitWidth + 26
     implicitHeight: 34
-    radius: 17
+    radius: app && app.rr ? app.rr(17) : 17        // Settings > Bar > Corners
     color: Qt.rgba(1, 1, 1, 0.09)
     border.width: 1
     border.color: Qt.rgba(1, 1, 1, 0.16)

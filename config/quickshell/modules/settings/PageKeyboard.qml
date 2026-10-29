@@ -74,7 +74,7 @@ ColumnLayout {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 42
-            radius: 12
+            radius: app.rr(12)
             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
             border.width: tryIn.activeFocus ? 2 : 0
             border.color: app.cBlue

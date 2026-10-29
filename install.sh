@@ -161,6 +161,9 @@ PACKAGES=(
     quickshell qt6-base qt6-declarative qt6-wayland qt6-svg
     # WebP (and other) images for the wallpaper selector and clipboard thumbnails
     qt6-imageformats
+    # moving wallpapers (videos, GIFs): the shell plays them; ffmpeg picks
+    # the still the colours come from
+    qt6-multimedia qt6-multimedia-ffmpeg ffmpeg
     # theming
     matugen awww adw-gtk-theme papirus-icon-theme breeze-icons glib2 plasma-integration
     # UWSM: the systemd-managed session ("Hyprland (uwsm-managed)" at login)
@@ -355,16 +358,25 @@ if [ -n "$fishp" ] && ! grep -qsE '^[[:space:]]*shell[[:space:]]' "$HOME"/.confi
         printf 'shell %s\n' "$fishp" >> "$uc"
     fi
 fi
-while IFS= read -r -d '' f; do
-    rel="${f#"$HERE"/config/}"
-    # written by the Settings panel: only a starting point, never
-    # overwritten on a re-install so nobody's choices get reset
-    case "$rel" in
-        hypr/hypridle.conf|kitty/shell-settings.conf|uwsm/env|uwsm/env-hyprland)
-            [ -e "$HOME/.config/$rel" ] && continue ;;
-    esac
-    place "$f" "$HOME/.config/$rel"
-done < <(find "$HERE/config" -type f -print0)
+# New files first, then the ones that changed: the running shell reloads
+# itself the moment a file it uses changes, and a changed file that uses a
+# new one (a Settings page, say) must never land before that new file does,
+# or the reload fails ("... is not a type") and stays failed until the shell
+# restarts.
+for pass in new changed; do
+    while IFS= read -r -d '' f; do
+        rel="${f#"$HERE"/config/}"
+        if [ "$pass" = new ]; then [ -e "$HOME/.config/$rel" ] && continue
+        else [ -e "$HOME/.config/$rel" ] || continue; fi
+        # written by the Settings panel: only a starting point, never
+        # overwritten on a re-install so nobody's choices get reset
+        case "$rel" in
+            hypr/hypridle.conf|kitty/shell-settings.conf|uwsm/env|uwsm/env-hyprland)
+                [ "$pass" = changed ] && continue ;;
+        esac
+        place "$f" "$HOME/.config/$rel"
+    done < <(find "$HERE/config" -type f -print0)
+done
 
 # The lock screen is the shell's own now (~/.local/bin/lock), and hyprlock
 # isn't installed any more: a hypridle.conf kept from before (it's yours, so
@@ -446,7 +458,7 @@ if [ -d "$HERE/plugins" ]; then
         [ -e "$HOME/.config/ether-shell/plugins/$name" ] || run cp -r "$pd" "$HOME/.config/ether-shell/plugins/$name"
     done
 fi
-run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/lock" "$HOME/.local/bin/record" "$HOME/.local/bin/pickcolor" "$HOME/.local/bin/cursor" "$HOME/.local/bin/font" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
+run chmod +x "$HOME/.local/bin/setwall" "$HOME/.local/bin/lock" "$HOME/.local/bin/record" "$HOME/.local/bin/pickcolor" "$HOME/.local/bin/cursor" "$HOME/.local/bin/font" "$HOME/.local/bin/restore-wall" "$HOME/.local/bin/wall-still" "$HOME/.local/bin/shot" "$HOME/.local/bin/ether-shell" \
     "$HOME/.local/bin/ocr" "$HOME/.local/bin/ether-login" "$HOME/.local/bin/ether" "$HOME/.config/ether-greeter/start"
 
 if [ "$moved" -gt 0 ]; then

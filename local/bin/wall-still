@@ -1,0 +1,31 @@
+#!/bin/sh
+# wall-still FILE
+# The picture to use for a wallpaper, printed as a path: the file itself for
+# a picture; for a moving one (a video, or an animated GIF), one frame that
+# stands for it, picked by ffmpeg from its first seconds (the most typical
+# of them, not just the first, which is often black or a fade).  Made once,
+# kept in ~/.cache/ether/stills, and made again if the video changes.  The
+# colours, the lock screen, the login screen and the thumbnails all use it;
+# only the desktop plays the video itself.
+f=$1
+[ -f "$f" ] || { echo "wall-still: no such file: $f" >&2; exit 1; }
+case "$(printf '%s' "$f" | tr 'A-Z' 'a-z')" in
+    *.mp4|*.webm|*.mkv|*.mov|*.m4v|*.avi|*.gif) ;;
+    *) printf '%s\n' "$f"; exit 0 ;;
+esac
+command -v ffmpeg >/dev/null 2>&1 || { echo "wall-still: ffmpeg isn't installed" >&2; exit 1; }
+d="$HOME/.cache/ether/stills"
+mkdir -p "$d" || exit 1
+out="$d/$(printf '%s' "$f" | md5sum | cut -c1-32).jpg"
+# (made again when the video is newer than its still)
+if [ ! -s "$out" ] || [ -n "$(find "$f" -newer "$out" 2>/dev/null)" ]; then
+    # from a second in (or the start, for a short one), the most typical of
+    # the next 120 frames, no larger than 2560 wide
+    for start in 1 0; do
+        ffmpeg -v error -nostdin -y -ss "$start" -i "$f" \
+            -vf "thumbnail=120,scale='min(2560,iw)':-2" -frames:v 1 -q:v 3 "$out.tmp.jpg" 2>/dev/null \
+            && [ -s "$out.tmp.jpg" ] && break
+    done
+    [ -s "$out.tmp.jpg" ] && mv -f "$out.tmp.jpg" "$out" || { rm -f "$out.tmp.jpg"; echo "wall-still: couldn't read a frame from $f" >&2; exit 1; }
+fi
+printf '%s\n' "$out"

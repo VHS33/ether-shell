@@ -69,7 +69,7 @@ ColumnLayout {
                                 required property var modelData
                                 width: Math.max(28, kt.implicitWidth + 14)
                                 height: 26
-                                radius: 7
+                                radius: app.rr(7)
                                 color: Qt.rgba(keysPage.app.cFg.r, keysPage.app.cFg.g, keysPage.app.cFg.b, 0.09)
                                 border.width: 1
                                 border.color: Qt.rgba(keysPage.app.cFg.r, keysPage.app.cFg.g, keysPage.app.cFg.b, 0.14)

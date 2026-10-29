@@ -48,7 +48,7 @@ ColumnLayout {
             Layout.alignment: Qt.AlignTop
             Rectangle {                                     // the screen
                 anchors.fill: parent
-                radius: 14
+                radius: app.rr(14)
                 color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.05)
                 border.width: 1
                 border.color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.12)
@@ -57,14 +57,14 @@ ColumnLayout {
                 x: 8; y: 8
                 width: parent.width - 16
                 height: 22
-                radius: 11
+                radius: app.rr(11)
                 color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.12)
             }
             Rectangle {                                     // a window
                 x: 40; y: 46
                 width: parent.width - 80
                 height: 88
-                radius: 8
+                radius: app.rr(8)
                 color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.06)
             }
             Rectangle {                                     // the dock
@@ -72,7 +72,7 @@ ColumnLayout {
                 y: parent.height - 32
                 width: 130
                 height: 22
-                radius: 11
+                radius: app.rr(11)
                 color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.12)
             }
             Repeater {
@@ -85,7 +85,7 @@ ColumnLayout {
                     y: modelData.y * drawing.height - height / 2 + (modelData.n === 9 ? 2 : 1)
                     width: on ? 24 : 20
                     height: width
-                    radius: width / 2
+                    radius: app.rr(width / 2)
                     color: on ? where.app.cBlue : Qt.rgba(where.app.cBlue.r, where.app.cBlue.g, where.app.cBlue.b, 0.55)
                     Behavior on width { NumberAnimation { duration: where.app.animQuick } }
                     Text {
@@ -113,7 +113,7 @@ ColumnLayout {
                 visible: whereFlick.contentHeight > whereFlick.height
                 anchors.right: parent.right
                 width: 3
-                radius: 2
+                radius: app.rr(2)
                 color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.18)
                 y: whereFlick.visibleArea.yPosition * whereFlick.height
                 height: Math.max(24, whereFlick.visibleArea.heightRatio * whereFlick.height)
@@ -133,7 +133,7 @@ ColumnLayout {
                         readonly property bool on: where.lit === modelData.n
                         Layout.fillWidth: true
                         implicitHeight: partRow.implicitHeight + 14
-                        radius: 12
+                        radius: app.rr(12)
                         color: on ? Qt.rgba(where.app.cBlue.r, where.app.cBlue.g, where.app.cBlue.b, 0.16) : "transparent"
                         Behavior on color { ColorAnimation { duration: where.app.animQuick } }
                         HoverHandler { id: partHov; onHoveredChanged: if (hovered) where.lit = part.modelData.n }
@@ -184,7 +184,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: 6
                     implicitHeight: lRow.implicitHeight + 16
-                    radius: 12
+                    radius: app.rr(12)
                     color: Qt.rgba(where.app.cFg.r, where.app.cFg.g, where.app.cFg.b, 0.05)
                     RowLayout {
                         id: lRow

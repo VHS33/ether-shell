@@ -139,7 +139,7 @@ Variants {
             anchors.centerIn: parent
             width: col.implicitWidth + 56
             height: col.implicitHeight + 52
-            radius: 32
+            radius: app.rr(32)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
@@ -164,7 +164,7 @@ Variants {
                     Rectangle {
                         implicitWidth: 48
                         implicitHeight: 48
-                        radius: 24
+                        radius: app.rr(24)
                         color: app.cBlue
                         Text {
                             anchors.centerIn: parent
@@ -209,7 +209,7 @@ Variants {
 
                             implicitWidth: 128
                             implicitHeight: 136
-                            radius: 26
+                            radius: app.rr(26)
                             color: aHov.hovered ? Qt.rgba(modelData.col.r, modelData.col.g, modelData.col.b, 0.18)
                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                             border.width: aHov.hovered ? 2 : 0
@@ -227,7 +227,7 @@ Variants {
                                     Layout.alignment: Qt.AlignHCenter
                                     implicitWidth: 54
                                     implicitHeight: 54
-                                    radius: 27
+                                    radius: app.rr(27)
                                     color: aHov.hovered ? act.modelData.col
                                          : Qt.rgba(act.modelData.col.r, act.modelData.col.g, act.modelData.col.b, 0.2)
                                     Behavior on color { ColorAnimation { duration: app.animQuick } }
@@ -252,7 +252,7 @@ Variants {
                                     Layout.alignment: Qt.AlignHCenter
                                     implicitWidth: 24
                                     implicitHeight: 20
-                                    radius: 6
+                                    radius: app.rr(6)
                                     color: "transparent"
                                     border.width: 1
                                     border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.9)
@@ -295,12 +295,12 @@ Variants {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: 8
-                        radius: 4
+                        radius: app.rr(4)
                         color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                         Rectangle {
                             width: parent.width * winP.secsLeft / 5
                             height: parent.height
-                            radius: 4
+                            radius: app.rr(4)
                             color: parent.parent.a ? parent.parent.a.col : app.cBlue
                             Behavior on width { NumberAnimation { duration: 950 } }
                         }
@@ -311,7 +311,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 120
                             implicitHeight: 40
-                            radius: 20
+                            radius: app.rr(20)
                             color: cHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.12) : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
                             HoverHandler { id: cHov }
                             Text {
@@ -331,7 +331,7 @@ Variants {
                         Rectangle {
                             implicitWidth: 120
                             implicitHeight: 40
-                            radius: 20
+                            radius: app.rr(20)
                             readonly property color c: parent.parent.a ? parent.parent.a.col : app.cBlue
                             color: nHov.hovered ? Qt.lighter(c, 1.1) : c
                             HoverHandler { id: nHov }

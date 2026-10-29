@@ -13,6 +13,8 @@
 #include <QObject>
 #include <QPointer>
 #include <QVariantList>
+#include <QVariantMap>
+#include <QList>
 #include <QtQml/qqmlregistration.h>
 
 class QNetworkAccessManager;
@@ -30,7 +32,8 @@ class ArtColors : public QObject {
     Q_PROPERTY(QColor container READ container NOTIFY colorsChanged)
     Q_PROPERTY(QColor onContainer READ onContainer NOTIFY colorsChanged)
     // how light the image looks, 0 (black) to 100 (white): CIE L* of its
-    // average luminance, as the eye judges it.  -1 until one is read.
+    // average luminance, as the eye judges it, with the strip along the top
+    // (behind the bar) counting for a third.  -1 until one is read.
     Q_PROPERTY(double lightness READ lightness NOTIFY analyzed)
     // how colourful the image is (Hasler and Susstrunk's measure: about 0
     // for greyscale, 15-35 muted, 45+ colourful, 80+ vivid), how much of its
@@ -46,9 +49,12 @@ class ArtColors : public QObject {
     // colour family, if it has a strong one (invalid otherwise); smartWhy is
     // "the subject", "the backdrop", "the whole picture" or "no strong colour".
     Q_PROPERTY(QColor smartSeed READ smartSeed NOTIFY analyzed)
-    // the picture's second and third colours: its other colour families,
-    // or its own neutral tone (cream, grey) when it has only one real colour
-    // (never a colour the picture doesn't have)
+    // the picture's second and third colours: its other colours, or lighter
+    // and deeper tones of them, or else the main colour's neighbours on the
+    // colour wheel, so the three always tell apart.  A picture with only a
+    // faint tint gets that tint in three lightnesses; one with none at all
+    // (black and white), three greys, spaced as far apart as reading allows.
+    // smartWhy can also be "a faint tint".
     Q_PROPERTY(QColor smartSecond READ smartSecond NOTIFY analyzed)
     Q_PROPERTY(QColor smartThird READ smartThird NOTIFY analyzed)
     Q_PROPERTY(QString smartWhy READ smartWhy NOTIFY analyzed)
@@ -78,8 +84,40 @@ public:
     QColor smartThird() const { return m_smartThird; }
     QString smartWhy() const { return m_smartWhy; }
     double skinShare() const { return m_skinShare; }
-    struct Smart { QColor seed, second, third; QString why; double skin = 0; };
+    // baseHue/baseChroma: the backdrop's own tone (the large, quiet areas),
+    // which the surfaces are tinted with in a palette from the picture
+    // others: the picture's colours that could be the second and third
+    // accents, each with how much it matters; a palette chooses from them
+    // once it knows the background (what they'll look like made readable)
+    // (score: how much it matters as an accent; area: how much of the
+    // picture it covers, so the palette still shows the picture's big areas
+    // when the main colour is a small subject)
+    struct Other { QColor colour; double score; double area = 0; };
+    struct Smart { QColor seed, second, third; QString why; double skin = 0;
+                   double baseHue = 0, baseChroma = 0; bool valid = false;
+                   QList<Other> others; };
     static Smart smartAnalyse(const QImage &img);
+    // The whole theme from the picture, for a dark or light theme: the
+    // surfaces in the backdrop's tone, text, outlines, and the three accents
+    // made readable on them and kept apart from each other.  Keys are
+    // matugen's colour names (surface, surface_container_high, on_surface,
+    // vivid_value, ...), values "#rrggbb".  Empty for an invalid Smart.
+    // contrast: Settings > Theme > Contrast, -1 (softer) to 1 (stronger):
+    // how far text and accents stand from their backgrounds.
+    // studio: Theme Studio's choices, all optional: "main", "second",
+    // "third" (a colour picked by hand, "#rrggbb"), "base" (the tone the
+    // backgrounds take, "#rrggbb"), "strength" (the accents'
+    // strength, 0.5-1.6, 1 = as found) and "tint" (how strongly the
+    // backgrounds take the picture's tone, 0 = neutral grey, 1 = as found).
+    static QVariantMap paletteFor(const Smart &s, bool dark, double contrast = 0,
+                                  const QVariantMap &studio = QVariantMap());
+    // the same for the last image read (Settings > Theme > Palette)
+    Q_INVOKABLE QVariantMap smartPalette(bool dark, double contrast = 0, const QVariantMap &studio = QVariantMap()) const
+    { return paletteFor(m_smart, dark, contrast, studio); }
+    // the colours found in the last image read, for Theme Studio to offer:
+    // the main colour first, then the others by how much they matter
+    // ("#rrggbb" each, close repeats left out)
+    Q_INVOKABLE QVariantList smartColours() const;
     static void colourStats(const QImage &img, double *colourfulness, double *hueFocus, double *saturation);
     // saturation: the average colour saturation (0-1), which catches what
     // colourfulness misses: a flat, vivid single colour has no variation
@@ -126,6 +164,7 @@ private:
         double lightness = -1, colourfulness = -1, hueFocus = -1, skin = 0, aspect = 16.0 / 9.0;
         QString scheme, why;
         QColor smartSeed, smartSecond, smartThird;
+        Smart smart;
         QImage detail;
     };
     static Result analyse(const QImage &img);
@@ -137,6 +176,7 @@ private:
     QColor m_smartSeed, m_smartSecond, m_smartThird;
     QString m_smartWhy;
     double m_skinShare = 0;
+    Smart m_smart;
     QImage m_detail;                          // edge detail of the last image read, small
     double m_aspect = 16.0 / 9.0;             // its original width / height (the grid above isn't)
     static QImage detailOf(const QImage &img);

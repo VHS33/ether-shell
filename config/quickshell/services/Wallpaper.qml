@@ -25,6 +25,55 @@ Singleton {
     signal widgetsShouldMove()
 
     property var wallpapers: []
+
+    // ---- moving wallpapers (a video, or an animated GIF) ----
+    // The desktop plays them (Backdrop); everything that needs a picture
+    // uses a still from each instead: the colours, the lock screen, the
+    // login screen, the thumbnails.  The stills are made by wall-still (one
+    // representative frame, kept in ~/.cache/ether/stills), one at a time in
+    // the background; stills: { wallpaper: its still }, once made.
+    function isMoving(p) { return /\.(mp4|webm|mkv|mov|m4v|avi|gif)$/i.test(p || "") }
+    property var stills: ({})
+    // the picture for a wallpaper ("" for a moving one whose still isn't made yet)
+    function stillOf(p) { return !p ? "" : isMoving(p) ? (stills[p] || "") : p }
+    readonly property string currentStill: stillOf(currentWall)
+    property var stillQueue: []
+    property var stillThen: ({})          // wallpaper: what to do once its still is made
+    function makeStill(p, then) {
+        if (!isMoving(p)) { if (then) then(); return }
+        if (stills[p]) { if (then) then(); return }
+        if (then) { const t = Object.assign({}, stillThen); t[p] = then; stillThen = t }
+        if (stillQueue.indexOf(p) < 0 && stillProc.path !== p) stillQueue = stillQueue.concat([p])
+        if (!stillProc.running) nextStill()
+    }
+    function nextStill() {
+        if (!stillQueue.length) return
+        const p = stillQueue[0]
+        stillQueue = stillQueue.slice(1)
+        stillProc.path = p
+        stillProc.command = [Quickshell.env("HOME") + "/.local/bin/wall-still", p]
+        stillProc.running = true
+    }
+    Process {
+        id: stillProc
+        property string path: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = text.trim()
+                if (out) { const s = Object.assign({}, wallpaperSvc.stills); s[stillProc.path] = out; wallpaperSvc.stills = s }
+            }
+        }
+        onExited: code => {
+            const p = stillProc.path, then = wallpaperSvc.stillThen[p]
+            if (then) { const t = Object.assign({}, wallpaperSvc.stillThen); delete t[p]; wallpaperSvc.stillThen = t }
+            if (code !== 0) console.log("wallpaper: couldn't make a still of " + p + " (is ffmpeg installed?)")
+            stillProc.path = ""
+            if (then && code === 0) then()
+            wallpaperSvc.nextStill()
+        }
+    }
+    onCurrentWallChanged: if (isMoving(currentWall) && !stills[currentWall]) makeStill(currentWall)
+    onStillsChanged: queuePalettes()
     Process { id: switchProc }
     Process { id: wallApply }
     Process { id: wallShow }
@@ -36,8 +85,8 @@ Singleton {
         running: wallpaperSvc.listing
         command: ["sh", "-c",
             "find \"$HOME/Pictures/wallpapers\" -maxdepth 1 -type f "
-            + "\\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' "
-            + "-o -iname '*.webp' \\) | sort"]
+            + "\\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' "
+            + "-o -iname '*.mp4' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.mov' -o -iname '*.m4v' -o -iname '*.gif' \\) | sort"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n").filter(l => l.length)
@@ -59,6 +108,7 @@ Singleton {
         (Config.cfg.themeScheme === "auto" ? "auto" : Theme.themeScheme) + "|" + Theme.themeContrast.toFixed(2) + "|"
         + Theme.themePrefer + "|" + (Config.cfg.themeMode === "auto" ? "auto" : (Theme.isLight ? "light" : "dark"))
         + (Config.cfg.accentStyle === "soft" ? "|soft" : "|vivid2")
+        + (Theme.pictureOn ? "|picture" : "")
     property var paletteCache: ({})      // { key: { path: [...] } }
     readonly property var wallPalettes: paletteCache[paletteKey] || ({})
     property var paletteQueue: []
@@ -70,11 +120,15 @@ Singleton {
         }
     }
     // the selector lists wallpapers when it opens: work out any missing
-    onWallpapersChanged: queuePalettes()
+    onWallpapersChanged: {
+        // the moving ones' stills, for their thumbnails and swatches
+        for (const p of wallpapers) if (isMoving(p) && !stills[p]) makeStill(p)
+        queuePalettes()
+    }
     onPaletteKeyChanged: queuePalettes()
     function queuePalettes() {
         const have = paletteCache[paletteKey] || {}
-        paletteQueue = wallpapers.filter(p => !have[p])
+        paletteQueue = wallpapers.filter(p => !have[p] && stillOf(p) !== "")
         if (!paletteProc.running) nextPalette()
     }
     function nextPalette() {
@@ -86,15 +140,34 @@ Singleton {
         if ((Config.cfg.themeScheme === "auto" || Config.cfg.themeMode === "auto" || Theme.themePrefer === "smart") && wallpaperSvc.nativeItem) {
             paletteProbeWait.path = path
             paletteProbeWait.restart()
-            wallpaperSvc.nativeItem.probe(path)
+            wallpaperSvc.nativeItem.probe(stillOf(path))
             return
         }
         runPalette(path, Theme.themeScheme, Theme.isLight ? "light" : "dark")
     }
     // the plugin has measured a wallpaper for its swatches (NativeStats.qml)
-    function paletteProbed(path, lightness, scheme, seed, second, why, third) {
-        if (!paletteProbeWait.running || paletteProbeWait.path !== path) return
+    function paletteProbed(path, lightness, scheme, seed, second, why, third, palDark, palLight) {
+        // (the plugin reads a moving wallpaper's still)
+        if (!paletteProbeWait.running || stillOf(paletteProbeWait.path) !== path) return
+        path = paletteProbeWait.path
         paletteProbeWait.stop()
+        // the palette from the picture: the plugin has it all already (for
+        // this wallpaper's own light or dark), no matugen needed
+        const sch = Config.cfg.themeScheme === "auto" ? (scheme || "scheme-tonal-spot") : Theme.themeScheme
+        const light = Config.cfg.themeMode === "auto" ? lightness > 60 : Theme.isLight
+        const pal = light ? palLight : palDark
+        if (Theme.pictureOn && sch !== "scheme-monochrome" && pal && pal.surface) {
+            const colours = [pal.vivid_value, pal.second_value, pal.third_value, pal.secondary_container, pal.surface]
+            if (colours.every(x => x)) {
+                const all = Object.assign({}, wallpaperSvc.paletteCache)
+                all[paletteKey] = Object.assign({}, all[paletteKey] || {})
+                all[paletteKey][path] = colours
+                wallpaperSvc.paletteCache = all
+                paletteSave.restart()
+            }
+            nextPalette()
+            return
+        }
         runPalette(path,
                    Config.cfg.themeScheme === "auto" ? (scheme || "scheme-tonal-spot") : Theme.themeScheme,
                    Config.cfg.themeMode === "auto" ? (lightness > 60 ? "light" : "dark") : (Theme.isLight ? "light" : "dark"),
@@ -119,7 +192,7 @@ Singleton {
         paletteProc.key = paletteKey
         paletteProc.mode = mode
         // the smart colour: build from it; otherwise matugen picks from the image
-        const from = seed ? ["color", "hex", seed] : ["image", path]
+        const from = seed ? ["color", "hex", seed] : ["image", stillOf(path)]
         const pick = seed ? [] : (Theme.themePrefer === "dominant" || Theme.themePrefer === "smart")
                                  ? ["--source-color-index", "0"] : ["--prefer", Theme.themePrefer]
         paletteProc.command = ["matugen"].concat(from).concat(["--dry-run", "-j", "hex", "-q",
@@ -201,6 +274,8 @@ Singleton {
     }
     function applyWallpaper(path) {
         if (!path) return
+        // a moving wallpaper's still first (a moment, the first time)
+        if (isMoving(path) && !stills[path]) { makeStill(path, () => wallpaperSvc.applyWallpaper(path)); return }
         // still theming the one before: show this one now, theme it next
         // (the last one picked always wins, rather than clicks being lost)
         if (wallApply.running || wallWait.running) {
@@ -246,12 +321,18 @@ Singleton {
             // the smart colour's wallpaper, as a fingerprint (setwall runs this
             // file as shell code, so no raw path goes in it)
             'k=$(printf "%s" "$5" | md5sum | cut -c1-32); ' +
-            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\nSEED=%s\\nSEED_FOR=%s\\nVIVID=%s\\nSECOND=%s\\nTHIRD=%s\\n" "$1" "$2" "$3" "$4" "$6" "$k" "$7" "$8" "$9" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
+            'printf "TYPE=%s\\nCONTRAST=%s\\nPREFER=%s\\nMODE=%s\\nSEED=%s\\nSEED_FOR=%s\\nVIVID=%s\\nSECOND=%s\\nTHIRD=%s\\nPALETTE=%s\\nBORDER=%s\\nBORDERCOLOUR=%s\\n" "$1" "$2" "$3" "$4" "$6" "$k" "$7" "$8" "$9" "${10}" "${11}" "${12}" > "$f.tmp" && mv "$f.tmp" "$f"; ' +
             'exec "$HOME/.local/bin/setwall" --theme-only "$5"',
             "sh", measured ? Theme.themeScheme : (Config.cfg.themeScheme === "auto" ? "scheme-tonal-spot" : Theme.themeScheme),
             Theme.themeContrast.toFixed(2), Theme.themePrefer, Theme.isLight ? "light" : "dark", path,
             measured && Theme.smartOn ? Theme.wallSeed : "", measured && Theme.vividOn ? "1" : "0",
-            measured && Theme.vividOn ? Theme.wallSecond : "", measured && Theme.vividOn ? Theme.wallThird : ""]
+            measured && Theme.vividOn ? Theme.wallSecond : "", measured && Theme.vividOn ? Theme.wallThird : "",
+            // the palette from the picture, for the mode the theme will have
+            measured && Theme.pictureOn ? Theme.paletteString(wallpaperSvc.nativeItem && wallpaperSvc.nativeItem.wallPalette
+                                                              ? wallpaperSvc.nativeItem.wallPalette(!Theme.isLight, Theme.themeContrast, Theme.studioFor(path))
+                                                              : (Theme.isLight ? Theme.wallPalLight : Theme.wallPalDark)) : "",
+            // the window borders (Theme Studio): style, and a colour picked or ""
+            Theme.studioFor(path).border, Theme.studioFor(path).borderColour]
     }
     function runSetwall(path) {
         lastThemed = path
@@ -271,15 +352,18 @@ Singleton {
         }
     }
     // the plugin has measured the wallpaper (NativeStats.qml calls this)
-    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third) {
+    function wallMeasured(lightness, scheme, colourfulness, seed, second, why, source, third, palDark, palLight) {
         Theme.wallLightness = lightness
+        Theme.wallPalDark = palDark || {}
+        Theme.wallPalLight = palLight || {}
         Theme.wallScheme = scheme || ""
         Theme.wallColourfulness = colourfulness
         Theme.wallSeed = seed || ""
         Theme.wallSecond = second || ""
         Theme.wallThird = third || ""
         Theme.wallWhy = why || ""
-        wallMeasuredFor = source || ""
+        // (a moving wallpaper is measured from its still)
+        wallMeasuredFor = source && source === currentStill ? currentWall : (source || "")
         // the wallpaper waiting for this: theme it now
         if (wallWait.running && wallWait.path === wallMeasuredFor) {
             wallWait.stop(); runSetwall(wallWait.path)
@@ -324,7 +408,7 @@ Singleton {
         id: loginPublish
         interval: 1500                           // after the theme has settled
         onTriggered: {
-            if (!wallpaperSvc.loginFollows || !wallpaperSvc.currentWall) return
+            if (!wallpaperSvc.loginFollows || !wallpaperSvc.currentStill) return
             loginShare.command = ["sh", "-c",
                 'd=$1; mkdir -p "$d" || exit 1; ' +
                 'cp "$2" "$d/background.tmp" && mv -f "$d/background.tmp" "$d/background" && ' +
@@ -332,7 +416,7 @@ Singleton {
                 // which monitor gets the sign-in card
                 'printf "{\\"mainScreen\\": \\"%s\\"}" "$4" > "$d/settings.tmp" && mv -f "$d/settings.tmp" "$d/settings.json" && ' +
                 'chmod 644 "$d/background" "$d/colors.json" "$d/settings.json"',
-                "sh", wallpaperSvc.loginDir, wallpaperSvc.currentWall, Quickshell.env("HOME") + "/.config/quickshell/colors.json",
+                "sh", wallpaperSvc.loginDir, wallpaperSvc.currentStill, Quickshell.env("HOME") + "/.config/quickshell/colors.json",
                 wallpaperSvc.mainScreen]
             loginShare.running = true
         }

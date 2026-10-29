@@ -40,6 +40,26 @@ ColumnLayout {
 
     Card {
         app: settingsRoot.app
+        title: "Palette"
+        desc: app.cfg.themePalette === "material"
+              ? "Material You's palette, in the style below, built around one colour of the wallpaper."
+              : !app.nativeOk
+              ? "Needs the native plugin, which isn't built: re-run the installer. Until then, Material's."
+              : app.themePrefer !== "smart"
+              ? "Needs the Smart colour source (below). Until then, Material's."
+              : "Ether Shell's own palette from the whole picture: backgrounds tinted with the wallpaper's backdrop, and three accents from its own colours that always read and always tell apart. A picture with only one colour gets its own lighter and deeper tones or close neighbours; a faint one, three shades of that tint; a black-and-white one, three greys. Nothing that isn't in the picture. The Monochrome style still gives pure greys."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["From the picture", "Material"]
+                current: app.cfg.themePalette === "material" ? 1 : 0
+                onPicked: i => app.setting("themePalette", i === 1 ? "material" : "picture")
+            }
+        ]
+    }
+
+    Card {
+        app: settingsRoot.app
         title: "Style"
         desc: app.themeBusy
               ? "Applying to every app\u2026"
@@ -90,6 +110,7 @@ ColumnLayout {
                     : app.themePrefer === "smart" && app.wallWhy
                     ? "Ether Shell's own pick for this wallpaper: " + (app.wallWhy === "no strong colour"
                           ? "it has no strong colour, so its own soft tint."
+                          : app.wallWhy === "a faint tint" ? "its colour is faint, so that tint, gently."
                           : "the colour of " + app.wallWhy + (app.wallSecond ? ", with its second colour as the third accent." : "."))
                     : "Ether Shell's own pick: the subject over the backdrop, skin tones set aside, borders ignored. Recommended." },
                 { k: "dominant",        t: "Most of the picture", d: "The colour covering most of the wallpaper, scored as Material You does on Android. Palettes look like the wallpaper." },

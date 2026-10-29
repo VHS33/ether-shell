@@ -14,7 +14,7 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: col.implicitHeight + 34
-    radius: 18
+    radius: app.rr(18)
     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.09)
 
     // search finds settings by these (see win.searchIndex, and the

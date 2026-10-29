@@ -370,6 +370,12 @@ Variants {
         ]
 
         readonly property var results: {
+            // Nothing while it's closed.  It's kept after closing (for instant
+            // opening) with what was typed still in the box, and it used to go
+            // on searching for that: launch Steam, and Steam's window, matching
+            // "steam", arrived as a new result in the hidden list, which crashed
+            // the shell.  (The box is set afresh each time it opens.)
+            if (!lw.open) return []
             const t = term, out = []
             // moving a window: where to
             if (lw.moving) {
@@ -668,7 +674,7 @@ Variants {
             y: lw.cardY
             width: lw.openW
             height: lw.openH
-            radius: 26
+            radius: app.rr(26)
             color: app.cCard
             border.width: 1
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
@@ -708,7 +714,7 @@ Variants {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 52
-                    radius: 26
+                    radius: app.rr(26)
                     color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                     RowLayout {
                         anchors.fill: parent
@@ -843,7 +849,7 @@ Variants {
                             readonly property bool on: lw.mode === modelData.m
                             implicitWidth: chipRow.implicitWidth + 22
                             implicitHeight: 30
-                            radius: 15
+                            radius: app.rr(15)
                             color: on ? app.cPrimC
                                  : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
@@ -895,8 +901,12 @@ Variants {
                     // the list moves its own choice along with a row when the
                     // results change (and stops following lw.sel), so put it back
                     currentIndex: lw.sel
-                    onCurrentIndexChanged: if (currentIndex !== lw.sel) currentIndex = Qt.binding(() => lw.sel)
-                    onCountChanged: if (currentIndex !== lw.sel) currentIndex = Qt.binding(() => lw.sel)
+                    // (both put back a moment later, once the list has finished
+                    // updating: changing it from inside the list's own update can
+                    // make it delete rows it's still adding, and crash)
+                    function followSel() { if (currentIndex !== lw.sel) currentIndex = Qt.binding(() => lw.sel) }
+                    onCurrentIndexChanged: if (currentIndex !== lw.sel) Qt.callLater(followSel)
+                    onCountChanged: if (currentIndex !== lw.sel) Qt.callLater(followSel)
                     // keep the chosen row in sight (the list doesn't, as the
                     // highlight is placed by hand): on choosing, and as it grows
                     // glides there; a row that's growing is followed straight away
@@ -927,7 +937,7 @@ Variants {
                     // grow (a window's actions) and are swapped as you type
                     highlightFollowsCurrentItem: false
                     highlight: Rectangle {
-                        radius: 16
+                        radius: app.rr(16)
                         color: app.cPrimC
                         width: list.width
                         visible: list.currentItem !== null && !list.currentItem.isHead
@@ -947,7 +957,10 @@ Variants {
                         width: ListView.view.width
                         height: isHead ? 30 : 52 + (showActs ? actFlow.height + 8 : 0)
                         Behavior on height { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
-                        onHeightChanged: if (current) list.reveal(false)
+                        // (a moment later: a row changes height while the list is
+                        // still making it, and scrolling the list from inside that
+                        // made it delete rows it was adding, which crashed the shell)
+                        onHeightChanged: if (current) Qt.callLater(list.reveal, false)
 
                         // a heading: "Open windows", "Apps"
                         Text {
@@ -996,7 +1009,7 @@ Variants {
                                     anchors.fill: parent
                                     visible: row.modelData.kind !== "app" && row.modelData.kind !== "emoji"
                                              && !((row.modelData.kind === "win" || row.modelData.kind === "winclose") && !!row.modelData.icon)
-                                    radius: 12
+                                    radius: app.rr(12)
                                     color: row.current ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
                                     Text {
                                         anchors.centerIn: parent
@@ -1039,7 +1052,7 @@ Variants {
                                     visible: !!row.modelData.badge
                                     implicitWidth: badgeText.implicitWidth + 14
                                     implicitHeight: 20
-                                    radius: 10
+                                    radius: app.rr(10)
                                     color: row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.14)
                                                        : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
                                     Text {
@@ -1093,7 +1106,7 @@ Variants {
                                     readonly property bool danger: modelData.a === "close"
                                     implicitWidth: actRow.implicitWidth + 20
                                     implicitHeight: 28
-                                    radius: 14
+                                    radius: app.rr(14)
                                     color: actHov.hovered ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.22)
                                          : modelData.a === "focus" ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.18)
                                          : Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.08)
