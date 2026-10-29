@@ -2,10 +2,13 @@
 // CPU, memory, network and GPU readings, taken in-process.
 //
 // /proc/stat, /proc/meminfo and /proc/net/dev are read directly (no shell,
-// no helper programs).  The GPU is read through NVIDIA's own library, NVML,
-// loaded at runtime: on machines without it gpuOk simply stays false.
+// no helper programs).  The GPU: an NVIDIA card through NVIDIA's own
+// library, NVML, loaded at runtime; otherwise an AMD card from the files its
+// kernel driver (amdgpu) keeps in /sys.  With neither, gpuOk stays false.
 #include <QObject>
 #include <QTimer>
+#include <QString>
+#include <QByteArray>
 #include <QtQml/qqmlregistration.h>
 
 class SystemStats : public QObject {
@@ -22,6 +25,7 @@ class SystemStats : public QObject {
     Q_PROPERTY(int gpuTemp READ gpuTemp NOTIFY updated)
     Q_PROPERTY(int gpuMemPct READ gpuMemPct NOTIFY updated)
     Q_PROPERTY(int gpuWatts READ gpuWatts NOTIFY updated)
+    Q_PROPERTY(QString gpuVendor READ gpuVendor NOTIFY updated)   // "nvidia", "amd" or ""
 
 public:
     explicit SystemStats(QObject *parent = nullptr);
@@ -41,6 +45,7 @@ public:
     int gpuTemp() const { return m_gpuTemp; }
     int gpuMemPct() const { return m_gpuMemPct; }
     int gpuWatts() const { return m_gpuWatts; }
+    QString gpuVendor() const { return m_gpuVendor; }
 
     Q_INVOKABLE void sampleNow() { sample(); }
 
@@ -56,6 +61,8 @@ private:
     void readNet(qint64 nowMs);
     void readGpu();
     bool loadNvml();
+    void findAmd();
+    void readAmd();
 
     QTimer m_timer;
     // cpu: the previous totals, to take the busy share since then
@@ -68,6 +75,7 @@ private:
     double m_down = 0, m_up = 0;
     bool m_gpuOk = false;
     int m_gpuPct = 0, m_gpuTemp = 0, m_gpuMemPct = 0, m_gpuWatts = 0;
+    QString m_gpuVendor;
 
     // NVML, loaded at runtime
     void *m_nvml = nullptr;
@@ -75,4 +83,8 @@ private:
     bool m_nvmlTried = false;
     struct Fns;
     Fns *m_fn = nullptr;
+
+    // an AMD card: its device folder in /sys, and its sensors' folder
+    QByteArray m_amdDev, m_amdHwmon;
+    bool m_amdTried = false;
 };

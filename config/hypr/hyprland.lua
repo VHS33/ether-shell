@@ -155,6 +155,16 @@ end)
 
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
+-- Ether Shell's commands (ether, setwall...) by name, in every terminal and
+-- the launcher.  Under UWSM ~/.config/uwsm/env does this; started any other
+-- way (from a text login, say) nothing did, and `ether` wasn't found.
+do
+    local bin = os.getenv("HOME") .. "/.local/bin"
+    local path = os.getenv("PATH") or "/usr/local/bin:/usr/bin"
+    if not (":" .. path .. ":"):find(":" .. bin .. ":", 1, true) then
+        hl.env("PATH", bin .. ":" .. path)
+    end
+end
 
 
 -----------------------

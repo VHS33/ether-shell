@@ -1,7 +1,11 @@
 #include "systemstats.h"
 
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 
@@ -162,7 +166,14 @@ bool SystemStats::loadNvml() {
 
 void SystemStats::readGpu() {
     if (!m_nvmlTried) loadNvml();
-    if (!m_fn || !m_dev) { m_gpuOk = false; return; }
+    if (!m_fn || !m_dev) {
+        // no NVIDIA card (or its library): an AMD one, if there is one
+        if (!m_amdTried) findAmd();
+        if (!m_amdDev.isEmpty()) readAmd();
+        else m_gpuOk = false;
+        return;
+    }
+    m_gpuVendor = QStringLiteral("nvidia");
     nvmlUtilization_t u{};
     unsigned int t = 0, mw = 0;
     nvmlMemory_t m{};
@@ -172,4 +183,54 @@ void SystemStats::readGpu() {
     if (m_fn->mem(m_dev, &m) == 0 && m.total) m_gpuMemPct = int(100.0 * double(m.used) / double(m.total) + 0.5);
     if (m_fn->power(m_dev, &mw) == 0) m_gpuWatts = int(mw / 1000.0 + 0.5);
     m_gpuOk = true;
+}
+
+// The AMD card to read: one run by the amdgpu driver, the one with the most
+// video memory when there are two (a graphics card beside the processor's
+// own graphics).  Looked for once.
+void SystemStats::findAmd() {
+    m_amdTried = true;
+    const QDir drm(QStringLiteral("/sys/class/drm"));
+    long long best = -1;
+    const QStringList cards = drm.entryList({QStringLiteral("card*")}, QDir::AllEntries | QDir::NoDotAndDotDot);
+    for (const QString &card : cards) {
+        if (card.contains(QLatin1Char('-'))) continue;            // a connector (card1-DP-1)
+        const QString dev = drm.filePath(card) + QStringLiteral("/device");
+        if (QFileInfo(QFileInfo(dev + QStringLiteral("/driver")).symLinkTarget()).fileName() != QLatin1String("amdgpu")) continue;
+        if (!QFileInfo::exists(dev + QStringLiteral("/gpu_busy_percent"))) continue;
+        char buf[32];
+        const long long vram = readFile(QByteArray(QFile::encodeName(dev + QStringLiteral("/mem_info_vram_total"))).constData(), buf, sizeof buf) > 0
+                             ? std::atoll(buf) : 0;
+        if (vram <= best) continue;
+        best = vram;
+        m_amdDev = QFile::encodeName(dev);
+        const QStringList hw = QDir(dev + QStringLiteral("/hwmon")).entryList({QStringLiteral("hwmon*")}, QDir::AllEntries | QDir::NoDotAndDotDot);
+        m_amdHwmon = hw.isEmpty() ? QByteArray() : QFile::encodeName(dev + QStringLiteral("/hwmon/") + hw.first());
+    }
+}
+
+void SystemStats::readAmd() {
+    char buf[64];
+    auto get = [&](const QByteArray &dir, const char *name) {
+        return !dir.isEmpty() && readFile((dir + '/' + name).constData(), buf, sizeof buf) > 0;
+    };
+    m_gpuVendor = QStringLiteral("amd");
+    m_gpuOk = true;
+    // a card that's asleep (a laptop's, while nothing uses it) is left
+    // asleep: reading its sensors would wake it
+    if (get(m_amdDev, "power/runtime_status") && std::strncmp(buf, "suspended", 9) == 0) {
+        m_gpuPct = 0;
+        m_gpuWatts = 0;
+        return;
+    }
+    if (get(m_amdDev, "gpu_busy_percent")) m_gpuPct = std::atoi(buf);
+    if (get(m_amdHwmon, "temp1_input")) m_gpuTemp = int(std::atol(buf) / 1000.0 + 0.5);    // the edge sensor
+    // the power draw: power1_average on most cards, power1_input on newer ones
+    if (get(m_amdHwmon, "power1_average") || get(m_amdHwmon, "power1_input"))
+        m_gpuWatts = int(std::atoll(buf) / 1e6 + 0.5);
+    if (get(m_amdDev, "mem_info_vram_used")) {
+        const double used = double(std::atoll(buf));
+        if (get(m_amdDev, "mem_info_vram_total") && std::atoll(buf) > 0)
+            m_gpuMemPct = int(100.0 * used / double(std::atoll(buf)) + 0.5);
+    }
 }

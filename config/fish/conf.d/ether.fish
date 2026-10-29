@@ -3,6 +3,10 @@
 # so anything there wins.  Each part runs only if its program is installed.
 # The colours (fish's, the prompt's, fzf's) come from your wallpaper; see
 # ~/.config/matugen/config-terminal.toml.
+# Ether Shell's commands (ether, setwall...) by name, however the session
+# was started (the session's own setting covers it under UWSM; this covers
+# the rest, a text login included)
+test -d ~/.local/bin; and fish_add_path -gP ~/.local/bin
 status is-interactive; or return
 
 # the prompt (starship reads ~/.config/starship/ether.toml, which the theme

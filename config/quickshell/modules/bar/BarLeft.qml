@@ -274,7 +274,11 @@ Variants {
                     ownGraph: !app.statOneGraph
                     valueColour: app.statOneGraph && app.statGraphed(app.statGpu) ? app.statGpuColour : app.cFg
                     clickable: true
-                    onClicked: app.run("nvidia-settings")
+                    // NVIDIA's settings; for an AMD card LACT, if it's installed,
+                    // else btop like the others
+                    onClicked: app.run(app.gpuVendor === "amd"
+                        ? "command -v lact >/dev/null && exec lact gui || exec " + app.termCmd + " -e sh -c 'command -v btop >/dev/null && exec btop || exec top'"
+                        : "nvidia-settings")
                 }
                 Stat {
                     app: rootV.app

@@ -77,7 +77,7 @@ backups() { find "$HOME/.config" -maxdepth 1 -name 'ether-backup-*' 2>/dev/null 
 case "${1:-}" in
 fresh)
     echo "A first install"
-    if bash "$repo/install.sh" --yes > "$out/fresh.log" 2>&1; then ok "install.sh finished"
+    if bash "$repo/install.sh" --yes --gpu=none > "$out/fresh.log" 2>&1; then ok "install.sh finished"
     else bad "install.sh stopped (exit $?):"; tail -20 "$out/fresh.log"; fi
     # (the installer's own errors stop it, which the line above catches; an
     # error from pacman or a package's setup is noted with what it was about:
@@ -100,7 +100,7 @@ fresh)
 again)
     echo "Installing the same again"
     before=$(backups)
-    if bash "$repo/install.sh" --yes > "$out/again.log" 2>&1; then ok "install.sh finished"
+    if bash "$repo/install.sh" --yes --gpu=none > "$out/again.log" 2>&1; then ok "install.sh finished"
     else bad "install.sh stopped (exit $?):"; tail -20 "$out/again.log"; fi
     grep -q "Nothing needed backing up" "$out/again.log" && ok "nothing replaced" \
         || bad "it replaced files the first install put there: $(grep 'Replaced' "$out/again.log")"

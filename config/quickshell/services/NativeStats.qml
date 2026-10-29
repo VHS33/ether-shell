@@ -25,6 +25,7 @@ Item {
             System.netDown = System.fmtRate(netDownBps)
             System.netUp = System.fmtRate(netUpBps)
             System.gpuOk = gpuOk
+            System.gpuVendor = gpuVendor
             if (gpuOk) {
                 System.gpuPct = gpuPct
                 System.gpuTemp = gpuTemp

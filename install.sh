@@ -8,6 +8,9 @@
 #   ./install.sh --dry-run    show what would happen, change nothing
 #   ./install.sh --no-packages  skip package installation
 #   ./install.sh --yes        don't ask before installing packages
+#   ./install.sh --gpu=nvidia|amd|both|none
+#                             which graphics drivers to install, instead of
+#                             asking (it finds your card and suggests one)
 #   ./install.sh --update     the quick way, for an update (what `ether -u`
 #                             runs): no first-time setup, your wallpaper and
 #                             look kept, the native plugin rebuilt only if it
@@ -29,14 +32,16 @@ else
 fi
 # (ETHER_REPO: another copy to fetch from, for testing)
 REPO_URL="${ETHER_REPO:-https://github.com/VHS33/ether-shell.git}"
-DRY=0; PKGS=1; YES=0; UPD=0
+DRY=0; PKGS=1; YES=0; UPD=0; GPU=auto
 for a in "$@"; do
     case "$a" in
+        --gpu=nvidia|--gpu=amd|--gpu=both|--gpu=none) GPU="${a#--gpu=}" ;;
+        --gpu=*)       echo "Unknown graphics choice: ${a#--gpu=} (nvidia, amd, both or none)"; exit 1 ;;
         --dry-run)     DRY=1 ;;
         --no-packages) PKGS=0 ;;
         --yes|-y)      YES=1 ;;
         --update)      UPD=1 ;;
-        -h|--help)     sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)     sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $a (try --help)"; exit 1 ;;
     esac
 done
@@ -221,6 +226,125 @@ if ls "${ETHER_SYSFS:-/sys}"/class/power_supply/BAT* >/dev/null 2>&1; then
     else
         info "$other_power manages power here, so the power modes in quick settings stay off"
     fi
+fi
+
+# ---- graphics drivers ----------------------------------------------
+# The graphics card is looked for on the PCI bus, so one whose driver isn't
+# installed yet is found too.  NVIDIA: NVIDIA's driver (the open one, for an
+# RTX 20 or GTX 16 card or newer: older ones need a legacy driver from the
+# AUR, which is left to you).  AMD: Vulkan, for games and apps (Mesa,
+# already here, does the rest).  What it found is the suggested answer;
+# --gpu=... answers without asking.  Left alone on an update (unless --gpu
+# is given), and wherever the drivers are already installed, the distro's
+# own packages included (CachyOS's and EndeavourOS's count).
+gpu_found=""; nv_new=0; nv_old=0
+for d in "${ETHER_SYSFS:-/sys}"/bus/pci/devices/*; do
+    [ -r "$d/class" ] && [ -r "$d/vendor" ] || continue
+    read -r cls < "$d/class" || continue
+    case "$cls" in 0x03*) ;; *) continue ;; esac          # a display controller
+    read -r ven < "$d/vendor" || continue
+    dev=0; read -r dev < "$d/device" || true
+    if [ "$ven" = 0x10de ]; then
+        case " $gpu_found " in *" nvidia "*) ;; *) gpu_found="$gpu_found nvidia" ;; esac
+        # Turing (RTX 20, GTX 16) and newer start at device 0x1e00
+        if [ $((dev)) -ge $((0x1e00)) ]; then nv_new=1; else nv_old=1; fi
+    elif [ "$ven" = 0x1002 ]; then
+        case " $gpu_found " in *" amd "*) ;; *) gpu_found="$gpu_found amd" ;; esac
+    fi
+done
+gpu_found="${gpu_found# }"
+
+# the packages for one maker's cards, on this system
+gpu_pkgs() {
+    local ml=0 k other=0 ks=()
+    pacman -Sl multilib >/dev/null 2>&1 && ml=1
+    if [ "$1" = amd ]; then
+        echo vulkan-radeon linux-firmware-amdgpu
+        if [ $ml = 1 ]; then echo lib32-mesa lib32-vulkan-radeon; fi
+    elif [ "$1" = nvidia ]; then
+        # a driver already set up (whichever: Arch's, DKMS, an AUR legacy
+        # one, the distro's own) is left exactly as it is: adding a second
+        # kernel module beside it would conflict and stop the install
+        if pacman -T nvidia-utils >/dev/null 2>&1; then return 0; fi
+        echo nvidia-utils nvidia-settings libva-nvidia-driver
+        if [ $ml = 1 ]; then echo lib32-nvidia-utils; fi
+        # the kernel module, for every kernel installed: Arch's own (linux,
+        # linux-lts) have it ready-made; any other (zen, CachyOS's...) has
+        # it built with DKMS, which needs that kernel's headers
+        for k in "${ETHER_MODULES:-/usr/lib/modules}"/*/pkgbase; do
+            if [ -r "$k" ]; then ks+=("$(head -1 "$k")"); fi
+        done
+        for k in "${ks[@]}"; do
+            case "$k" in linux|linux-lts) ;; *) other=1 ;; esac
+        done
+        if [ ${#ks[@]} -gt 0 ] && [ $other = 0 ]; then
+            for k in "${ks[@]}"; do
+                if [ "$k" = linux ]; then echo nvidia-open; else echo nvidia-open-lts; fi
+            done
+        else
+            echo nvidia-open-dkms
+            for k in "${ks[@]}"; do echo "$k-headers"; done
+        fi
+    fi
+    return 0
+}
+gpu_name() { case "$1" in nvidia) echo NVIDIA ;; amd) echo AMD ;; "nvidia amd"|"amd nvidia") echo "NVIDIA and AMD" ;; *) echo none ;; esac; }
+
+gpu_added=""; gpu_restart=0
+if [ "$PKGS" = 1 ] && { [ "$UPD" = 0 ] || [ "$GPU" != auto ]; }; then
+    step "Graphics drivers"
+    case "$GPU" in
+        auto) gpu_pick="$gpu_found" ;;
+        both) gpu_pick="nvidia amd" ;;
+        none) gpu_pick="" ;;
+        *)    gpu_pick="$GPU" ;;
+    esac
+    if [ "$GPU" = auto ]; then
+        if [ -z "$gpu_found" ]; then
+            info "No NVIDIA or AMD graphics card found; drivers left as they are (--gpu=... to pick one)."
+        else
+            # what the suggestion still needs: nothing, and there's no question
+            need=""
+            for v in $gpu_found; do
+                for p in $(gpu_pkgs "$v"); do pacman -T "$p" >/dev/null 2>&1 || need="$need $p"; done
+            done
+            if [ -z "$need" ]; then
+                info "Found $(gpu_name "$gpu_found") graphics; their drivers are already installed."
+                gpu_pick=""
+            else
+                info "Found $(gpu_name "$gpu_found") graphics."
+            fi
+            if [ -n "$need" ] && [ "$YES" = 0 ] && [ "$DRY" = 0 ] && has_tty; then
+                case "$gpu_found" in nvidia) def=1 ;; amd) def=2 ;; *) def=3 ;; esac
+                info "Which drivers should be installed?"
+                info "  1) NVIDIA    2) AMD    3) both    4) none, I'll handle drivers myself"
+                read -r -p "    Choose [$def]: " ans < /dev/tty || ans=""
+                case "${ans:-$def}" in
+                    1) gpu_pick=nvidia ;; 2) gpu_pick=amd ;; 3) gpu_pick="nvidia amd" ;; 4) gpu_pick="" ;;
+                    *) warn "Not one of the choices; going with $(gpu_name "$gpu_found")." ;;
+                esac
+            fi
+        fi
+    fi
+    case " $gpu_pick " in
+        *" nvidia "*)
+            # an older card only: NVIDIA's current driver doesn't run it
+            if [ $nv_old = 1 ] && [ $nv_new = 0 ]; then
+                warn "This NVIDIA card is older than the RTX 20 / GTX 16 series. Arch's NVIDIA driver no longer supports it,"
+                warn "so it's left out: it needs a legacy NVIDIA driver from the AUR (see the Arch wiki's NVIDIA page)."
+                gpu_pick="${gpu_pick/nvidia/}"
+            fi ;;
+    esac
+    for v in $gpu_pick; do
+        for p in $(gpu_pkgs "$v"); do
+            pacman -T "$p" >/dev/null 2>&1 && continue
+            PACKAGES+=("$p"); gpu_added="$gpu_added $p"
+            # the kernel's driver itself (or its firmware): in use after a restart
+            case "$p" in nvidia-open*|linux-firmware-amdgpu) gpu_restart=1 ;; esac
+        done
+    done
+    gpu_added="${gpu_added# }"
+    if [ -n "$gpu_added" ]; then info "Adding: $gpu_added"; fi
 fi
 
 if [ "$PKGS" = 1 ]; then
@@ -626,10 +750,17 @@ fi
 record
 
 # ---- done ------------------------------------------------------------
+# a new graphics driver loads when the computer starts
+GPUNOTE=""
+if [ "$gpu_restart" = 1 ]; then GPUNOTE="
+  ${Y}Restart the computer before logging in${N}: the graphics driver just
+  installed loads when it starts.
+"
+fi
 cat << DONE
 
 ${G}${B}Ether Shell is installed.${N}
-
+${GPUNOTE}
   Next:
   1. Log in to Hyprland (or restart it) if you aren't in it already.
   2. Open Settings: SUPER + comma (or click the clock, then the gear).

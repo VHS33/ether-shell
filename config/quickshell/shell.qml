@@ -368,6 +368,7 @@ ShellRoot {
     readonly property var gpuMemPct: System.gpuMemPct
     readonly property var gpuWatts: System.gpuWatts
     readonly property var gpuOk: System.gpuOk
+    readonly property string gpuVendor: System.gpuVendor
     readonly property var netDown: System.netDown
     readonly property var netUp: System.netUp
     readonly property var memPct: System.memPct

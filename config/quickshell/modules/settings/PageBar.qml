@@ -138,7 +138,7 @@ ColumnLayout {
         title: "Clicking a stat"
         desc: app.leftMorph
               ? "The left pill grows into a system panel: live graphs and the busiest processes."
-              : "Opens btop in your terminal (GPU opens nvidia-settings)."
+              : "Opens btop in your terminal (GPU opens nvidia-settings for an NVIDIA card, or LACT for an AMD one if you have it)."
         trailing: [
             Seg {
                 app: settingsRoot.app

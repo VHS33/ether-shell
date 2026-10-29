@@ -26,6 +26,7 @@ Singleton {
     property int gpuMemPct: 0
     property int gpuWatts: 0
     property bool gpuOk: false
+    property string gpuVendor: ""           // "nvidia" or "amd": whose card the GPU readings are from
 
     property string netDown: "0"
     property string netUp: "0"
@@ -60,21 +61,52 @@ Singleton {
         }
     }
 
-    // the busiest processes, read only while the system panel is open
+    // the busiest processes, read only while the system panel is open.
+    // What each one is using right now: the CPU time it took between two
+    // readings, from /proc/PID/stat.  (Not ps's %CPU, which is an average
+    // over a program's whole life: that put ps itself, a moment old, at
+    // 300%, and something busy for the last minute low on the list.)
+    // A process needs two readings to count, so the reader itself (sh and
+    // cat, new each time) never shows up.
     property var topProcs: []
+    property var lastTicks: ({})            // pid: CPU ticks at the last reading
+    property real lastTicksAt: 0
+    onWatchProcessesChanged: if (!watchProcesses) { lastTicks = ({}); lastTicksAt = 0 }
     Process {
         id: procsProc
-        command: ["sh", "-c", "ps -eo comm,%cpu,%mem --sort=-%cpu --no-headers | head -5"]
+        // MemTotal, then a line per process
+        command: ["sh", "-c", "head -n1 /proc/meminfo; cat /proc/[0-9]*/stat 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const out = []
-                for (const line of text.split("\n")) {
-                    const f = line.trim().split(/\s+/)
-                    if (f.length < 3) continue
-                    const mem = parseFloat(f.pop()), cpu = parseFloat(f.pop())
-                    out.push({ name: f.join(" "), cpu: cpu || 0, mem: mem || 0 })
+                const now = Date.now()
+                const secs = sys.lastTicksAt > 0 ? (now - sys.lastTicksAt) / 1000 : 0
+                const lines = text.split("\n")
+                const memKb = parseInt((lines[0].match(/\d+/) || ["0"])[0]) || 0
+                const ticks = {}, out = []
+                for (let i = 1; i < lines.length; i++) {
+                    // "PID (name) state ...": the name can hold spaces and brackets
+                    const l = lines[i], open = l.indexOf("("), close = l.lastIndexOf(")")
+                    if (open < 0 || close < open) continue
+                    const pid = l.substring(0, open).trim()
+                    const f = l.substring(close + 2).split(" ")
+                    const t = (parseInt(f[11]) || 0) + (parseInt(f[12]) || 0)   // utime + stime
+                    ticks[pid] = t
+                    const before = sys.lastTicks[pid]
+                    if (secs <= 0 || before === undefined || t < before) continue
+                    out.push({
+                        name: l.substring(open + 1, close),
+                        // 100 ticks a second, so ticks per second is % of one core
+                        cpu: (t - before) / secs,
+                        // resident pages (4 KiB) against all memory
+                        mem: memKb > 0 ? (parseInt(f[21]) || 0) * 4 / memKb * 100 : 0
+                    })
                 }
-                sys.topProcs = out
+                const first = secs <= 0
+                sys.lastTicks = ticks
+                sys.lastTicksAt = now
+                if (first) { procsSoon.restart(); return }
+                out.sort((a, b) => b.cpu - a.cpu || b.mem - a.mem)
+                sys.topProcs = out.slice(0, 5)
             }
         }
     }
@@ -83,6 +115,8 @@ Singleton {
         running: sys.watchProcesses
         onTriggered: procsProc.running = true
     }
+    // the second reading, soon after the first, so the list fills quickly
+    Timer { id: procsSoon; interval: 600; onTriggered: if (sys.watchProcesses) procsProc.running = true }
 
     // ---- system stats -----------------------------------------------------
     // Two long-running readers instead of launching four commands (nine
@@ -141,22 +175,53 @@ Singleton {
 
     Process {
         id: gpuStream
+        // An NVIDIA card: nvidia-smi.  Otherwise an AMD one (the amdgpu
+        // driver; the one with the most video memory), read from /sys with
+        // the shell's own built-ins every 2 s, in nvidia-smi's layout: busy %,
+        // temperature, memory used and total, watts.  A card that's asleep
+        // (a laptop's, unused) is left asleep.
         command: ["sh", "-c",
-            "command -v nvidia-smi >/dev/null || exit 0; " +
+            "if command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null 2>&1; then echo vendor=nvidia; " +
             "exec nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw " +
-            "--format=csv,noheader,nounits -lms 2000 2>/dev/null"]
+            "--format=csv,noheader,nounits -lms 2000 2>/dev/null; fi; " +
+            'd=; bv=-1; ' +
+            'for c in /sys/class/drm/card*; do ' +
+            '  case ${c##*/} in *-*) continue;; esac; ' +
+            '  case $(readlink "$c/device/driver") in */amdgpu) ;; *) continue;; esac; ' +
+            '  [ -r "$c/device/gpu_busy_percent" ] || continue; ' +
+            '  v=0; read -r v 2>/dev/null < "$c/device/mem_info_vram_total"; ' +
+            '  [ "${v:-0}" -gt "$bv" ] && { d=$c/device; bv=${v:-0}; }; ' +
+            'done; ' +
+            '[ -n "$d" ] || exit 0; ' +
+            'h=; for x in "$d"/hwmon/hwmon*; do [ -d "$x" ] && { h=$x; break; }; done; ' +
+            'echo vendor=amd; ' +
+            'while :; do ' +
+            '  s=; read -r s 2>/dev/null < "$d/power/runtime_status"; ' +
+            '  if [ "$s" = suspended ]; then echo "0, , , , 0"; else ' +
+            '    b=; t=; w=; u=; vt=; ' +
+            '    read -r b 2>/dev/null < "$d/gpu_busy_percent"; ' +
+            '    if [ -n "$h" ]; then ' +
+            '      read -r t 2>/dev/null < "$h/temp1_input"; ' +
+            '      read -r w 2>/dev/null < "$h/power1_average" || read -r w 2>/dev/null < "$h/power1_input"; ' +
+            '    fi; ' +
+            '    read -r u 2>/dev/null < "$d/mem_info_vram_used"; read -r vt 2>/dev/null < "$d/mem_info_vram_total"; ' +
+            '    echo "$b, ${t:+$((t / 1000))}, $u, $vt, ${w:+$((w / 1000000))}"; ' +
+            '  fi; ' +
+            '  sleep 2; ' +
+            'done']
         stdout: SplitParser {
             onRead: line => {
+                if (line.startsWith("vendor=")) { sys.gpuVendor = line.slice(7).trim(); return }
                 const p = line.split(",").map(x => parseFloat(x.trim()))
                 if (p.length < 5 || isNaN(p[0])) return
-                sys.gpuPct    = Math.round(p[0])
-                sys.gpuTemp   = Math.round(p[1])
-                sys.gpuMemPct = p[3] > 0 ? Math.round(100 * p[2] / p[3]) : 0
-                sys.gpuWatts  = Math.round(p[4])
+                sys.gpuPct = Math.round(p[0])
+                if (!isNaN(p[1])) sys.gpuTemp = Math.round(p[1])
+                if (!isNaN(p[2]) && p[3] > 0) sys.gpuMemPct = Math.round(100 * p[2] / p[3])
+                if (!isNaN(p[4])) sys.gpuWatts = Math.round(p[4])
                 sys.gpuOk = true
             }
         }
-        // no NVIDIA card, or the driver went away: try again in a while
+        // no card it can read, or the driver went away: try again in a while
         onExited: { sys.gpuOk = false; gpuRestart.restart() }
     }
     Timer { id: gpuRestart; interval: 15000; onTriggered: gpuStream.running = true }
@@ -177,7 +242,17 @@ Singleton {
             + 'echo "kernel=$(uname -r)"; '
             + 'echo "cpu=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed "s/^ *//")"; '
             + 'echo "cores=$(nproc)"; '
-            + 'echo "gpu=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1)"; '
+            + 'g=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1); '
+            // an AMD card: its own name if it gives one, else the PCI name (when
+            // lspci is there), else just AMD; the one with the most video memory
+            + 'if [ -z "$g" ]; then bv=-1; for c in /sys/class/drm/card*; do '
+            + '  case ${c##*/} in *-*) continue;; esac; '
+            + '  case $(readlink "$c/device/driver") in */amdgpu) ;; *) continue;; esac; '
+            + '  v=0; read -r v 2>/dev/null < "$c/device/mem_info_vram_total"; [ "${v:-0}" -gt "$bv" ] || continue; bv=${v:-0}; '
+            + '  n=; read -r n 2>/dev/null < "$c/device/product_name"; '
+            + '  [ -z "$n" ] && command -v lspci >/dev/null && n=$(lspci -vmm -s "$(basename "$(readlink -f "$c/device")")" 2>/dev/null | sed -n "s/^Device:[[:space:]]*//p" | head -1); '
+            + '  g="${n:-AMD graphics}, amdgpu"; '
+            + 'done; fi; echo "gpu=$g"; '
             + 'echo "ram=$(( ($(awk \'/MemTotal/ {print $2}\' /proc/meminfo) + 524288) / 1048576 )) GB"; '
             + 'echo "uptime=$(uptime -p | sed "s/^up //")"; '
             + 'echo "hyprland=$(hyprctl version -j 2>/dev/null | grep -m1 \"tag\" | cut -d\\\" -f4)"; '
