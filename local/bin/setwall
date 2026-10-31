@@ -299,7 +299,9 @@ hb="$work/tplm/hyprland-colors.lua"
 if [ -f "$hb" ]; then
     if printf '%s' "$BORDERCOLOUR" | grep -qE '^#[0-9a-fA-F]{6}$'; then
         bc=$(printf '%s' "$BORDERCOLOUR" | tr -d '#' | tr 'A-F' 'a-f')
-        sed -i "s/{{colors\.vivid_value\.default\.hex_stripped}}/$bc/g" "$hb"
+        # (not the tab bar's lines, marked "-- tab": its text is worked out
+        # against the accent, so the tab showing keeps it)
+        sed -i "/-- tab\$/! s/{{colors\.vivid_value\.default\.hex_stripped}}/$bc/g" "$hb"
     fi
     if [ "$BORDER" != gradient ]; then
         # the gradient's second stop becomes the same as its first

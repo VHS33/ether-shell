@@ -57,7 +57,7 @@ Variants {
         property Region hiddenMask: Region { width: 0; height: 0 }
         mask: open ? shownMask : hiddenMask
 
-        readonly property var order: ["Apps", "Windows", "Workspaces", "Shell", "Screenshots", "Media"]
+        readonly property var order: ["Apps", "Windows", "Tabs", "Workspaces", "Shell", "Screenshots", "Media"]
         readonly property string q: search.text.trim().toLowerCase()
         // the binds that match the search, grouped in order, as plain values
         readonly property var groups: {

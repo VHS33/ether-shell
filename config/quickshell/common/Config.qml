@@ -34,6 +34,9 @@ Singleton {
         gapsIn:      4,
         gapsOut:     1,
         borderSize:  2,
+        cornerRadius: 0,                // Settings > Bar > Corners: 0 round, else 2-20 px (how sharp)
+        tabbedWindows: false,           // several windows in one tile, with tabs (i3's tabbed layout)
+        tabStyle:    "tabs",            // their tabs: "tabs" side by side, or "stacked"
         rounding:    12,
         winActive:   1.0,
         winInactive: 1.0,

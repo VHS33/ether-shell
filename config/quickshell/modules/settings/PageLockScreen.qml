@@ -105,13 +105,15 @@ ColumnLayout {
         title: "Look"
         desc: app.cfg.lockStyle === "classic"
               ? "The clock, greeting and a glass card for your password."
+              : app.cfg.lockStyle === "wired"
+              ? "A 90s anime, neo-future themed lock."
               : "A heads-up display in your theme's colours: corner brackets that draw in as it locks, a clock whose digits roll over, a line sweeping through each minute, live readouts, and soft glows that drift while you're there and rest when you're not."
         trailing: [
             Seg {
                 app: settingsRoot.app
-                options: ["Neo", "Classic"]
-                current: app.cfg.lockStyle === "classic" ? 1 : 0
-                onPicked: i => app.setting("lockStyle", i === 1 ? "classic" : "neo")
+                options: ["Neo", "Classic", "Wired"]
+                current: app.cfg.lockStyle === "classic" ? 1 : app.cfg.lockStyle === "wired" ? 2 : 0
+                onPicked: i => app.setting("lockStyle", ["neo", "classic", "wired"][i])
             }
         ]
     }

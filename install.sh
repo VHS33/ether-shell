@@ -178,6 +178,9 @@ PACKAGES=(
     noto-fonts ttf-jetbrains-mono-nerd inter-font ttf-material-symbols-variable
     # emoji, for the launcher's emoji search and in notifications
     noto-fonts-emoji
+    # Japanese, for the Wired lock screen's labels (IPAex: small, a gothic
+    # and a mincho)
+    otf-ipaexfont
     # apps the shell opens
     kitty rofi dolphin btop pavucontrol nm-connection-editor
     # the terminal, for fish users: a prompt in the wallpaper's colours,

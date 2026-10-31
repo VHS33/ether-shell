@@ -42,12 +42,17 @@ Scope {
     property int fails: 0
     property bool capsLock: false
     signal wrong()                       // a wrong password: the field shakes
-    // The verdict, shown on the password marks for a moment: "ok" (green,
-    // "Authenticated", then it unlocks) or "fail" (red, "Authentication
-    // failed").  heldLen keeps the marks on screen meanwhile; the password
-    // itself is already gone from memory.
+    // The verdict, shown on the password marks for a moment, in colour
+    // only: "ok" (green, then it unlocks) or "fail" (red).  heldLen keeps
+    // the marks on screen meanwhile; the password itself is already gone
+    // from memory.
     property string result: ""
     property int heldLen: 0
+    // where the Wired lock screen's windows were left (WiredWindow), by title
+    property var wiredSpots: ({})
+    // how long the Wired lock's initialization sequence takes, fade out
+    // included (LockView plays it, LockWired draws it)
+    readonly property int wiredOutMs: 3100
     Timer { id: okHold; interval: 450; onTriggered: { lockRoot.unlocking = true; leave.restart() } }
     Timer { id: failHold; interval: 1100; onTriggered: { lockRoot.result = ""; lockRoot.heldLen = 0 } }
 
@@ -86,7 +91,9 @@ Scope {
     Process { id: unshoot; command: ["sh", "-c", 'rm -f "$XDG_RUNTIME_DIR"/ether-lock-shot-*.ppm'] }
     Timer {
         id: leave
-        interval: 560                     // the way out (LockView) takes this long
+        // the way out (LockView) takes this long: Wired's initialization
+        // sequence is longer
+        interval: lockRoot.app && lockRoot.app.cfg.lockStyle === "wired" ? lockRoot.wiredOutMs : 560
         onTriggered: lockRoot.release()
     }
 
@@ -106,7 +113,7 @@ Scope {
         heldLen = buffer.length
         buffer = ""; busy = true; fails = 0
         failHold.stop()
-        result = "ok"; message = "Authenticated"; messageIsError = false
+        result = "ok"; message = ""; messageIsError = false
         okHold.restart()
     }
     function release() {
@@ -179,10 +186,12 @@ Scope {
             lockRoot.fails++
             lockRoot.result = "fail"
             failHold.restart()
-            // keep a message PAM gave (too many tries, say); otherwise ours
+            // a plain wrong password says it in red marks alone; a message
+            // PAM gave (too many tries, say) stays, and so does a failure
+            // to check at all
             if (!lockRoot.messageIsError || lockRoot.message === "")
-                lockRoot.message = result === PamResult.Failed ? "Authentication failed" : "Couldn't check the password"
-            lockRoot.messageIsError = true
+                lockRoot.message = result === PamResult.Failed ? "" : "Couldn't check the password"
+            lockRoot.messageIsError = lockRoot.message !== ""
             lockRoot.wrong()
         }
         onError: err => {

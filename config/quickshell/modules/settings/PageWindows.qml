@@ -31,6 +31,35 @@ ColumnLayout {
         ]
     }
 
+    Card {
+        app: settingsRoot.app
+        title: "Tabbed windows"
+        desc: "Several windows in one tile, a tab for each, like i3. With it on, SUPER + W makes a window's tile tabbed (or plain again), SUPER + ALT + an arrow adds the window to the tabs on that side, and SUPER + SHIFT + W takes it out. SUPER + [ and ] or the arrows switch tabs. Switching it off turns any tabs back into plain tiles."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Off", "On"]
+                current: app.cfg.tabbedWindows === true ? 1 : 0
+                onPicked: i => app.setting("tabbedWindows", i === 1)
+            }
+        ]
+    }
+
+    Card {
+        app: settingsRoot.app
+        visible: app.cfg.tabbedWindows === true
+        title: "Tabs"
+        desc: "Side by side along the top of the tile, or stacked one above another."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Side by side", "Stacked"]
+                current: app.cfg.tabStyle === "stacked" ? 1 : 0
+                onPicked: i => app.setting("tabStyle", i === 1 ? "stacked" : "tabs")
+            }
+        ]
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Spacing" }
 
     Card {

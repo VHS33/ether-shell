@@ -12,7 +12,7 @@ test("every shortcut in hyprland.lua is on the Keybinds page, with the same defa
     for (const m of lua.matchAll(/key\("([a-z_]+)", (mainMod \.\. )?"([^"]*)"\)/g))
         found[m[1]] = normalise((m[2] ? "SUPER" : "") + m[3])
     // the move and resize keys, one line for four directions
-    for (const [pre, mods] of [["move_", "SUPER + SHIFT + "], ["resize_", "SUPER + CTRL + "]]) {
+    for (const [pre, mods] of [["move_", "SUPER + SHIFT + "], ["resize_", "SUPER + CTRL + "], ["tab_join_", "SUPER + ALT + "]]) {
         assert.ok(lua.includes(`key("${pre}" .. d.key, mainMod .. " + ${mods.slice(8)}" .. d.key)`), pre + " line")
         for (const d of ["left", "right", "up", "down"]) found[pre + d] = mods + d
     }
@@ -42,6 +42,9 @@ test("a combo already in use is found, by what uses it", () => {
     // once close moves to SUPER + W, SUPER + Q is free
     assert.equal(clash("terminal", "SUPER + Q", { close: "SUPER + W" }), "")
     assert.equal(clash("terminal", "super+w", { close: "SUPER + W" }), "Close window")
+    // the tab keys are taken only while tabbed windows are on
+    assert.equal(clash("terminal", "SUPER + W", {}), "Tabs for this window on or off")
+    assert.equal(clash("terminal", "SUPER + W", {}, ["Tabs"]), "")
 })
 test("changes apply by name; odd values keep the default", () => {
     const e = effective({ close: "super + w", terminal: "nonsense + + ", unknown: "SUPER + Z" })

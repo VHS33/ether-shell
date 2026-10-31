@@ -29,6 +29,15 @@ export const CATALOG = [
     { id: "resize_up",      group: "Windows",     label: "Resize window up",          def: "SUPER + CTRL + up" },
     { id: "resize_down",    group: "Windows",     label: "Resize window down",        def: "SUPER + CTRL + down" },
     { id: "last_workspace", group: "Windows",     label: "Last workspace",            def: "SUPER + Tab" },
+    // tabbed windows (only while Settings > Windows > Tabbed windows is on)
+    { id: "tabs",           group: "Tabs",        label: "Tabs for this window on or off", def: "SUPER + W" },
+    { id: "tab_next",       group: "Tabs",        label: "Next tab",                  def: "SUPER + bracketright" },
+    { id: "tab_prev",       group: "Tabs",        label: "Previous tab",              def: "SUPER + bracketleft" },
+    { id: "tab_out",        group: "Tabs",        label: "Take the window out of its tabs", def: "SUPER + SHIFT + W" },
+    { id: "tab_join_left",  group: "Tabs",        label: "Add the window to the tabs on the left",  def: "SUPER + ALT + left" },
+    { id: "tab_join_right", group: "Tabs",        label: "Add the window to the tabs on the right", def: "SUPER + ALT + right" },
+    { id: "tab_join_up",    group: "Tabs",        label: "Add the window to the tabs above",        def: "SUPER + ALT + up" },
+    { id: "tab_join_down",  group: "Tabs",        label: "Add the window to the tabs below",        def: "SUPER + ALT + down" },
     // Ether Shell
     { id: "overview",       group: "Ether Shell", label: "Workspace overview",        def: "ALT + Tab" },
     { id: "clipboard",      group: "Ether Shell", label: "Clipboard history",         def: "SUPER + V" },
@@ -108,10 +117,12 @@ export function effective(overrides) {
 }
 
 // what already uses a combo (other than `id` itself): its label, or ""
-export function clash(id, combo, overrides) {
+// (off: groups whose keys aren't in use, e.g. ["Tabs"] while tabbed windows
+// are off, so their combos are free to take)
+export function clash(id, combo, overrides, off = []) {
     const n = normalise(combo)
     const now = effective(overrides)
-    for (const c of CATALOG) if (c.id !== id && now[c.id] === n) return c.label
+    for (const c of CATALOG) if (c.id !== id && now[c.id] === n && !off.includes(c.group)) return c.label
     for (const f of FIXED) if (f.combo === n) return f.label
     return ""
 }

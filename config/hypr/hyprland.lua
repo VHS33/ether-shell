@@ -202,6 +202,9 @@ local animOn      = S.animations ~= false
 -- Settings > Windows > New windows: "floating" opens every new window
 -- floating and centred, at the size it asks for, instead of tiling it
 local floatingWindows = S.window_mode == "floating"
+-- Settings > Windows > Tabbed windows (off unless switched on): several
+-- windows in one tile with a tab for each, like i3, and the keys for them
+local tabsOn = S.tabbed_windows == true
 -- game mode (quick settings): blur, shadows and animations off, for the
 -- highest frame rate; everything returns when it's switched off
 local gameMode    = S.game_mode == true
@@ -372,6 +375,48 @@ hl.config({
     },
 })
 
+-- Tabbed windows (i3's tabbed layout; Hyprland calls them groups): several
+-- windows in one tile, a tab for each along its top, one showing at a time.
+-- Only with Settings > Windows > Tabbed windows on; then the tabs can sit
+-- side by side or stacked one above another (i3's stacked layout).  The tab
+-- bar takes the shell's font and the windows' corners (Settings > Windows >
+-- Rounding), and its colours from the wallpaper (colors.lua).  The keys are
+-- with the others below.
+local tabRound = math.min(rounding, 8)
+local tabFont  = (type(S.ui_font) == "string" and S.ui_font ~= "") and S.ui_font or "Inter"
+hl.config({
+    binds = {
+        -- SUPER + arrows go through a tile's tabs first, then on to the
+        -- next tile, the way i3 does
+        movefocus_cycles_groupfirst = tabsOn,
+    },
+    group = {
+        -- a window opened from a tab joins those tabs (i3 does the same)
+        auto_group = tabsOn,
+        insert_after_current = true,
+        groupbar = {
+            enabled = true,
+            stacked = S.tab_style == "stacked",
+            font_family = tabFont,
+            font_size = 11,
+            font_weight_active = "semibold",
+            font_weight_inactive = "normal",
+            height = 20,
+            -- filled tabs, not a line under each title
+            gradients = true,
+            indicator_height = 0,
+            rounding = tabRound,
+            gradient_rounding = tabRound,
+            gaps_in = 4,
+            gaps_out = 2,
+            keep_upper_gap = false,
+            render_titles = true,
+            scrolling = true,
+            middle_click_close = true,
+        },
+    },
+})
+
 -- See https://wiki.hypr.land/Configuring/Layouts/Master-Layout/ for more
 hl.config({
     master = {
@@ -524,7 +569,9 @@ safeBind(key("maximise", mainMod .. " + SHIFT + F"), function()
     return hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }) end,
     { description = "Maximise" })
 
--- move the window, and resize it (hold to keep going)
+-- move the window, and resize it (hold to keep going); with tabbed windows
+-- on, also put it in with the tile on that side, as tabs (making that tile
+-- tabbed if it isn't)
 for _, d in ipairs({ { key = "left", x = -40, y = 0 }, { key = "right", x = 40, y = 0 },
                      { key = "up", x = 0, y = -40 },   { key = "down", x = 0, y = 40 } }) do
     safeBind(key("move_" .. d.key, mainMod .. " + SHIFT + " .. d.key), function()
@@ -533,6 +580,30 @@ for _, d in ipairs({ { key = "left", x = -40, y = 0 }, { key = "right", x = 40, 
     safeBind(key("resize_" .. d.key, mainMod .. " + CTRL + " .. d.key), function()
         return hl.dsp.window.resize({ x = d.x, y = d.y, relative = true }) end,
         { description = "Resize window " .. d.key, repeating = true })
+    if tabsOn then
+        safeBind(key("tab_join_" .. d.key, mainMod .. " + ALT + " .. d.key), function()
+            return hl.dsp.window.move({ into_or_create_group = d.key }) end,
+            { description = "Add the window to the tabs " .. d.key })
+    end
+end
+
+-- tabs (with tabbed windows on): this window's tile tabbed, or back to a
+-- plain tile; the next and previous tab; and this window taken out of its
+-- tabs.  SUPER + arrows go through the tabs too, and so do clicking and
+-- scrolling on the tab bar.
+if tabsOn then
+    safeBind(key("tabs", mainMod .. " + W"), function()
+        return hl.dsp.group.toggle() end,
+        { description = "Tabs for this window on or off" })
+    safeBind(key("tab_next", mainMod .. " + bracketright"), function()
+        return hl.dsp.group.next() end,
+        { description = "Next tab" })
+    safeBind(key("tab_prev", mainMod .. " + bracketleft"), function()
+        return hl.dsp.group.prev() end,
+        { description = "Previous tab" })
+    safeBind(key("tab_out", mainMod .. " + SHIFT + W"), function()
+        return hl.dsp.window.move({ out_of_group = true }) end,
+        { description = "Take the window out of its tabs" })
 end
 
 -- back to the last workspace on this monitor

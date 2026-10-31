@@ -88,13 +88,24 @@ ColumnLayout {
     Card {
         app: settingsRoot.app
         title: "Corners"
-        desc: "Round pills, or square boxes with small corners, everywhere: the bar and its panels, the launcher, dock, notifications, on-screen popups, Settings, desktop widgets and the lock screen."
+        desc: "How sharp the corners are, from square boxes to round pills, everywhere: the bar and its panels, the launcher, dock, notifications, on-screen popups, Settings, desktop widgets and the lock screen."
         trailing: [
+            Slider {
+                app: settingsRoot.app
+                // 2 to 20 px, and all the way right: fully round
+                from: 2
+                to: 22
+                tick: 4
+                step: 2
+                value: app.cornersRound ? 22 : app.cornerSq
+                label: Math.round(value) >= 22 ? "Round" : Math.round(value) + " px"
+                onMoved: v => app.setting("cornerRadius", Math.round(v) >= 22 ? 0 : Math.round(v))
+            },
             Seg {
                 app: settingsRoot.app
                 options: ["Round", "Square"]
-                current: app.squareCorners ? 1 : 0
-                onPicked: i => app.setting("barCorners", i === 1 ? "square" : "round")
+                current: app.cornersRound ? 0 : app.cornerSq === 6 ? 1 : -1
+                onPicked: i => app.setting("cornerRadius", i === 1 ? 6 : 0)
             }
         ]
     }

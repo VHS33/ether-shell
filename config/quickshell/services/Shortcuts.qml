@@ -87,6 +87,7 @@ Singleton {
                     "mouse:272": "Left drag", "mouse:273": "Right drag",
                     "mouse_down": "Scroll down", "mouse_up": "Scroll up",
                     "left": "\u2190", "right": "\u2192", "up": "\u2191", "down": "\u2193",
+                    "bracketleft": "[", "bracketright": "]",
                     "XF86AudioRaiseVolume": "Volume up key", "XF86AudioLowerVolume": "Volume down key",
                     "XF86AudioMute": "Mute key", "XF86AudioMicMute": "Mic mute key",
                     "XF86MonBrightnessUp": "Brightness up key", "XF86MonBrightnessDown": "Brightness down key",
@@ -98,6 +99,7 @@ Singleton {
                     if (/^(Go to|Send window to) workspace|workspace|overview/i.test(l)) return "Workspaces"
                     if (/screenshot|text from the screen/i.test(l)) return "Screenshots"
                     if (/volume|mute|brightness|track|play|pause/i.test(l)) return "Media"
+                    if (/\btabs?\b/i.test(l)) return "Tabs"
                     if (/window|float|pseudotile|split|focus|drag|resize|fullscreen|maximi/i.test(l)) return "Windows"
                     if (/terminal|file manager|app menu|launcher/i.test(l)) return "Apps"
                     return "Shell"

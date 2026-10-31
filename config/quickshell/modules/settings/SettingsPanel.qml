@@ -182,7 +182,7 @@ Variants {
             if (!combo) { kbError = "That key can't be used for a shortcut"; return }
             const p = Keybinds.problem(combo)
             if (p) { kbError = p; return }
-            const used = Keybinds.clash(kbCapture, combo, app.keybinds)
+            const used = Keybinds.clash(kbCapture, combo, app.keybinds, app.cfg.tabbedWindows === true ? [] : ["Tabs"])
             if (used) { kbError = combo + " is already " + used + ": change that first, or press other keys"; return }
             app.setKeybind(kbCapture, combo)
             endKeyCapture()

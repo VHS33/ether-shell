@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import qs.common
 
 // Your settings, passed on to the programs that read them: Hyprland
@@ -88,7 +89,8 @@ Singleton {
     readonly property string lockGreetText: Config.cfg.lockGreetText || ""
     readonly property bool lockMedia: Config.cfg.lockMedia !== false
     // "neo" (the default: a heads-up display in the theme's colours) or "classic"
-    readonly property string lockStyle: Config.cfg.lockStyle === "classic" ? "classic" : "neo"
+    readonly property string lockStyle: Config.cfg.lockStyle === "classic" || Config.cfg.lockStyle === "wired"
+                                        ? Config.cfg.lockStyle : "neo"
 
     // ---- idle --------------------------------------------------------
     // hypridle can't reload its config, so the panel regenerates the
@@ -221,7 +223,7 @@ Singleton {
         repeatRate: "repeat_rate", repeatDelay: "repeat_delay",
         sensitivity: "sensitivity", accelFlat: "accel_flat",
         naturalScroll: "natural_scroll", followMouse: "follow_mouse",
-        windowMode: "window_mode",
+        windowMode: "window_mode", tabbedWindows: "tabbed_windows", tabStyle: "tab_style", uiFont: "ui_font",
         monitors: "monitors",
         mainScreen: "main_output", secondScreen: "second_output",
         wsMain: "main_workspaces", wsSecond: "second_workspaces",
@@ -324,6 +326,7 @@ Singleton {
     function applyExternal(key) {
         if (key === "termOpacity" || key === "monoFont" || key === "*") writeKitty()
         if (key === "*" || hyprKeys[key] !== undefined) hyprDebounce.restart()
+        if (key === "tabbedWindows" && Config.cfg.tabbedWindows !== true) untabAll()
         if (key === "*" || key === "idleLockMin" || key === "idleScreenMin"
                 || key === "idleSleepMin")
             idleDebounce.restart()
@@ -332,6 +335,26 @@ Singleton {
                 || key === "themePalette" || key === "studioPicks" || key === "studioStrength"
                 || key === "studioTint" || key === "studioBorder" || key === "studioBorderColour")
             Wallpaper.applyThemeSoon()
+    }
+
+    // Tabbed windows switched off: any tabs open go back to plain tiles
+    // (each group taken apart once, through its first window), since their
+    // keys go with the setting
+    function untabAll() { untabRead.running = true }
+    Process {
+        id: untabRead
+        command: ["hyprctl", "-j", "clients"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let clients = []
+                try { clients = JSON.parse(text) } catch (e) { return }
+                for (const c of clients) {
+                    const g = c.grouped || []
+                    if (g.length > 1 && g[0] === c.address)
+                        Hyprland.dispatch("hl.dsp.group.toggle({ window = \"address:" + c.address + "\" })")
+                }
+            }
+        }
     }
 
     // settings sync (qs ipc call settings sync): write everything again

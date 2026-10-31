@@ -28,6 +28,8 @@ Item {
     // Settings > Lock screen > Style: "neo" (a heads-up display in the
     // theme's colours: LockAmbient, LockNeoClock) or "classic"
     readonly property bool neo: Session.lockStyle === "neo"
+    // "wired": late-90s anime terminal screens (LockWired), all its own
+    readonly property bool wired: Session.lockStyle === "wired"
     // the Neo glows drift only while you're here: typing, or the first
     // moments after locking; left alone, the screen goes still
     property bool awake: true
@@ -67,10 +69,25 @@ Item {
         duration: 520; easing.type: Easing.InOutCubic
     }
     Component.onCompleted: comeIn.start()
+    // Wired goes its own way out: an initialization sequence
+    // (LockWiredBoot) fades in over the lock, runs, and once it's done
+    // fades into your desktop like the others' way out (the last half
+    // second); then the lock lets go (Lock.qml waits for it)
+    property real wiredLeave: 0
+    NumberAnimation {
+        id: wiredOut
+        target: view; property: "wiredLeave"; from: 0; to: 1
+        duration: view.lock.wiredOutMs
+    }
+    readonly property bool wiredFading: view.wired && view.wiredLeave * view.lock.wiredOutMs >= view.lock.wiredOutMs - 540
+    onWiredFadingChanged: if (wiredFading) goOut.start()
     Connections {
         target: view.lock
         function onUnlockingChanged() {
-            if (view.lock.unlocking) { comeIn.stop(); goOut.start() }
+            if (!view.lock.unlocking) return
+            comeIn.stop()
+            if (view.wired) wiredOut.start()
+            else goOut.start()
         }
     }
 
@@ -159,6 +176,7 @@ Item {
 
         // ---- along the top: weather, battery, notifications ----
         Row {
+            visible: !view.wired
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.topMargin: 28
@@ -202,9 +220,24 @@ Item {
             clockSize: Math.round(Math.min(view.height * 0.17, 190))
         }
 
+        // Wired: its own whole screen
+        Loader {
+            anchors.fill: parent
+            active: view.wired
+            sourceComponent: LockWired {
+                app: view.app
+                lock: view.lock
+                enter: view.enter
+                leave: view.wiredLeave
+                awake: view.awake
+                okColour: view.okColour
+                failColour: view.failColour
+            }
+        }
+
         Column {
             id: middle
-            visible: !view.neo
+            visible: !view.neo && !view.wired
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: -Math.round(view.height * 0.13)
@@ -262,6 +295,7 @@ Item {
         // ---- the glass card: password, then what's playing ----
         Rectangle {
             id: card
+            visible: !view.wired
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: view.neo ? neoClock.bottom : middle.bottom
             anchors.topMargin: Math.round(view.height * 0.06) - (view.neo ? 36 : 0)

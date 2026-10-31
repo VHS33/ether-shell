@@ -33,7 +33,8 @@ ColumnLayout {
     }
 
     Repeater {
-        model: ["Apps", "Windows", "Ether Shell", "Screenshots"]
+        // (Tabs only while Settings > Windows > Tabbed windows is on)
+        model: ["Apps", "Windows"].concat(app.cfg.tabbedWindows === true ? ["Tabs"] : []).concat(["Ether Shell", "Screenshots"])
         delegate: ColumnLayout {
             id: kgroup
             required property string modelData

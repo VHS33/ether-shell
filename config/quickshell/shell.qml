@@ -162,23 +162,32 @@ ShellRoot {
     readonly property int wrapR: rr(18)               // the wrap's curve into the screen's sides
 
     // ---- corners: Settings > Bar > Corners -----------------------------
-    // "round" (the default) or "square".  Square caps every corner on the
-    // bar and the panels it opens at cornerSq, so pills become boxes; small
-    // round things already under the cap (dots, the active-workspace pip)
-    // keep their shape.  Never 0: Qt draws a Rectangle with no radius in a
-    // way that turns the rest of a see-through layer black.
-    readonly property bool squareCorners: cfg.barCorners === "square"
-    readonly property int cornerSq: 6
-    function rr(r) { return squareCorners ? Math.min(r, cornerSq) : r }
+    // How sharp the corners are, from 2 px (sharpest) to fully round (the
+    // default): every corner on the bar and the panels it opens is capped at
+    // cornerSq, so pills turn into boxes as it goes down; small round things
+    // already under the cap (dots, the active-workspace pip) keep their
+    // shape.  cfg.cornerRadius: 0 for round, else the cap in px (2-20);
+    // before it there was only cfg.barCorners, "square" being 6 px.  Never
+    // 0: Qt draws a Rectangle with no radius in a way that turns the rest of
+    // a see-through layer black.  squareCorners: sharp enough that things
+    // with a choice of shape take the boxy one (the lock screen's bars).
+    readonly property int cornerSq: {
+        const c = cfgUser.cornerRadius !== undefined ? Number(cfg.cornerRadius)
+                : (cfg.barCorners === "square" ? 6 : 0)
+        return c > 0 ? Math.max(2, Math.min(20, Math.round(c))) : 999
+    }
+    readonly property bool cornersRound: cornerSq >= 999
+    readonly property bool squareCorners: cornerSq <= 8
+    function rr(r) { return Math.min(r, cornerSq) }
     // for something inside a bar pill that runs (nearly) its full height: a
     // group, the active workspace, the clock, the menu button.  Round, they're
     // pills themselves, so their curve follows the pill's.  Square, the same
     // holds: the pill's corner, smaller by the gap between them, so nested
     // boxes line up instead of looking rounder than the box they sit in.
     function rrPill(r) {
-        if (!squareCorners) return r
         const outer = barAttached ? barH / 2 : pillH / 2
-        return Math.max(2, cornerSq - (outer - r))
+        if (cornerSq >= outer) return r
+        return Math.min(r, Math.max(2, cornerSq - (outer - r)))
     }
     readonly property int drawerGap: 6                // between the bar and a card
     // the space reserved at the top of the main screen

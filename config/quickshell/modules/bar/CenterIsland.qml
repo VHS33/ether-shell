@@ -229,9 +229,9 @@ Variants {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                // square: just the top edge and its corners, so it doesn't stop
-                // halfway down a straight side
-                height: app.squareCorners ? app.cornerSq + 1 : app.pillH / 2
+                // just the top edge and its corners (all of the top half when
+                // they're round), so it doesn't stop halfway down a straight side
+                height: Math.min(app.cornerSq + 1, app.pillH / 2)
                 clip: true
                 opacity: isl.open || isl.att ? 0 : 1
                 visible: opacity > 0

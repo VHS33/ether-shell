@@ -14,4 +14,39 @@ hl.config({
             inactive_border = "rgba({{colors.outline_variant.default.hex_stripped}}aa)",
         },
     },
+    -- tabbed windows: the border as above, and the tab bar (the tab showing
+    -- in the accent, the others in the panels' colour; the lines marked
+    -- "tab" keep the accent when Theme Studio picks another border colour)
+    group = {
+        col = {
+            border_active = {
+                colors = {
+                    "rgba({{colors.vivid_value.default.hex_stripped}}99)",
+                    "rgba({{colors.tertiary.default.hex_stripped}}99)",
+                },
+                angle = 45,
+            },
+            border_inactive = "rgba({{colors.outline_variant.default.hex_stripped}}aa)",
+            border_locked_active = {
+                colors = {
+                    "rgba({{colors.vivid_value.default.hex_stripped}}99)",
+                    "rgba({{colors.tertiary.default.hex_stripped}}99)",
+                },
+                angle = 45,
+            },
+            border_locked_inactive = "rgba({{colors.outline_variant.default.hex_stripped}}aa)",
+        },
+        groupbar = {
+            col = {
+                active = "rgba({{colors.vivid_value.default.hex_stripped}}f2)", -- tab
+                inactive = "rgba({{colors.surface_container_high.default.hex_stripped}}e6)",
+                locked_active = "rgba({{colors.vivid_value.default.hex_stripped}}f2)", -- tab
+                locked_inactive = "rgba({{colors.surface_container_high.default.hex_stripped}}e6)",
+            },
+            text_color = "rgb({{colors.on_vivid_value.default.hex_stripped}})",
+            text_color_inactive = "rgb({{colors.on_surface_variant.default.hex_stripped}})",
+            text_color_locked_active = "rgb({{colors.on_vivid_value.default.hex_stripped}})",
+            text_color_locked_inactive = "rgb({{colors.on_surface_variant.default.hex_stripped}})",
+        },
+    },
 })
