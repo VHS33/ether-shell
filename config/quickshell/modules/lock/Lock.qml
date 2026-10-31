@@ -104,12 +104,35 @@ Scope {
         result = ""; heldLen = 0
         unlocking = false
         markOn.running = true
+        stir()
         isLocked = true
         if (withPicture && !shoot.running) { shootLimit.start(); shoot.running = true }
         else engage(false)
     }
+    // ---- sounds (Settings > Lock screen > Sounds): ether-sound plays them,
+    // yours from ~/.config/ether-shell/sounds or Ether's own.  The hum loops
+    // quietly while you're there, and stops as you unlock or the screen
+    // rests; the rest play once (LockWired cues the Wired ones). ----
+    readonly property bool soundsOn: !!app && app.cfg.lockSounds !== false
+    readonly property int soundVolume: app && app.cfg.lockSoundVolume !== undefined ? app.cfg.lockSoundVolume : 100
+    readonly property string soundCmd: Quickshell.env("HOME") + "/.local/bin/ether-sound"
+    function playSound(name) {
+        if (soundsOn) Quickshell.execDetached([soundCmd, name, String(soundVolume)])
+    }
+    // someone's there: any key or movement on any screen (LockView)
+    property bool present: true
+    function stir() { present = true; presentT.restart() }
+    Timer { id: presentT; interval: 45000; onTriggered: lockRoot.present = false }
+    Process {
+        id: hum
+        command: [lockRoot.soundCmd, "--loop", "lock-hum", String(lockRoot.soundVolume)]
+        running: lockRoot.soundsOn && lockRoot.engaged && lockRoot.present
+                 && !lockRoot.unlocking && lockRoot.result !== "ok"
+    }
+
     // the right password: play the way out, then let go
     function unlockNow() {
+        playSound("accept")
         heldLen = buffer.length
         buffer = ""; busy = true; fails = 0
         failHold.stop()

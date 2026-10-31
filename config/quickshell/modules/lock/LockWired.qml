@@ -28,6 +28,7 @@ Item {
     // Once it's faded all the way in, the screen under it is let go of
     // (so it doesn't show through as everything fades to the desktop).
     property real leave: 0
+    property bool soundOn: false
     readonly property real bootLength: (lock && lock.wiredOutMs ? lock.wiredOutMs : 3100) / 1000
     readonly property bool booted: leave * bootLength >= 0.4
     property color okColour: "#4ade80"
@@ -827,6 +828,7 @@ Item {
         visible: wired.leave > 0
         wired: wired
         t: wired.leave * wired.bootLength
+        onCue: name => { if (wired.soundOn) wired.lock.playSound(name) }
     }
 
     // ---- film grain and fine interlace lines, over everything ----

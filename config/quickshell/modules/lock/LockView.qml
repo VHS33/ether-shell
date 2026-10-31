@@ -34,7 +34,7 @@ Item {
     // moments after locking; left alone, the screen goes still
     property bool awake: true
     Timer { id: sleepT; interval: 45000; running: true; onTriggered: view.awake = false }
-    function stir() { view.awake = true; sleepT.restart() }
+    function stir() { view.awake = true; sleepT.restart(); if (view.lock) view.lock.stir() }
     readonly property string greetText: {
         if (Session.lockGreetMode === "off") return ""
         if (Session.lockGreetMode === "custom") return Session.lockGreetText.trim() || "Welcome back"
@@ -230,6 +230,8 @@ Item {
                 enter: view.enter
                 leave: view.wiredLeave
                 awake: view.awake
+                // (its sounds from one screen only)
+                soundOn: view.screenName === view.app.mainScreen
                 okColour: view.okColour
                 failColour: view.failColour
             }

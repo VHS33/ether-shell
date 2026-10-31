@@ -1,0 +1,68 @@
+#!/bin/sh
+# Play one of the lock screen's sounds by name: yours, from
+# ~/.config/ether-shell/sounds/<name>.* (mp3, ogg, wav, flac...), or the
+# one that comes with Ether (~/.config/quickshell/sounds/<name>.*), at a
+# volume in percent (default 100).  Through PipeWire (pw-play), else
+# PulseAudio (paplay), else ffplay or mpv; with no sound, or nothing to
+# play it, it quietly does nothing.
+#
+#   ether-sound NAME [volume%]           play it once
+#   ether-sound --loop NAME [volume%]    play it over and over, until stopped
+#   ether-sound --list                   the names there's a sound for
+#
+# The names: lock-hum (over and over, quietly, while the lock screen is up
+# and you're there), accept (the right password), and with the Wired
+# style: loading (as its initialization sequence starts), tick (each line
+# of its log) and node1, node2, node3 (each block going green).
+mine="$HOME/.config/ether-shell/sounds"
+ours="$HOME/.config/quickshell/sounds"
+
+find_sound() {
+    for d in "$mine" "$ours"; do
+        for c in "$d/$1".*; do
+            [ -f "$c" ] && { echo "$c"; return 0; }
+        done
+    done
+    return 1
+}
+
+if [ "$1" = "--list" ]; then
+    for n in lock-hum accept loading tick node1 node2 node3; do
+        find_sound "$n" >/dev/null && echo "$n"
+    done
+    exit 0
+fi
+
+loop=0
+[ "$1" = "--loop" ] && { loop=1; shift; }
+f=$(find_sound "$1") || exit 0
+vol=${2:-100}
+case "$vol" in *[!0-9]*|"") vol=100 ;; esac
+frac=$(awk -v v="$vol" 'BEGIN { printf "%.2f", v / 100 }')
+
+if [ "$loop" = 0 ]; then
+    pw-play --volume="$frac" "$f" 2>/dev/null && exit 0
+    paplay --volume="$((vol * 65536 / 100))" "$f" 2>/dev/null && exit 0
+    command -v ffplay >/dev/null 2>&1 && exec ffplay -nodisp -autoexit -loglevel quiet -volume "$vol" "$f"
+    command -v mpv >/dev/null 2>&1 && exec mpv --no-video --really-quiet --volume="$vol" "$f"
+    exit 0
+fi
+
+# over and over: the player is a child of this script, stopped with it
+if command -v pw-play >/dev/null 2>&1; then p=pw
+elif command -v paplay >/dev/null 2>&1; then p=pa
+elif command -v ffplay >/dev/null 2>&1; then p=ff
+elif command -v mpv >/dev/null 2>&1; then p=mpv
+else exit 0; fi
+pid=""
+trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; exit 0' TERM INT HUP
+while :; do
+    case $p in
+        pw)  pw-play --volume="$frac" "$f" 2>/dev/null & ;;
+        pa)  paplay --volume="$((vol * 65536 / 100))" "$f" 2>/dev/null & ;;
+        ff)  ffplay -nodisp -autoexit -loglevel quiet -volume "$vol" "$f" & ;;
+        mpv) mpv --no-video --really-quiet --volume="$vol" "$f" & ;;
+    esac
+    pid=$!
+    wait "$pid" || exit 0        # (it couldn't play it: don't try again and again)
+done

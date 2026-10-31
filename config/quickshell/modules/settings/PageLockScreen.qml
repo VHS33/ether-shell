@@ -1,10 +1,12 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.common.widgets
 import qs.services
 
 ColumnLayout {
+    id: lockPage
     // what the Settings window passes in (named so nothing in Settings can
     // be mistaken for them: `win: win` could mean the page's own win)
     property var app
@@ -114,6 +116,61 @@ ColumnLayout {
                 options: ["Neo", "Classic", "Wired"]
                 current: app.cfg.lockStyle === "classic" ? 1 : app.cfg.lockStyle === "wired" ? 2 : 0
                 onPicked: i => app.setting("lockStyle", ["neo", "classic", "wired"][i])
+            }
+        ]
+    }
+
+    SectionLabel { app: settingsRoot.app; text: "Sound" }
+
+    // which sounds there are (ether-sound --list), looked for as the page opens
+    property string soundsFound: ""
+    Process {
+        id: soundList
+        command: [Quickshell.env("HOME") + "/.local/bin/ether-sound", "--list"]
+        stdout: StdioCollector { onStreamFinished: lockPage.soundsFound = text.trim().split("\n").filter(x => x).join(", ") }
+    }
+    onVisibleChanged: if (visible) soundList.running = true
+    Component.onCompleted: if (visible) soundList.running = true
+
+    Card {
+        app: settingsRoot.app
+        title: "Sounds"
+        desc: lockPage.soundsFound !== "" ? "Playing: " + lockPage.soundsFound + "." : "No sounds yet. Yours go in its folder."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                options: ["Off", "On"]
+                current: app.cfg.lockSounds === false ? 0 : 1
+                onPicked: i => app.setting("lockSounds", i === 1)
+            },
+            Seg {
+                app: settingsRoot.app
+                options: ["Folder"]
+                current: -1
+                onPicked: { soundList.running = true; app.run("mkdir -p \"$HOME/.config/ether-shell/sounds\" && xdg-open \"$HOME/.config/ether-shell/sounds\"") }
+            }
+        ]
+    }
+
+    Card {
+        app: settingsRoot.app
+        title: "Sound volume"
+        desc: "How loud the lock screen's sounds play."
+        trailing: [
+            Slider {
+                app: settingsRoot.app
+                from: 10
+                to: 100
+                step: 5
+                value: app.cfg.lockSoundVolume === undefined ? 100 : app.cfg.lockSoundVolume
+                label: Math.round(value) + "%"
+                onMoved: v => app.setting("lockSoundVolume", Math.round(v))
+            },
+            Seg {
+                app: settingsRoot.app
+                options: ["Default"]
+                current: app.cfgUser.lockSoundVolume === undefined ? 0 : -1
+                onPicked: app.resetSetting("lockSoundVolume")
             }
         ]
     }

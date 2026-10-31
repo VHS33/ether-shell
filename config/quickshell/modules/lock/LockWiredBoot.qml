@@ -32,6 +32,12 @@ Item {
     readonly property color green: wired.okColour
     readonly property bool jp: wired.jp
     readonly property bool complete: t >= done
+    // a sound for each thing that happens (LockWired plays it):
+    // loading as it starts, tick as each log line's box fills, node1-3 as
+    // each block goes green
+    signal cue(string name)
+    readonly property bool started: t > 0
+    onStartedChanged: if (started) cue("loading")
 
     // a session number, made up once
     property string session: ""
@@ -219,8 +225,11 @@ Item {
             delegate: Item {
                 id: blk
                 required property var modelData
+                required property int index
                 readonly property real bp: boot.eout(boot.part(0.15, 0.18))
                 readonly property real lit: boot.part(modelData.up, 0.14)
+                readonly property bool lighting: lit > 0
+                onLightingChanged: if (lighting) boot.cue("node" + (index + 1))
                 x: modelData.x; y: modelData.y
                 width: 400; height: 190
                 visible: bp > 0
@@ -298,6 +307,8 @@ Item {
                     readonly property real t0: 0.22 + index * boot.logStep
                     readonly property real typed: boot.part(t0, 0.1)
                     readonly property string full: (modelData[0] + "         ").slice(0, 9) + " " + modelData[1]
+                    readonly property bool marked: boot.part(t0 + 0.12, 0.06) >= 1
+                    onMarkedChanged: if (marked) boot.cue("tick")
                     y: 44 + index * 32
                     width: parent.width; height: 26
                     visible: boot.t >= t0
