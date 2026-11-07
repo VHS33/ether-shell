@@ -62,24 +62,14 @@ Variants {
         screen: modelData
         visible: modelData.name === app.launcherScreen
         readonly property bool open: app.launcherShown
-        // On the main monitor a click outside closes it through the bar's
-        // full-screen catcher; other monitors have no bar, so there a
-        // Hyprland focus grab does it (as the dock's menu does).  The grab
-        // starts a moment after it opens, once the window is on screen: a
-        // grab begun as the window appears could be cleared at once by
-        // Hyprland, closing the launcher as it opened.
-        property bool grabReady: false
-        Timer {
-            id: grabDelay
-            interval: 150
-            onTriggered: lw.grabReady = lw.open
-        }
-        Component.onCompleted: if (open) grabDelay.restart()   // built already open
-        HyprlandFocusGrab {
-            windows: [ lw ]
-            active: lw.open && lw.grabReady && lw.modelData.name !== app.mainScreen
-            onCleared: app.launcherShown = false
-        }
+        // Like the drawers, it doesn't block the rest of the screen: clicks
+        // outside it go to your apps and don't close it (Esc, SUPER, or
+        // opening something from it do).  The keyboard: held from the moment
+        // it opens, so you can type straight away wherever the mouse is,
+        // until the mouse has been over it and gone off again; from then on
+        // it follows the mouse like any window.
+        property bool hoverSeen: false
+        property bool keysFreed: false
         // (built because it was just opened, it still runs its opening
         // setup: the change to open counts as it's created)
         // Its own floating card, centred a little above the middle of the
@@ -89,6 +79,17 @@ Variants {
 
         readonly property real openW: 680
         readonly property real openH: 470
+
+        // the Wired look (Settings > Theme > Look): a square window with a
+        // title bar, mono type, the chosen row filled with the accent
+        readonly property bool wired: app.wiredLook
+        readonly property color wPaper: "#eceef2"
+        readonly property color wDim: Qt.rgba(0.6, 0.62, 0.65, 1)
+        readonly property color wFaint: Qt.rgba(0.38, 0.4, 0.44, 1)
+        readonly property color wInk: "#0a0c0e"
+        readonly property string wJp: ["IPAexGothic", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAGothic"]
+                                      .find(f => Qt.fontFamilies().indexOf(f) >= 0) || ""
+        readonly property string uiFamily: wired ? Theme.font : Theme.uiFont
 
         anchors { top: true }
         margins { top: 0 }
@@ -100,7 +101,8 @@ Variants {
         color: "transparent"
         // on the long bar the search box lives in BarStrip's window, which
         // takes the keyboard; this window only needs it for the islands card
-        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: !open || att ? WlrKeyboardFocus.None
+                                    : keysFreed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive
 
         // ---- where the drawer goes: the bar's centre ----
         readonly property real scrX: (modelData.width - width) / 2
@@ -111,8 +113,8 @@ Variants {
         mask: open && !att ? shownMask : hiddenMask
 
         onOpenChanged: {
-            grabReady = false
-            if (open) grabDelay.restart()
+            hoverSeen = hoverWatch.hovered
+            keysFreed = false
             if (open) {
                 settingsWanted = true
                 search.text = app.launcherPrefill
@@ -366,7 +368,8 @@ Variants {
             { title: "Night light",          glyph: "dark_mode",          act: "night" },
             { title: "Do not disturb",       glyph: "notifications_off",  act: "dnd" },
             { title: "Keybinds",             glyph: "keyboard",           act: "cheat" },
-            { title: "Power menu",           glyph: "power",              act: "power" }
+            { title: "Power menu",           glyph: "power",              act: "power" },
+            { title: "Check for updates",    glyph: "system_update",      act: "updates" }
         ]
 
         readonly property var results: {
@@ -645,6 +648,11 @@ Variants {
                 else if (a === "dnd") app.dnd = !app.dnd
                 else if (a === "cheat") app.cheatShown = true
                 else if (a === "power") app.powerShown = true
+                else if (a === "updates") {
+                    // Settings > About, at its updates, checking
+                    app.settingsPage = 18; app.settingsFocus = "Check for updates"; app.settingsShown = true
+                    Updates.check()
+                }
             }
         }
 
@@ -674,10 +682,10 @@ Variants {
             y: lw.cardY
             width: lw.openW
             height: lw.openH
-            radius: app.rr(26)
-            color: app.cCard
+            radius: lw.wired ? 0 : app.rr(26)
+            color: lw.wired ? Qt.rgba(0.035, 0.043, 0.051, 0.92) : app.cCard
             border.width: 1
-            border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
+            border.color: lw.wired ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
             transformOrigin: Item.Top
             opacity: lw.open ? 1 : 0
             scale: lw.open ? 1 : 0.96
@@ -705,23 +713,59 @@ Variants {
             opacity: lw.open ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
 
+            // ---- the Wired look's title bar: LAUNCH, the mode, the boxes close it ----
+            Rectangle {
+                id: wTitle
+                visible: lw.wired
+                width: parent.width; height: 22
+                color: Qt.rgba(0.93, 0.94, 0.95, 0.9)
+                Row {
+                    x: 8; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    Text { text: "LAUNCH"; color: lw.wInk; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 13 }
+                    Text { visible: lw.wJp !== ""; text: "起動"; color: lw.wInk; font.family: lw.wJp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Text {
+                    anchors.right: wBoxes.left; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
+                    text: ({ apps: "APPS", win: "WINDOWS", set: "SETTINGS", calc: "CALC", emoji: "EMOJI", clip: "CLIPBOARD",
+                             cmd: "COMMANDS", scene: "SCENES", files: "FILES", plugin: "PLUGIN" })[lw.mode] || String(lw.mode).toUpperCase()
+                    color: Qt.rgba(0.24, 0.25, 0.27, 1); font.family: Theme.font; font.pixelSize: 12
+                }
+                Row {
+                    id: wBoxes
+                    anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
+                    Repeater { model: 3; delegate: Rectangle { width: 7; height: 7; color: "transparent"; border.width: 1; border.color: lw.wInk } }
+                }
+                MouseArea { anchors.right: parent.right; width: 40; height: parent.height; cursorShape: Qt.PointingHandCursor; onClicked: app.launcherShown = false }
+            }
+            Rectangle {
+                visible: lw.wired
+                anchors.fill: parent; anchors.margins: 3; anchors.topMargin: 25
+                color: "transparent"; border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.1)
+            }
+
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 16
+                anchors.topMargin: lw.wired ? 22 + 14 : 16
                 spacing: 12
 
                 // ---- the search box ----
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: 52
-                    radius: app.rr(26)
-                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                    implicitHeight: lw.wired ? 44 : 52
+                    radius: lw.wired ? 0 : app.rr(26)
+                    color: lw.wired ? "transparent" : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                    border.width: lw.wired ? 1 : 0
+                    border.color: Qt.rgba(1, 1, 1, 0.3)
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 18
                         anchors.rightMargin: 18
                         spacing: 12
                         Text {
+                            visible: !lw.wired
                             text: lw.mode === "plugin" ? "extension" : lw.mode === "calc" ? "calculate" : lw.mode === "emoji" ? "mood"
                                 : lw.mode === "clip" ? "content_paste" : lw.mode === "cmd" ? "terminal"
                                 : lw.mode === "scene" ? "view_quilt" : lw.mode === "set" ? "settings" : "search"
@@ -729,20 +773,31 @@ Variants {
                             font.family: "Material Symbols Rounded"
                             font.pixelSize: app.fs(22)
                         }
+                        // the Wired look: a prompt
+                        Text {
+                            visible: lw.wired
+                            text: ">"
+                            color: app.cBlue
+                            font.family: Theme.font
+                            font.weight: Font.Bold
+                            font.pixelSize: app.fs(16)
+                        }
                         TextInput {
                             id: search
                             Layout.fillWidth: true
-                            color: app.cFg
+                            color: lw.wired ? lw.wPaper : app.cFg
                             selectionColor: app.cBlue
-                            selectedTextColor: app.cOnAccent
-                            font.family: Theme.uiFont
-                            font.pixelSize: app.fs(16)
+                            selectedTextColor: lw.wired ? lw.wInk : app.cOnAccent
+                            font.family: lw.uiFamily
+                            font.pixelSize: app.fs(lw.wired ? 15 : 16)
                             clip: true
                             Text {
                                 visible: !search.text
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: lw.moving ? "Which workspace? (a number, or pick one)" : "Search apps, windows and settings, or start with  #  ?  =  :  ;  >"
-                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
+                                text: lw.moving ? (lw.wired ? "which workspace? a number, or pick one" : "Which workspace? (a number, or pick one)")
+                                    : lw.wired ? "search apps, windows, settings.  or start with  # ? = : ; >"
+                                    : "Search apps, windows and settings, or start with  #  ?  =  :  ;  >"
+                                color: lw.wired ? lw.wFaint : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
                                 font: search.font
                             }
                             Keys.onPressed: e => {
@@ -848,31 +903,36 @@ Variants {
                             required property var modelData
                             readonly property bool on: lw.mode === modelData.m
                             implicitWidth: chipRow.implicitWidth + 22
-                            implicitHeight: 30
-                            radius: app.rr(15)
-                            color: on ? app.cPrimC
+                            implicitHeight: lw.wired ? 26 : 30
+                            anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+                            radius: lw.wired ? 0 : app.rr(15)
+                            color: lw.wired ? (on ? app.cBlue : chipHov.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                 : on ? app.cPrimC
                                  : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
+                            border.width: lw.wired && !on ? 1 : 0
+                            border.color: Qt.rgba(1, 1, 1, 0.3)
                             HoverHandler { id: chipHov }
                             Row {
                                 id: chipRow
                                 anchors.centerIn: parent
                                 spacing: 6
                                 Text {
-                                    text: chip.modelData.label
-                                    color: chip.on ? app.cOnPrimC : app.cDim
-                                    font.family: Theme.uiFont
-                                    font.weight: Font.Medium
-                                    font.pixelSize: app.fs(12)
+                                    text: lw.wired ? chip.modelData.label.toUpperCase() : chip.modelData.label
+                                    color: lw.wired ? (chip.on ? lw.wInk : lw.wPaper) : chip.on ? app.cOnPrimC : app.cDim
+                                    font.family: lw.uiFamily
+                                    font.weight: lw.wired ? Font.Bold : Font.Medium
+                                    font.pixelSize: app.fs(lw.wired ? 11 : 12)
                                 }
                                 Text {
                                     visible: chip.modelData.p !== ""
                                     text: chip.modelData.p
-                                    color: chip.on ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.6)
+                                    color: lw.wired ? (chip.on ? Qt.rgba(0.04, 0.05, 0.06, 0.6) : lw.wDim)
+                                         : chip.on ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.6)
                                                    : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                                    font.family: Theme.uiFont
+                                    font.family: lw.uiFamily
                                     font.weight: Font.DemiBold
-                                    font.pixelSize: app.fs(12)
+                                    font.pixelSize: app.fs(lw.wired ? 11 : 12)
                                 }
                             }
                             MouseArea {
@@ -937,8 +997,8 @@ Variants {
                     // grow (a window's actions) and are swapped as you type
                     highlightFollowsCurrentItem: false
                     highlight: Rectangle {
-                        radius: app.rr(16)
-                        color: app.cPrimC
+                        radius: lw.wired ? 0 : app.rr(16)
+                        color: lw.wired ? app.cBlue : app.cPrimC
                         width: list.width
                         visible: list.currentItem !== null && !list.currentItem.isHead
                         y: list.currentItem ? list.currentItem.y : 0
@@ -970,12 +1030,12 @@ Variants {
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: 6
                             text: row.modelData.title
-                            color: app.cFaint
-                            font.family: Theme.uiFont
-                            font.weight: Font.DemiBold
+                            color: lw.wired ? app.cBlue : app.cFaint
+                            font.family: lw.uiFamily
+                            font.weight: lw.wired ? Font.Bold : Font.DemiBold
                             font.pixelSize: app.fs(11)
                             font.capitalization: Font.AllUppercase
-                            font.letterSpacing: 0.6
+                            font.letterSpacing: lw.wired ? 0 : 0.6
                         }
 
                         RowLayout {
@@ -1009,12 +1069,15 @@ Variants {
                                     anchors.fill: parent
                                     visible: row.modelData.kind !== "app" && row.modelData.kind !== "emoji"
                                              && !((row.modelData.kind === "win" || row.modelData.kind === "winclose") && !!row.modelData.icon)
-                                    radius: app.rr(12)
-                                    color: row.current ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                    radius: lw.wired ? 0 : app.rr(12)
+                                    color: lw.wired ? (row.current ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(1, 1, 1, 0.04))
+                                         : row.current ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                    border.width: lw.wired ? 1 : 0
+                                    border.color: row.current ? Qt.rgba(0, 0, 0, 0.35) : Qt.rgba(1, 1, 1, 0.22)
                                     Text {
                                         anchors.centerIn: parent
                                         text: row.modelData.glyph || ""
-                                        color: row.current ? app.cOnAccent : app.cFg
+                                        color: lw.wired ? (row.current ? lw.wInk : lw.wPaper) : row.current ? app.cOnAccent : app.cFg
                                         font.family: "Material Symbols Rounded"
                                         font.pixelSize: app.fs(18)
                                     }
@@ -1026,9 +1089,9 @@ Variants {
                                 Text {
                                     Layout.fillWidth: true
                                     text: row.modelData.title
-                                    color: row.current ? app.cOnPrimC : app.cFg
-                                    font.family: Theme.uiFont
-                                    font.weight: Font.Medium
+                                    color: lw.wired ? (row.current ? lw.wInk : lw.wPaper) : row.current ? app.cOnPrimC : app.cFg
+                                    font.family: lw.uiFamily
+                                    font.weight: lw.wired ? Font.Bold : Font.Medium
                                     font.pixelSize: app.fs(row.modelData.kind === "calc" ? 17 : 13)
                                     elide: Text.ElideRight
                                     maximumLineCount: 1
@@ -1038,9 +1101,10 @@ Variants {
                                     Layout.fillWidth: true
                                     visible: text !== ""
                                     text: row.modelData.sub || ""
-                                    color: row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7)
+                                    color: lw.wired ? (row.current ? Qt.rgba(0.04, 0.05, 0.06, 0.72) : lw.wDim)
+                                         : row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7)
                                                        : app.cDim
-                                    font.family: Theme.uiFont
+                                    font.family: lw.uiFamily
                                     font.pixelSize: app.fs(11)
                                     elide: Text.ElideRight
                                     maximumLineCount: 1
@@ -1052,25 +1116,29 @@ Variants {
                                     visible: !!row.modelData.badge
                                     implicitWidth: badgeText.implicitWidth + 14
                                     implicitHeight: 20
-                                    radius: app.rr(10)
-                                    color: row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.14)
+                                    radius: lw.wired ? 0 : app.rr(10)
+                                    color: lw.wired ? "transparent"
+                                         : row.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.14)
                                                        : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.07)
+                                    border.width: lw.wired ? 1 : 0
+                                    border.color: row.current ? Qt.rgba(0, 0, 0, 0.4) : Qt.rgba(1, 1, 1, 0.25)
                                     Text {
                                         id: badgeText
                                         anchors.centerIn: parent
-                                        text: row.modelData.badge || ""
-                                        color: row.current ? app.cOnPrimC : app.cDim
-                                        font.family: Theme.uiFont
+                                        text: lw.wired ? String(row.modelData.badge || "").toUpperCase() : row.modelData.badge || ""
+                                        color: lw.wired ? (row.current ? lw.wInk : lw.wDim) : row.current ? app.cOnPrimC : app.cDim
+                                        font.family: lw.uiFamily
                                         font.weight: Font.Medium
                                         font.pixelSize: app.fs(10)
                                     }
                                 }
                             Text {
                                 visible: row.current
-                                text: "keyboard_return"
-                                color: Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.6)
-                                font.family: "Material Symbols Rounded"
-                                font.pixelSize: app.fs(16)
+                                text: lw.wired ? "ENTER" : "keyboard_return"
+                                color: lw.wired ? Qt.rgba(0.04, 0.05, 0.06, 0.6) : Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.6)
+                                font.family: lw.wired ? Theme.font : "Material Symbols Rounded"
+                                font.weight: lw.wired ? Font.Bold : Font.Normal
+                                font.pixelSize: app.fs(lw.wired ? 10 : 16)
                             }
                         }
                         MouseArea {
@@ -1106,8 +1174,11 @@ Variants {
                                     readonly property bool danger: modelData.a === "close"
                                     implicitWidth: actRow.implicitWidth + 20
                                     implicitHeight: 28
-                                    radius: app.rr(14)
-                                    color: actHov.hovered ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.22)
+                                    radius: lw.wired ? 0 : app.rr(14)
+                                    border.width: lw.wired ? 1 : 0
+                                    border.color: Qt.rgba(0, 0, 0, 0.35)
+                                    color: lw.wired ? (actHov.hovered ? Qt.rgba(0, 0, 0, 0.2) : modelData.a === "focus" ? Qt.rgba(0, 0, 0, 0.14) : "transparent")
+                                         : actHov.hovered ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.22)
                                          : modelData.a === "focus" ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.18)
                                          : Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.08)
                                     HoverHandler { id: actHov }
@@ -1118,23 +1189,23 @@ Variants {
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: act.modelData.g
-                                            color: act.danger ? app.cRed : app.cOnPrimC
+                                            color: lw.wired ? (act.danger ? Qt.rgba(0.55, 0.05, 0.05, 1) : lw.wInk) : act.danger ? app.cRed : app.cOnPrimC
                                             font.family: "Material Symbols Rounded"
                                             font.pixelSize: app.fs(14)
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: act.modelData.t
-                                            color: act.danger ? app.cRed : app.cOnPrimC
-                                            font.family: Theme.uiFont
+                                            text: lw.wired ? act.modelData.t.toUpperCase() : act.modelData.t
+                                            color: lw.wired ? (act.danger ? Qt.rgba(0.55, 0.05, 0.05, 1) : lw.wInk) : act.danger ? app.cRed : app.cOnPrimC
+                                            font.family: lw.uiFamily
                                             font.weight: Font.Medium
                                             font.pixelSize: app.fs(11)
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: act.modelData.k
-                                            color: Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.55)
-                                            font.family: Theme.uiFont
+                                            color: lw.wired ? Qt.rgba(0.04, 0.05, 0.06, 0.55) : Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.55)
+                                            font.family: lw.uiFamily
                                             font.weight: Font.DemiBold
                                             font.pixelSize: app.fs(10)
                                         }
@@ -1157,8 +1228,8 @@ Variants {
                             : lw.mode === "emoji" && !lw.emoji.length ? "Loading emoji\u2026"
                             : lw.mode === "set" && !lw.settingsList.length ? "Loading settings\u2026"
                             : "Nothing matches"
-                        color: app.cFaint
-                        font.family: Theme.uiFont
+                        color: lw.wired ? lw.wFaint : app.cFaint
+                        font.family: lw.uiFamily
                         font.pixelSize: app.fs(13)
                     }
                 }
@@ -1175,9 +1246,23 @@ Variants {
                           : lw.results[lw.sel]?.kind === "file"
                           ? "Enter to open   \u2022   Alt + Enter to show it in its folder   \u2022   Esc to close"
                           : "\u2191 \u2193 to move   \u2022   Enter to open   \u2022   Esc to close"
-                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                    font.family: Theme.uiFont
+                    color: lw.wired ? lw.wFaint : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
+                    font.family: lw.uiFamily
                     font.pixelSize: app.fs(11)
+                }
+            }
+        }
+
+        // the mouse over the launcher: once it has been on it and gone off,
+        // the keyboard follows the mouse (above)
+        Item {
+            x: frame.x; y: frame.y; width: frame.width; height: frame.height
+            HoverHandler {
+                id: hoverWatch
+                onHoveredChanged: {
+                    if (!lw.open) return
+                    if (hovered) lw.hoverSeen = true
+                    else if (lw.hoverSeen) lw.keysFreed = true
                 }
             }
         }

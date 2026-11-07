@@ -77,6 +77,79 @@ Variants {
         readonly property string amount:
             hasBar && !(kind === "volume" && off) ? Math.round(value * 100) + "%" : ""
 
+        // ---- the Wired look (Settings > Theme > Look): a square window,
+        // a light block naming it, the level in segments ----
+        readonly property var wLabel: kind === "mic" ? ["MIC", "入力"] : kind === "brightness" ? ["BRIGHT", "輝度"]
+                                    : kind === "night" ? ["NIGHT", "夜間"] : kind === "game" ? ["GAME", "遊戯"]
+                                    : ["VOL", "音量"]
+        readonly property string wJp: ["IPAexGothic", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAGothic"]
+                                      .find(f => Qt.fontFamilies().indexOf(f) >= 0) || ""
+        Rectangle {
+            id: wpill
+            visible: app.wiredLook && opacity > 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width - 12
+            height: 68
+            y: app.osdShown ? 10 : 26
+            opacity: app.osdShown ? 1 : 0
+            Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            color: Qt.rgba(0.035, 0.043, 0.051, 0.92)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.36)
+            Rectangle {
+                anchors.fill: parent; anchors.margins: 3
+                color: "transparent"; border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.1)
+            }
+            Rectangle {
+                id: wBlock
+                x: 8; y: 8
+                width: 78; height: parent.height - 16
+                color: winOsd.off ? Qt.rgba(0.15, 0.165, 0.18, 1) : Qt.rgba(0.93, 0.94, 0.95, 0.92)
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 1
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: winOsd.wLabel[0]; color: winOsd.off ? Qt.rgba(0.6, 0.62, 0.65, 1) : "#0a0c0e"; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 12 }
+                    Text { visible: winOsd.wJp !== ""; anchors.horizontalCenter: parent.horizontalCenter; text: winOsd.wLabel[1]; color: winOsd.off ? Qt.rgba(0.6, 0.62, 0.65, 1) : "#0a0c0e"; font.family: winOsd.wJp; font.pixelSize: 10 }
+                }
+            }
+            Column {
+                id: wInfo
+                x: wBlock.x + wBlock.width + 12
+                width: parent.width - x - 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+                Item {
+                    width: parent.width; height: 16
+                    Text {
+                        text: winOsd.title.toUpperCase()
+                        color: winOsd.off ? Qt.rgba(0.6, 0.62, 0.65, 1) : "#eceef2"
+                        font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 12
+                    }
+                    Text {
+                        visible: winOsd.amount !== ""
+                        anchors.right: parent.right
+                        text: ("00" + Math.round(winOsd.value * 100)).slice(-3) + "%"
+                        color: "#eceef2"; font.family: Theme.font; font.pixelSize: 12
+                    }
+                }
+                Row {
+                    visible: winOsd.hasBar
+                    spacing: 2
+                    Repeater {
+                        model: 32
+                        delegate: Rectangle {
+                            required property int index
+                            width: (wInfo.width - 31 * 2) / 32; height: 8
+                            color: !(winOsd.kind === "volume" && winOsd.off) && index < Math.round(winOsd.value * 32)
+                                   ? (winOsd.kind === "volume" ? app.cBlue : app.cPeach)
+                                   : Qt.rgba(0.15, 0.165, 0.18, 1)
+                        }
+                    }
+                }
+            }
+        }
+
         Rectangle {
             id: pill
             anchors.horizontalCenter: parent.horizontalCenter
@@ -84,7 +157,7 @@ Variants {
             height: 76
             y: app.osdShown ? 6 : 22
             opacity: app.osdShown ? 1 : 0
-            visible: opacity > 0
+            visible: !app.wiredLook && opacity > 0
             Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             radius: app.rr(height / 2)

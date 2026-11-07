@@ -164,7 +164,7 @@ Variants {
             property: "leftReach"
             restoreMode: Binding.RestoreNone
             when: isl3.visible
-            value: (isl3.att ? app.gap + 10 : app.gap) + isl3.pillW
+            value: (isl3.att ? app.gap + 10 : app.gap) + isl3.widestSettled
         }
         Binding {
             target: app
@@ -176,7 +176,7 @@ Variants {
             restoreMode: Binding.RestoreNone
             when: isl3.visible && isl3.att
             value: ({ x: isl3.finalX, w: isl3.openW, h: isl3.openH, cx: isl3.secCX, secW: shape.width,
-                      flush: "left" })
+                      flush: "left", wired: isl3.wiredLook })
         }
 
         // open as the system drawer, or as the assistant: the same shape
@@ -184,10 +184,49 @@ Variants {
         // (modules/ai/AiPanel.qml) draws its contents into it (app.aiArea).
         readonly property bool open: app.sysShown || app.aiShown
         readonly property bool aiPage: app.aiShown
+        // Settings > Theme > Drawers: Wired, the system drawer as a square
+        // window with a title bar (WiredSysBody), after the Wired lock
+        readonly property bool wiredLook: app.wiredLook && !aiPage
+        // islands: the Wired drawer opens as its own window under the pill,
+        // which stays as it is; otherwise the pill grows into the drawer
+        readonly property bool wiredOpen: wiredLook && open && !att
+        readonly property bool morph: open && !(wiredLook && !att)
         // the assistant runs down to the bottom of the screen, on any screen
         readonly property real fullH: modelData.height - (att ? app.barBottom : app.gap) - app.gap
 
-        readonly property real pillW: leftRow.implicitWidth + 12
+        readonly property real pillW: (app.wiredLook ? wiredRow.implicitWidth + 16 : leftRow.implicitWidth) + 12
+        // the pill as wide as it gets, with the longest title it shows: the
+        // window and the room the centre pill keeps clear are sized from this,
+        // so a new title (hovering another window) only changes the title.
+        // Sized from the title itself, every new title resized this window
+        // (Hyprland redraws a resized window from scratch) and moved the
+        // centre pill, frame by frame as the title's width glided.
+        readonly property real pillWidest: app.wiredLook ? wiredRow.widest + 16 + 12
+                                                         : pillW - awGroup.implicitWidth + awGroup.maxW
+        readonly property real fixedW: app.wiredLook ? wiredRow.implicitWidth - wiredRow.titleW + 16 + 12
+                                                     : isl3.pillW - awGroup.implicitWidth
+        // both taken once they've settled: while the title's width glides,
+        // the pill's row catches up a frame behind it, and the sums wobbled
+        // by a pixel or two, frame after frame, nudging the centre pill
+        property real widestSettled: Math.round(pillWidest)
+        property real fixedSettled: Math.round(fixedW)
+        onPillWidestChanged: settleT.restart()
+        onFixedWChanged: settleT.restart()
+        Timer {
+            id: settleT
+            interval: 150
+            onTriggered: {
+                isl3.widestSettled = Math.round(isl3.pillWidest)
+                isl3.fixedSettled = Math.round(isl3.fixedW)
+            }
+        }
+        Binding {
+            target: app
+            property: "leftFixedW"
+            restoreMode: Binding.RestoreNone
+            when: isl3.visible
+            value: isl3.fixedSettled
+        }
         // On the long bar, worked out as if the title pill were at its widest,
         // so it stays the same whatever's focused, and is never narrower than
         // the section (the drawer grows out of the bar's left end, and would
@@ -196,6 +235,7 @@ Variants {
         // spans the window-title area, which is far too wide for a chat);
         // in the islands style it's never narrower than the pill it grows from.
         readonly property real openW: aiPage ? (att ? 560 : Math.max(560, pillW))
+                                    : wiredLook ? 600     // (a window of its own width, not the pill's or the bar's)
                                     : att ? Math.max(560, pillW - awGroup.implicitWidth + awGroup.maxW)
                                           : Math.max(560, pillW)
         readonly property real openH: aiPage ? fullH : panel.implicitHeight
@@ -229,25 +269,35 @@ Variants {
         // nothing inside it (the title growing and shrinking) resizes the
         // window: resizing makes Hyprland redraw it from scratch.  Only the
         // shape takes clicks, so the extra width is invisible and inert.
-        implicitWidth: att ? Math.max(openW + 16, Math.round(app.mainScreenW / 2))
-                           : openW + shadowRoom + 16
+        implicitWidth: att ? Math.max((app.wiredLook ? 600 : Math.max(560, widestSettled)) + 16,
+                                      Math.round(app.mainScreenW / 2),
+                                      widestSettled + app.gap + 10 + 8)
+                           : Math.max(app.wiredLook ? 600 : 560, widestSettled) + shadowRoom + 16     // (fits the drawer and the pill at its widest)
         // On the long bar just the bar's height: the drawer's contents are
         // drawn in the glass window (BarStrip), so a drawer-tall window here
         // only held bigger buffers and redraw area for nothing.
         implicitHeight: att ? app.barBottom + 6
+                            : wiredLook ? app.pillH + 8 + openH + shadowRoom
                             : Math.max(openH, app.pillH) + shadowRoom
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
         // on the long bar the drawer lives in BarStrip's window, which takes
         // the keyboard; this window only needs it for the islands style
-        // While open it takes the keyboard straight away (exclusive), so
-        // Escape closes it without clicking into it first; the drawer is
-        // modal anyway (a click outside closes it).
-        WlrLayershell.keyboardFocus: open && !att && !aiPage ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        // While open it takes the keyboard straight away, so Escape closes
+        // it without clicking into it first, then only while you use it:
+        // click into a window and you type there (shell.qml).
+        WlrLayershell.keyboardFocus: !open || att || aiPage ? WlrKeyboardFocus.None
+                                    : app.drawerKeysHeld ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
 
         // only the shape takes clicks, whatever size it is right now
         mask: Region {
             item: shape
+            // the Wired window, while it's open
+            Region {
+                x: wiredWin.x; y: wiredWin.y
+                width: isl3.wiredOpen ? wiredWin.width : 0
+                height: isl3.wiredOpen ? wiredWin.height : 0
+            }
             Region {
                 x: drawerHost.x
                 y: drawerHost.y
@@ -292,25 +342,51 @@ Variants {
             Keys.onEscapePressed: app.sysShown = false
         }
 
+        // ---- the Wired drawer (Settings > Theme > Drawers), islands: its own
+        // square window just under the pill, sliding down a little as it
+        // appears; the contents (WiredSysBody) are the panel below ----
+        Rectangle {
+            id: wiredWin
+            visible: isl3.wiredLook && !isl3.att && opacity > 0
+            x: 0
+            y: app.pillH + 8 + (isl3.wiredOpen ? 0 : -10)
+            width: isl3.openW
+            height: isl3.openH
+            color: Qt.rgba(0.035, 0.043, 0.051, 0.92)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.36)
+            opacity: isl3.wiredOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            layer.enabled: visible
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, 0.45)
+                shadowBlur: 1.0
+                shadowVerticalOffset: 10
+            }
+        }
+
         Rectangle {
             id: shape
             anchors.left: parent.left
             anchors.leftMargin: isl3.att ? app.gap + 10 : 0
             y: isl3.att ? app.barTop : 0
-            width: isl3.open && !isl3.att ? isl3.openW : isl3.pillW
-            height: isl3.att ? app.barH : (isl3.open ? isl3.openH : app.pillH)
+            width: isl3.morph && !isl3.att ? isl3.openW : isl3.pillW
+            height: isl3.att ? app.barH : (isl3.morph ? isl3.openH : app.pillH)
             // attached: square along the top (it's part of the bar),
             // rounded at the bottom once it's a drawer
-            radius: app.rr(isl3.att ? app.barH / 2 : (isl3.open ? 28 : app.pillH / 2))
+            radius: app.wiredLook && !isl3.att ? 0 : app.rr(isl3.att ? app.barH / 2 : (isl3.morph ? 28 : app.pillH / 2))
             // edgeless glass while it's a pill; hovering brightens it a
             // touch.  The hairline edge returns once it opens into a panel.
             color: isl3.att
                    ? "transparent"
-                   : (isl3.open ? app.cCard
+                   : (app.wiredLook ? Qt.rgba(0.035, 0.043, 0.051, 0.9)
+                      : isl3.morph ? app.cCard
                       : shapeHov.hovered ? Qt.tint(app.cBg, Qt.rgba(1, 1, 1, 0.07)) : app.cBg)
-            border.width: !isl3.att && isl3.open ? 1 : 0
-            border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
-            scale: !isl3.att && !isl3.open && shapeHov.hovered ? 1.02 : 1
+            border.width: !isl3.att && (isl3.morph || app.wiredLook) ? 1 : 0
+            border.color: app.wiredLook ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
+            scale: !isl3.att && !isl3.morph && !app.wiredLook && shapeHov.hovered ? 1.02 : 1
             Behavior on scale { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
             HoverHandler { id: shapeHov }
             clip: true
@@ -321,7 +397,7 @@ Variants {
             Behavior on color { ColorAnimation { duration: app.animNormal } }
 
             // depth only for the open panel: the pill stays flat glass
-            layer.enabled: !isl3.att && (isl3.open || height > app.pillH + 2)
+            layer.enabled: !isl3.att && (isl3.morph || height > app.pillH + 2)
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 shadowColor: Qt.rgba(0, 0, 0, 0.45)
@@ -340,7 +416,8 @@ Variants {
                 // only for the three-pill style, where the panel opens around
                 // it; on the long bar it drew a tinted pill, rounded corners
                 // and all, inside the section whenever a drawer was open
-                opacity: isl3.open && !isl3.att ? 1 : 0
+                // (none in the Wired look, which has its title bar)
+                opacity: isl3.morph && !isl3.att ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                 gradient: Gradient {
@@ -359,7 +436,7 @@ Variants {
                 // they're round), so it doesn't stop halfway down a straight side
                 height: Math.min(app.cornerSq + 1, app.pillH / 2)
                 clip: true
-                opacity: isl3.open || isl3.att ? 0 : 1
+                opacity: isl3.morph || isl3.att || app.wiredLook ? 0 : 1
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animQuick } }
                 Rectangle {
@@ -378,7 +455,7 @@ Variants {
                 anchors.top: parent.top
                 width: isl3.pillW
                 height: isl3.att ? app.barH : app.pillH
-                opacity: isl3.att || !isl3.open ? 1 : 0
+                opacity: isl3.att || !isl3.morph ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
 
@@ -389,8 +466,28 @@ Variants {
                     onWheel: w => app.cycleWorkspace(w.angleDelta.y > 0 ? -1 : 1)
                 }
 
+                // the Wired look's contents (Settings > Theme > Look), and
+                // the inner line of its double frame
+                Rectangle {
+                    visible: app.wiredLook && !isl3.att
+                    anchors.fill: parent
+                    anchors.margins: 3
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                }
+                WiredBarLeft {
+                    id: wiredRow
+                    titleMax: Math.min(300, app.leftTitleRoom)
+                    visible: app.wiredLook
+                    anchors.centerIn: parent
+                    app: rootV.app
+                    scrX: isl3.scrX
+                }
+
                 RowLayout {
                     id: leftRow
+                    visible: !app.wiredLook
                     anchors.centerIn: parent
                     spacing: 6
 
@@ -715,7 +812,8 @@ Variants {
                         readonly property string title: tl ? (tl.title || "") : ""
                         // fits the title, up to maxW, and glides to its new size;
                         // it's last in the row, so nothing else moves
-                        readonly property real maxW: 320
+                        // (and no wider than the room before the centre pill, shell.qml)
+                        readonly property real maxW: Math.max(60, Math.min(320, app.leftTitleRoom))
                         implicitWidth: Math.min(maxW, 9 + 16 + 7 + awT.implicitWidth + 12)
                         Behavior on implicitWidth { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
                         implicitHeight: 28
@@ -768,18 +866,28 @@ Variants {
                 id: panel
                 // long bar: inside the drawer that grows out of the bar;
                 // islands: inside the pill's own shape
-                parent: isl3.att ? drawerHost : shape
+                parent: isl3.att ? drawerHost : isl3.wiredLook ? wiredWin : shape
                 x: isl3.att ? isl3.finalX - app.drawerCurX : 0
                 y: 0
                 width: isl3.openW
-                implicitHeight: sCol.implicitHeight + 32
+                implicitHeight: isl3.wiredLook ? wiredBody.implicitHeight : sCol.implicitHeight + 32
                 // the system drawer's contents; not while it's the assistant
                 opacity: isl3.open && !isl3.aiPage ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
 
+                // the Wired look (Settings > Theme > Drawers)
+                WiredSysBody {
+                    id: wiredBody
+                    visible: isl3.wiredLook
+                    width: parent.width
+                    app: rootV.app
+                    onClose: app.sysShown = false
+                }
+
                 ColumnLayout {
                     id: sCol
+                    visible: !isl3.wiredLook
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -1221,10 +1329,19 @@ Variants {
             readonly property bool active: app.drawerWho === "left" && app.drawerP > 0
             visible: isl3.visible && isl3.att
             x: moved ? app.drawerCurX : app.drawerCurX - isl3.scrX
-            y: app.barBottom
+            y: app.barBottom + app.wiredGap
             width: active ? app.drawerCurW : 0
             height: active ? app.drawerCurH : 0
             clip: true
+        }
+
+        // the mouse coming onto this window or going off it: an open
+        // drawer lets go of the keyboard once the mouse has been on the
+        // bar or the drawer and gone off again (shell.qml).  On top of
+        // everything, but it only watches.
+        Item {
+            anchors.fill: parent
+            HoverHandler { onHoveredChanged: app.drawerHover("left", hovered) }
         }
     }
     }

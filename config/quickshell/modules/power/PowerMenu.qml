@@ -134,6 +134,194 @@ Variants {
             onClicked: winP.close()
         }
 
+        // ---- the Wired look (Settings > Theme > Look): a square window with a
+        // title bar, the actions as blocks with their keys, the countdown as
+        // a heavy number and a block for each second left ----
+        readonly property bool wired: app.wiredLook
+        readonly property string wJp: ["IPAexGothic", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAGothic"]
+                                      .find(f => Qt.fontFamilies().indexOf(f) >= 0) || ""
+        readonly property var wJa: ["施錠", "休止", "退出", "再起動", "電源断"]
+        // lock and suspend in the accent, log out in the second colour, the
+        // two that end everything in red
+        function wTone(i) { return i <= 1 ? app.cBlue : i === 2 ? app.cPeach : app.cRed }
+        Rectangle {
+            id: wcard
+            anchors.centerIn: parent
+            visible: winP.wired && opacity > 0
+            width: wCol.implicitWidth + 40
+            height: wCol.y + wCol.implicitHeight + 22
+            color: Qt.rgba(0.035, 0.043, 0.051, 0.94)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.36)
+            opacity: winP.open ? 1 : 0
+            scale: winP.open ? 1 : 0.97
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            readonly property color paper: "#eceef2"
+            readonly property color dim: Qt.rgba(0.6, 0.62, 0.65, 1)
+            readonly property color faint: Qt.rgba(0.38, 0.4, 0.44, 1)
+            readonly property color ink: "#0a0c0e"
+            readonly property color offC: Qt.rgba(0.15, 0.165, 0.18, 1)
+
+            // keep clicks on the card from closing it
+            MouseArea { anchors.fill: parent }
+
+            // the title bar: POWER, who and how long, the boxes back out
+            Rectangle {
+                width: parent.width; height: 22
+                color: Qt.rgba(0.93, 0.94, 0.95, 0.9)
+                Row {
+                    x: 8; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    Text { text: "POWER"; color: wcard.ink; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 13 }
+                    Text { visible: winP.wJp !== ""; text: "電源"; color: wcard.ink; font.family: winP.wJp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Row {
+                    anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: String(app.userHost || "").toUpperCase()
+                              + (app.uptimeText ? "   UP " + String(app.uptimeText).replace(/^up /, "").toUpperCase() : "")
+                        color: Qt.rgba(0.24, 0.25, 0.27, 1); font.family: Theme.font; font.pixelSize: 12
+                    }
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 3
+                        Repeater { model: 3; delegate: Rectangle { width: 7; height: 7; color: "transparent"; border.width: 1; border.color: wcard.ink } }
+                    }
+                }
+                MouseArea { anchors.right: parent.right; width: 40; height: parent.height; cursorShape: Qt.PointingHandCursor; onClicked: winP.close() }
+            }
+            Rectangle {
+                anchors.fill: parent; anchors.margins: 3; anchors.topMargin: 25
+                color: "transparent"; border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.1)
+            }
+
+            Column {
+                id: wCol
+                x: 20; y: 22 + 20
+                spacing: 18
+
+                // ---- the five actions, as blocks ----
+                Row {
+                    visible: winP.pending < 0
+                    spacing: 10
+                    Repeater {
+                        model: winP.actions
+                        delegate: Rectangle {
+                            id: wAct
+                            required property var modelData
+                            required property int index
+                            readonly property color tone: winP.wTone(index)
+                            width: 118; height: 104
+                            color: waHov.hovered ? tone : "transparent"
+                            border.width: waHov.hovered ? 0 : 1
+                            border.color: Qt.rgba(1, 1, 1, 0.3)
+                            HoverHandler { id: waHov }
+                            // its key, top left
+                            Rectangle {
+                                x: 8; y: 8
+                                width: 20; height: 18
+                                color: waHov.hovered ? Qt.rgba(0, 0, 0, 0.18) : "transparent"
+                                border.width: 1
+                                border.color: waHov.hovered ? Qt.rgba(0, 0, 0, 0.45) : wAct.tone
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: wAct.modelData.key
+                                    color: waHov.hovered ? wcard.ink : wAct.tone
+                                    font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 11
+                                }
+                            }
+                            Column {
+                                x: 10
+                                anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                                spacing: 2
+                                Text {
+                                    text: wAct.modelData.label.toUpperCase()
+                                    color: waHov.hovered ? wcard.ink : wcard.paper
+                                    font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 13
+                                }
+                                Text {
+                                    visible: winP.wJp !== ""
+                                    text: winP.wJa[wAct.index] || ""
+                                    color: waHov.hovered ? wcard.ink : wcard.dim
+                                    font.family: winP.wJp; font.pixelSize: 11
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: winP.choose(wAct.index)
+                            }
+                        }
+                    }
+                }
+
+                // ---- the countdown ----
+                Item {
+                    visible: winP.pending >= 0
+                    readonly property var a: winP.actions[winP.pending] ?? null
+                    readonly property color tone: winP.pending >= 0 ? winP.wTone(winP.pending) : app.cRed
+                    width: 5 * 118 + 4 * 10
+                    height: 150
+                    Text {
+                        y: 4
+                        text: parent.a ? parent.a.label.toUpperCase() + " IN" : ""
+                        color: wcard.paper; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 14
+                    }
+                    // the seconds, heavy and out of register
+                    Repeater {
+                        model: [ { d: -2, c: Qt.rgba(1, 0.27, 0.24, 0.5) }, { d: 2, c: Qt.rgba(0.24, 0.78, 0.9, 0.5) }, { d: 0, c: "#eceef2" } ]
+                        delegate: Text {
+                            required property var modelData
+                            x: parent.width - implicitWidth - 14 + modelData.d
+                            y: -14
+                            text: String(winP.secsLeft)
+                            color: modelData.c
+                            font.family: Theme.uiFont; font.weight: Font.Black; font.pixelSize: 84
+                        }
+                    }
+                    // a block for each second left
+                    Row {
+                        y: 30
+                        spacing: 6
+                        Repeater {
+                            model: 5
+                            delegate: Rectangle {
+                                required property int index
+                                width: 64; height: 16
+                                color: index < winP.secsLeft ? parent.parent.tone : wcard.offC
+                            }
+                        }
+                    }
+                    Row {
+                        anchors.bottom: parent.bottom
+                        spacing: 10
+                        Rectangle {
+                            width: 120; height: 32
+                            color: wcHov.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                            border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.3)
+                            HoverHandler { id: wcHov }
+                            Text { anchors.centerIn: parent; text: "CANCEL"; color: wcard.paper; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 12 }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { countdown.stop(); winP.pending = -1 } }
+                        }
+                        Rectangle {
+                            width: 120; height: 32
+                            color: parent.parent.tone
+                            Text { anchors.centerIn: parent; text: "NOW"; color: wcard.ink; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 12 }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { countdown.stop(); winP.run(winP.pending) } }
+                        }
+                    }
+                }
+
+                Text {
+                    text: winP.pending >= 0 ? "> esc cancels, enter does it now" : "> press a key or click.  esc closes."
+                    color: wcard.faint; font.family: Theme.font; font.pixelSize: 11
+                }
+            }
+        }
+
         Rectangle {
             id: card
             anchors.centerIn: parent
@@ -145,7 +333,7 @@ Variants {
             border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
             opacity: winP.open ? 1 : 0
             scale: winP.open ? 1 : 0.95
-            visible: opacity > 0
+            visible: !winP.wired && opacity > 0
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on scale { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
 

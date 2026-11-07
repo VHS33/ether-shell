@@ -199,6 +199,9 @@ PACKAGES=(
     ddcutil brightnessctl
     # system (python: the cursor previews in Settings > Mouse)
     python networkmanager libnotify xdg-utils curl git coreutils util-linux procps-ng dbus
+    # checking for package updates without touching the system's own package
+    # lists (checkupdates), for Settings > About > Check for updates
+    pacman-contrib
     # Bluetooth, for quick settings (harmless without an adapter)
     bluez bluez-utils
     # the battery indicator on laptops (harmless without a battery)

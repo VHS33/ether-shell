@@ -79,7 +79,7 @@ Variants {
                     readonly property int lifeMs: crit ? app.notifMs * 2 : app.notifMs
 
                     Layout.fillWidth: true
-                    implicitHeight: card.implicitHeight
+                    implicitHeight: app.wiredLook ? wcard.implicitHeight : card.implicitHeight
 
                     // slides in from the right
                     opacity: 0
@@ -93,7 +93,8 @@ Variants {
                     }
 
                     // the countdown holds while hovered or while typing a reply
-                    readonly property bool held: popHov.hovered || replyIn.activeFocus
+                    readonly property bool held: app.wiredLook ? (wHov.hovered || wReply.activeFocus)
+                                                               : (popHov.hovered || replyIn.activeFocus)
 
                     Timer {
                         interval: pop.lifeMs
@@ -101,8 +102,269 @@ Variants {
                         onTriggered: app.dismissPopup(pop.modelData.id)
                     }
 
+                    // ---- the Wired look (Settings > Theme > Look): a square
+                    // window, the app in its title bar (red when urgent), mono
+                    // type, square buttons, the countdown in segments ----
+                    Rectangle {
+                        id: wcard
+                        visible: app.wiredLook
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        implicitHeight: wBody.y + wBody.implicitHeight + 22
+                        color: Qt.rgba(0.035, 0.043, 0.051, 0.92)
+                        border.width: 1
+                        border.color: pop.crit ? app.cRed : Qt.rgba(1, 1, 1, 0.36)
+                        clip: true
+                        readonly property color paper: "#eceef2"
+                        readonly property color dim: Qt.rgba(0.6, 0.62, 0.65, 1)
+                        readonly property color faint: Qt.rgba(0.38, 0.4, 0.44, 1)
+                        readonly property color ink: "#0a0c0e"
+
+                        HoverHandler {
+                            id: wHov
+                            onHoveredChanged: {
+                                if (hovered && pop.canReply) winN.replyHost = pop
+                                else if (!hovered && winN.replyHost === pop && !wReply.activeFocus)
+                                    winN.replyHost = null
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (pop.hasDefault) {
+                                    app.invokeNotifAction(pop.modelData.id, "default")
+                                } else {
+                                    app.dismissPopup(pop.modelData.id)
+                                    app.sidebarShown = true
+                                }
+                            }
+                        }
+
+                        // the title bar: the app, when, the boxes close it
+                        Rectangle {
+                            id: wTitle
+                            width: parent.width; height: 22
+                            color: pop.crit ? app.cRed : Qt.rgba(0.93, 0.94, 0.95, 0.9)
+                            Text {
+                                x: 8; anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - wRight.width - 24
+                                elide: Text.ElideRight
+                                text: String(pop.modelData.app || "Notification").toUpperCase()
+                                color: wcard.ink; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 12
+                            }
+                            Row {
+                                id: wRight
+                                anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: pop.modelData.when || ""
+                                    color: Qt.rgba(0.24, 0.25, 0.27, 1); font.family: Theme.font; font.pixelSize: 11
+                                }
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 3
+                                    Repeater { model: 3; delegate: Rectangle { width: 7; height: 7; color: "transparent"; border.width: 1; border.color: wcard.ink } }
+                                }
+                            }
+                            MouseArea { anchors.right: parent.right; width: 40; height: parent.height; cursorShape: Qt.PointingHandCursor; onClicked: app.dismissPopup(pop.modelData.id) }
+                        }
+                        Rectangle {
+                            anchors.fill: parent; anchors.margins: 3; anchors.topMargin: 25
+                            color: "transparent"; border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.1)
+                        }
+
+                        RowLayout {
+                            id: wBody
+                            x: 14; y: 22 + 12
+                            width: parent.width - 28
+                            spacing: 12
+
+                            // the app's icon, in a square
+                            Rectangle {
+                                Layout.alignment: Qt.AlignTop
+                                implicitWidth: 40
+                                implicitHeight: 40
+                                color: Qt.rgba(1, 1, 1, 0.04)
+                                border.width: 1
+                                border.color: Qt.rgba(1, 1, 1, 0.22)
+                                IconImage {
+                                    anchors.centerIn: parent
+                                    implicitSize: 26
+                                    source: app.notifIcon(pop.modelData)
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 3
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: text !== ""
+                                    text: pop.modelData.summary
+                                    color: wcard.paper
+                                    font.family: Theme.font
+                                    font.weight: Font.Bold
+                                    font.pixelSize: app.fs(13)
+                                    wrapMode: Text.WordWrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: text !== ""
+                                    text: pop.modelData.body
+                                    color: wcard.dim
+                                    font.family: Theme.font
+                                    font.pixelSize: app.fs(12)
+                                    lineHeight: 1.15
+                                    wrapMode: Text.WordWrap
+                                    maximumLineCount: 4
+                                    elide: Text.ElideRight
+                                    textFormat: Text.PlainText
+                                }
+
+                                // a reply, for apps that take one
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 6
+                                    visible: pop.canReply
+                                    implicitHeight: 30
+                                    color: "transparent"
+                                    border.width: 1
+                                    border.color: wReply.activeFocus ? app.cBlue : Qt.rgba(1, 1, 1, 0.3)
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 4
+                                        spacing: 8
+                                        Text { text: ">"; color: app.cBlue; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: app.fs(12) }
+                                        TextInput {
+                                            id: wReply
+                                            Layout.fillWidth: true
+                                            color: wcard.paper
+                                            selectionColor: app.cBlue
+                                            selectedTextColor: wcard.ink
+                                            font.family: Theme.font
+                                            font.pixelSize: app.fs(12)
+                                            clip: true
+                                            onAccepted: app.sendNotifReply(pop.modelData.id, text)
+                                            onActiveFocusChanged: if (!activeFocus && !wHov.hovered && winN.replyHost === pop)
+                                                winN.replyHost = null
+                                            Keys.onEscapePressed: { text = ""; focus = false }
+                                            Text {
+                                                visible: !wReply.text
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: String(pop.modelData.replyHint || "reply").toLowerCase()
+                                                color: wcard.faint
+                                                font: wReply.font
+                                            }
+                                        }
+                                        Rectangle {
+                                            implicitWidth: sendT.implicitWidth + 16
+                                            implicitHeight: 22
+                                            color: wReply.text ? app.cBlue : "transparent"
+                                            border.width: wReply.text ? 0 : 1
+                                            border.color: Qt.rgba(1, 1, 1, 0.25)
+                                            Text {
+                                                id: sendT
+                                                anchors.centerIn: parent
+                                                text: "SEND"
+                                                color: wReply.text ? wcard.ink : wcard.faint
+                                                font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 11
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: app.sendNotifReply(pop.modelData.id, wReply.text)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // the app's own buttons, as boxes
+                                Flow {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 6
+                                    visible: pop.buttons.length > 0
+                                    spacing: 6
+                                    Repeater {
+                                        model: pop.buttons
+                                        delegate: Rectangle {
+                                            required property var modelData
+                                            implicitWidth: wActT.implicitWidth + 22
+                                            implicitHeight: 24
+                                            color: wActHov.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                                            border.width: 1
+                                            border.color: Qt.rgba(1, 1, 1, 0.3)
+                                            HoverHandler { id: wActHov }
+                                            Text {
+                                                id: wActT
+                                                anchors.centerIn: parent
+                                                text: String(modelData.text).toUpperCase()
+                                                color: wcard.paper
+                                                font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 11
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: app.invokeNotifAction(pop.modelData.id, modelData.key)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // a picture it carries, in a square
+                            Rectangle {
+                                Layout.alignment: Qt.AlignTop
+                                visible: (pop.modelData.image ?? "") !== ""
+                                implicitWidth: 64
+                                implicitHeight: 64
+                                color: Qt.rgba(1, 1, 1, 0.04)
+                                clip: true
+                                Image {
+                                    anchors.fill: parent
+                                    sourceSize.width: 480
+                                    sourceSize.height: 480
+                                    source: app.wiredLook ? (pop.modelData.image ?? "") : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    cache: false
+                                }
+                                Rectangle { anchors.fill: parent; color: "transparent"; border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.35) }
+                            }
+                        }
+
+                        // the countdown, in segments, paused while hovered
+                        property real life: 1
+                        NumberAnimation on life {
+                            running: app.wiredLook && !pop.held
+                            from: 1
+                            to: 0
+                            duration: pop.lifeMs
+                        }
+                        Row {
+                            x: 14
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 9
+                            spacing: 2
+                            Repeater {
+                                model: 30
+                                delegate: Rectangle {
+                                    required property int index
+                                    width: (wcard.width - 28 - 29 * 2) / 30; height: 3
+                                    color: index < Math.ceil(wcard.life * 30) ? (pop.crit ? app.cRed : app.cBlue)
+                                                                               : Qt.rgba(0.15, 0.165, 0.18, 1)
+                                }
+                            }
+                        }
+                    }
+
                     Rectangle {
                         id: card
+                        visible: !app.wiredLook
                         anchors.left: parent.left
                         anchors.right: parent.right
                         implicitHeight: body.implicitHeight + 28
@@ -336,7 +598,7 @@ Variants {
                                     // a screenshot here would otherwise be held at full size
                                     sourceSize.width: 480
                                     sourceSize.height: 480
-                                    source: pop.modelData.image ?? ""
+                                    source: !app.wiredLook ? (pop.modelData.image ?? "") : ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                     cache: false
@@ -357,7 +619,7 @@ Variants {
                             color: pop.crit ? app.cRed : app.cBlue
                             opacity: 0.6
                             NumberAnimation on width {
-                                running: !pop.held
+                                running: !pop.held && !app.wiredLook
                                 from: card.width - 40
                                 to: 0
                                 duration: pop.lifeMs

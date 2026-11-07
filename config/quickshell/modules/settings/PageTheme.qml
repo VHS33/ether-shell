@@ -36,6 +36,27 @@ ColumnLayout {
         ]
     }
 
+    SectionLabel { app: settingsRoot.app; text: "Look" }
+
+    Card {
+        app: settingsRoot.app
+        title: "Bar and drawers"
+        desc: !app.squareCorners ? "Wired needs square corners (Bar > Corners)."
+            : app.wiredLook ? "90s anime terminal windows, like the Wired lock."
+            : "The usual glass."
+        trailing: [
+            Seg {
+                app: settingsRoot.app
+                // Wired only goes with square corners
+                enabled: app.squareCorners
+                opacity: enabled ? 1 : 0.45
+                options: ["Standard", "Wired"]
+                current: app.wiredLook ? 1 : 0
+                onPicked: i => app.setting("look", ["standard", "wired"][i])
+            }
+        ]
+    }
+
     SectionLabel { app: settingsRoot.app; text: "Colour style" }
 
     Card {

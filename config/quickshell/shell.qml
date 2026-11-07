@@ -155,6 +155,13 @@ ShellRoot {
     // (barAttached is the long bar or the wrap: the sections sit on a
     // shared bar.)
     readonly property bool barAttached: cfg.barStyle !== "islands"
+    // Settings > Theme > Look: "wired" draws the bar and its drawers as
+    // 90s anime terminal windows, like the Wired lock (whichever layout the
+    // bar has).  Only with square corners (Settings > Bar > Corners): with
+    // round ones everything stays standard.  (drawerStyle was its name for
+    // a while.)
+    readonly property bool wiredChosen: cfg.look === "wired" || (cfg.look === undefined && cfg.drawerStyle === "wired")
+    readonly property bool wiredLook: wiredChosen && squareCorners
     readonly property bool barWrap: cfg.barStyle === "wrap"
     readonly property int barTop: barWrap ? 0 : gap   // the bar's distance from the top
     readonly property int barInset: barWrap ? 0 : gap // ...and from the screen's sides
@@ -207,6 +214,16 @@ ShellRoot {
     // centre pill uses the room between them, and never runs over them.
     property real leftReach: 0
     property real rightReach: 0
+    // The room for the focused window's title on the left pill: what's left
+    // before the centre pill (when it's centred), so a new title only
+    // changes the title, which shortens to fit, and the centre pill never
+    // has to move out of its way.  leftFixedW is the left pill without its
+    // title (LeftIsland), centerNatW the centre pill's own width, 0 when
+    // it's not shown (CenterIsland).
+    property real leftFixedW: 0
+    property real centerNatW: 0
+    readonly property real leftTitleRoom: centerNatW <= 0 ? 9999
+        : Math.max(80, (mainScreenW - centerNatW) / 2 - gap * 2 - (barAttached ? gap + 10 : gap) - leftFixedW)
     // the assistant's place inside the left drawer (LeftIsland publishes it)
     property var aiArea: null
     property var aiClip: null         // the shape's size right now, as it grows
@@ -261,7 +278,7 @@ ShellRoot {
         if (islandShown && islandData.kind !== d.kind) drawerRestart++
         islandData = d
         islandGeom = { x: Math.round((mainScreenW - w) / 2), w: w, h: 62,
-                       cx: mainScreenW / 2, secW: 140, flush: "" }
+                       cx: mainScreenW / 2, secW: 140, flush: "", wired: wiredLook }
         islandShown = true
         islandHide.interval = ms
         if (!islandHeld) islandHide.restart()
@@ -367,6 +384,39 @@ ShellRoot {
     readonly property real drawerCurW: !drawerGeom ? 0
         : drawerStartR + (drawerGeom.x + drawerGeom.w - drawerStartR) * drawerP - drawerCurX
     readonly property real drawerCurH: drawerGeom ? drawerGeom.h * drawerP : 0
+    // the Wired look (Settings > Theme > Look): its drawers (system, media,
+    // quick settings) open as square windows a little under the long bar,
+    // rather than growing straight out of it
+    readonly property int wiredGap: drawerGeom && drawerGeom.wired === true ? 8 : 0
+
+    // ---- the drawers don't block the rest of the screen ----
+    // Like the assistant: clicks outside an open drawer go to your apps (a
+    // terminal, say) and don't close it; its own close button, its pill,
+    // Esc or another drawer do.  The keyboard: the drawer holds it from the
+    // moment it opens (to type and for Escape straight away) until the
+    // mouse has been over the bar or the drawer and gone off it again;
+    // from then on it follows the mouse like any window (Hyprland's focus
+    // follows the mouse), so you type in whatever the mouse is over.
+    // (Let go any sooner and the keyboard went to the window under the
+    // mouse at once, even if you'd opened the drawer from the keyboard.)
+    readonly property string drawerOpenKey: (cardShown ? "card" : "") + (quickShown ? "quick" : "") + (sysShown ? "sys" : "")
+    property var drawerHovered: ({})          // the bar's windows the mouse is over
+    property bool drawerHoverSeen: false
+    property bool drawerKeysFreed: false
+    readonly property bool drawerKeysHeld: drawerOpenKey !== "" && !drawerKeysFreed
+    onDrawerOpenKeyChanged: {
+        drawerKeysFreed = false
+        drawerHoverSeen = Object.keys(drawerHovered).some(k => drawerHovered[k])
+    }
+    // the bar's windows say when the mouse comes onto or goes off them
+    function drawerHover(who, on) {
+        const h = Object.assign({}, drawerHovered)
+        h[who] = on
+        drawerHovered = h
+        if (drawerOpenKey === "") return
+        if (on) drawerHoverSeen = true
+        else if (drawerHoverSeen && !Object.keys(h).some(k => h[k])) drawerKeysFreed = true
+    }
 
 
     // ---- the machine's readings: services/System.qml (a singleton; newer

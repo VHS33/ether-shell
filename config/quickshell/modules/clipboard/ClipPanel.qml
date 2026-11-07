@@ -10,7 +10,8 @@ import qs.services
 //   of the screen under the bar, the mirror of the assistant on the left.
 //   Search as you type; All / Text / Images; copied pictures show as
 //   thumbnails.  Click or Enter copies an entry back and closes;
-//   Delete removes it; Esc, SUPER + V or a click outside closes.
+//   Delete removes it; Esc, SUPER + V or its close button closes.  Like
+//   the drawers it doesn't block the rest of the screen.
 //
 //   History is app.clipItems ({ id, preview }, plain values, from
 //   cliphist); thumbnails are decoded by the shell into
@@ -56,7 +57,24 @@ Variants {
         implicitWidth: 460
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
-        WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        // The keyboard, as the launcher's: held from the moment it opens, so
+        // you can type straight away wherever the mouse is, until the mouse
+        // has been over it and gone off again; then it follows the mouse.
+        // Clicks outside go to your apps and don't close it.
+        property bool hoverSeen: false
+        property bool keysFreed: false
+        WlrLayershell.keyboardFocus: !open ? WlrKeyboardFocus.None
+                                    : keysFreed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive
+
+        // the Wired look (Settings > Theme > Look)
+        readonly property bool wired: app.wiredLook
+        readonly property color wPaper: "#eceef2"
+        readonly property color wDim: Qt.rgba(0.6, 0.62, 0.65, 1)
+        readonly property color wFaint: Qt.rgba(0.38, 0.4, 0.44, 1)
+        readonly property color wInk: "#0a0c0e"
+        readonly property string wJp: ["IPAexGothic", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "IPAGothic"]
+                                      .find(f => Qt.fontFamilies().indexOf(f) >= 0) || ""
+        readonly property string uiFamily: wired ? Theme.font : Theme.uiFont
 
         property Region shownMask: Region { item: panel }
         property Region hiddenMask: Region { width: 0; height: 0 }
@@ -83,6 +101,8 @@ Variants {
         onItemsChanged: if (sel >= items.length) sel = Math.max(0, items.length - 1)
 
         onOpenChanged: {
+            hoverSeen = clipHover.hovered
+            keysFreed = false
             if (open) {
                 search.text = ""
                 filter = "all"
@@ -110,18 +130,76 @@ Variants {
             visible: opacity > 0
             Behavior on x { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal } }
-            radius: app.rr(26)
-            color: app.cBg
+            radius: cw.wired ? 0 : app.rr(26)
+            color: cw.wired ? Qt.rgba(0.035, 0.043, 0.051, 0.92) : app.cBg
             border.width: 1
-            border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.45)
+            border.color: cw.wired ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.45)
+
+            // ---- the Wired look's title bar: CLIP, how many, CLEAR, the boxes close it ----
+            Rectangle {
+                visible: cw.wired
+                width: parent.width; height: 22
+                color: Qt.rgba(0.93, 0.94, 0.95, 0.9)
+                Row {
+                    x: 8; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    Text { text: "CLIPBOARD"; color: cw.wInk; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 13 }
+                    Text { visible: cw.wJp !== ""; text: "履歴"; color: cw.wInk; font.family: cw.wJp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Row {
+                    anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: ("00" + Math.min(999, app.clipItems.length)).slice(-3) + " ITEMS"
+                        color: Qt.rgba(0.24, 0.25, 0.27, 1); font.family: Theme.font; font.pixelSize: 12
+                    }
+                    // clear everything: a second click to be sure
+                    Rectangle {
+                        visible: app.clipItems.length > 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: wClrT.implicitWidth + 12; height: 16
+                        color: cw.confirmClear ? app.cRed : "transparent"
+                        border.width: cw.confirmClear ? 0 : 1
+                        border.color: cw.wInk
+                        Text { id: wClrT; anchors.centerIn: parent; text: cw.confirmClear ? "CLEAR ALL?" : "CLEAR"; color: cw.wInk; font.family: Theme.font; font.weight: Font.Bold; font.pixelSize: 10 }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (cw.confirmClear) { app.clipWipe(); cw.confirmClear = false }
+                                else { cw.confirmClear = true; clearReset.restart() }
+                            }
+                        }
+                    }
+                    Item {
+                        width: wBoxes.width; height: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        Row {
+                            id: wBoxes
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 3
+                            Repeater { model: 3; delegate: Rectangle { width: 7; height: 7; color: "transparent"; border.width: 1; border.color: cw.wInk } }
+                        }
+                        MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor; onClicked: app.clipShown = false }
+                    }
+                }
+            }
+            Rectangle {
+                visible: cw.wired
+                anchors.fill: parent; anchors.margins: 3; anchors.topMargin: 25
+                color: "transparent"; border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.1)
+            }
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 16
+                anchors.topMargin: cw.wired ? 22 + 14 : 16
                 spacing: 12
 
                 // ---- header ----
                 RowLayout {
+                    visible: !cw.wired
                     Layout.fillWidth: true
                     spacing: 10
                     Rectangle {
@@ -207,35 +285,38 @@ Variants {
                 // ---- search ----
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: 46
-                    radius: app.rr(23)
-                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                    implicitHeight: cw.wired ? 40 : 46
+                    radius: cw.wired ? 0 : app.rr(23)
+                    color: cw.wired ? "transparent" : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                    border.width: cw.wired ? 1 : 0
+                    border.color: Qt.rgba(1, 1, 1, 0.3)
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 16
                         anchors.rightMargin: 16
                         spacing: 10
                         Text {
-                            text: "search"
-                            color: app.cDim
-                            font.family: "Material Symbols Rounded"
-                            font.pixelSize: app.fs(19)
+                            text: cw.wired ? ">" : "search"
+                            color: cw.wired ? app.cBlue : app.cDim
+                            font.family: cw.wired ? Theme.font : "Material Symbols Rounded"
+                            font.weight: cw.wired ? Font.Bold : Font.Normal
+                            font.pixelSize: app.fs(cw.wired ? 15 : 19)
                         }
                         TextInput {
                             id: search
                             Layout.fillWidth: true
-                            color: app.cFg
+                            color: cw.wired ? cw.wPaper : app.cFg
                             selectionColor: app.cBlue
-                            selectedTextColor: app.cOnAccent
-                            font.family: Theme.uiFont
+                            selectedTextColor: cw.wired ? cw.wInk : app.cOnAccent
+                            font.family: cw.uiFamily
                             font.pixelSize: app.fs(14)
                             clip: true
                             onTextChanged: cw.sel = 0
                             Text {
                                 visible: !search.text
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Search your clipboard"
-                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
+                                text: cw.wired ? "search your clipboard" : "Search your clipboard"
+                                color: cw.wired ? cw.wFaint : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.4)
                                 font: search.font
                             }
                             Keys.onPressed: e => {
@@ -276,19 +357,22 @@ Variants {
                             required property var modelData
                             readonly property bool on: cw.filter === modelData.f
                             implicitWidth: chipT.implicitWidth + 24
-                            implicitHeight: 30
-                            radius: app.rr(15)
-                            color: on ? app.cPrimC
+                            implicitHeight: cw.wired ? 26 : 30
+                            radius: cw.wired ? 0 : app.rr(15)
+                            color: cw.wired ? (on ? app.cBlue : chipHov.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                 : on ? app.cPrimC
                                  : chipHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.11)
                                  : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
+                            border.width: cw.wired && !on ? 1 : 0
+                            border.color: Qt.rgba(1, 1, 1, 0.3)
                             HoverHandler { id: chipHov }
                             Text {
                                 id: chipT
                                 anchors.centerIn: parent
-                                text: chip.modelData.label
-                                color: chip.on ? app.cOnPrimC : app.cDim
-                                font.family: Theme.uiFont
-                                font.weight: Font.Medium
+                                text: cw.wired ? chip.modelData.label.toUpperCase() : chip.modelData.label
+                                color: cw.wired ? (chip.on ? cw.wInk : cw.wPaper) : chip.on ? app.cOnPrimC : app.cDim
+                                font.family: cw.uiFamily
+                                font.weight: cw.wired ? Font.Bold : Font.Medium
                                 font.pixelSize: app.fs(12)
                             }
                             MouseArea {
@@ -320,10 +404,13 @@ Variants {
                         readonly property bool current: index === cw.sel
                         width: ListView.view.width
                         implicitHeight: modelData.img ? 150 : Math.max(52, entryText.implicitHeight + 26)
-                        radius: app.rr(16)
-                        color: current ? app.cPrimC
+                        radius: cw.wired ? 0 : app.rr(16)
+                        color: cw.wired ? (current ? app.cBlue : Qt.rgba(1, 1, 1, 0.03))
+                             : current ? app.cPrimC
                              : eHov.hovered ? Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                              : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.06)
+                        border.width: cw.wired && !current ? 1 : 0
+                        border.color: Qt.rgba(1, 1, 1, 0.14)
                         Behavior on color { ColorAnimation { duration: app.animQuick } }
                         HoverHandler { id: eHov; onHoveredChanged: if (hovered) cw.sel = entry.index }
 
@@ -343,8 +430,8 @@ Variants {
                             anchors.leftMargin: 14
                             anchors.rightMargin: 8
                             text: entry.modelData.text
-                            color: entry.current ? app.cOnPrimC : app.cFg
-                            font.family: Theme.uiFont
+                            color: cw.wired ? (entry.current ? cw.wInk : cw.wPaper) : entry.current ? app.cOnPrimC : app.cFg
+                            font.family: cw.uiFamily
                             font.pixelSize: app.fs(12)
                             wrapMode: Text.Wrap
                             maximumLineCount: 3
@@ -363,8 +450,10 @@ Variants {
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
                                 width: height * 1.6
-                                radius: app.rr(10)
+                                radius: cw.wired ? 0 : app.rr(10)
                                 color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.08)
+                                border.width: cw.wired ? 1 : 0
+                                border.color: entry.current ? Qt.rgba(0, 0, 0, 0.4) : Qt.rgba(1, 1, 1, 0.3)
                                 clip: true
                                 Image {
                                     anchors.fill: parent
@@ -387,9 +476,9 @@ Variants {
                                 anchors.rightMargin: 34
                                 spacing: 2
                                 Text {
-                                    text: "Image"
-                                    color: entry.current ? app.cOnPrimC : app.cFg
-                                    font.family: Theme.uiFont
+                                    text: cw.wired ? "IMAGE" : "Image"
+                                    color: cw.wired ? (entry.current ? cw.wInk : cw.wPaper) : entry.current ? app.cOnPrimC : app.cFg
+                                    font.family: cw.uiFamily
                                     font.weight: Font.DemiBold
                                     font.pixelSize: app.fs(12)
                                 }
@@ -398,8 +487,9 @@ Variants {
                                     text: [entry.modelData.ext.toUpperCase(),
                                            entry.modelData.size.replace("x", " \u00d7 "),
                                            entry.modelData.bytes].filter(x => x).join("  \u2022  ")
-                                    color: entry.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7) : app.cDim
-                                    font.family: Theme.uiFont
+                                    color: cw.wired ? (entry.current ? Qt.rgba(0.04, 0.05, 0.06, 0.72) : cw.wDim)
+                                         : entry.current ? Qt.rgba(app.cOnPrimC.r, app.cOnPrimC.g, app.cOnPrimC.b, 0.7) : app.cDim
+                                    font.family: cw.uiFamily
                                     font.pixelSize: app.fs(11)
                                     wrapMode: Text.Wrap
                                 }
@@ -414,16 +504,20 @@ Variants {
                             anchors.margins: 8
                             width: 28
                             height: 28
-                            radius: app.rr(10)
+                            radius: cw.wired ? 0 : app.rr(10)
                             opacity: eHov.hovered ? 1 : 0
-                            color: dHov.hovered ? Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.2) : "transparent"
+                            color: dHov.hovered ? (cw.wired ? app.cRed : Qt.rgba(app.cRed.r, app.cRed.g, app.cRed.b, 0.2)) : "transparent"
+                            border.width: cw.wired && !dHov.hovered ? 1 : 0
+                            border.color: entry.current ? Qt.rgba(0, 0, 0, 0.4) : Qt.rgba(1, 1, 1, 0.3)
                             HoverHandler { id: dHov }
                             Text {
                                 anchors.centerIn: parent
-                                text: "delete"
-                                color: dHov.hovered ? app.cRed : (entry.current ? app.cOnPrimC : app.cDim)
-                                font.family: "Material Symbols Rounded"
-                                font.pixelSize: app.fs(16)
+                                text: cw.wired ? "X" : "delete"
+                                color: cw.wired ? (dHov.hovered || entry.current ? cw.wInk : cw.wDim)
+                                     : dHov.hovered ? app.cRed : (entry.current ? app.cOnPrimC : app.cDim)
+                                font.family: cw.wired ? Theme.font : "Material Symbols Rounded"
+                                font.weight: cw.wired ? Font.Bold : Font.Normal
+                                font.pixelSize: app.fs(cw.wired ? 12 : 16)
                             }
                             MouseArea {
                                 anchors.fill: parent
@@ -439,8 +533,8 @@ Variants {
                         visible: cw.items.length === 0
                         text: app.clipItems.length === 0 ? "Nothing copied yet"
                             : cw.filter === "images" ? "No images" : "Nothing matches"
-                        color: app.cFaint
-                        font.family: Theme.uiFont
+                        color: cw.wired ? cw.wFaint : app.cFaint
+                        font.family: cw.uiFamily
                         font.pixelSize: app.fs(13)
                     }
                 }
@@ -448,9 +542,23 @@ Variants {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Enter copies  \u2022  Delete removes  \u2022  Tab switches the filter"
-                    color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
-                    font.family: Theme.uiFont
+                    color: cw.wired ? cw.wFaint : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.35)
+                    font.family: cw.uiFamily
                     font.pixelSize: app.fs(10)
+                }
+            }
+        }
+
+        // the mouse over the panel: once it has been on it and gone off,
+        // the keyboard follows the mouse (above).  It only watches.
+        Item {
+            x: panel.x; y: panel.y; width: panel.width; height: panel.height
+            HoverHandler {
+                id: clipHover
+                onHoveredChanged: {
+                    if (!cw.open) return
+                    if (hovered) cw.hoverSeen = true
+                    else if (cw.hoverSeen) cw.keysFreed = true
                 }
             }
         }

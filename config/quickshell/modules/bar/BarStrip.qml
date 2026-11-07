@@ -105,18 +105,15 @@ Variants {
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
 
-        // Clicks.  Normally only the open drawer takes them.  While a drawer,
-        // the launcher or the clipboard is open, the whole screen does, and a
-        // click anywhere outside them closes them.  (This used to be a
-        // separate invisible full-screen window on every monitor.)  The bar's
-        // sections are windows of their own, above this one, so clicking
-        // another section still switches drawers.
-        // (not the assistant: it stays open while you click elsewhere)
-        readonly property bool modalOpen: app.cardShown || app.quickShown || app.sysShown
-                                          || app.launcherShown || app.clipShown
+        // Clicks.  Only the open drawer takes them.  (It used to take the
+        // whole screen while a drawer, the launcher or the clipboard was
+        // open, so a click outside closed them; now they all stay open
+        // while you use your apps, as the assistant does: shell.qml,
+        // Launcher.qml, ClipPanel.qml.  The catcher below is kept, off.)
+        readonly property bool modalOpen: false
         property Region drawerMask: Region {
             x: Math.round(strip.dl)
-            y: strip.y0 + strip.bh
+            y: strip.y0 + strip.bh + app.wiredGap
             width: strip.dOpen ? Math.round(strip.dw) : 0
             height: strip.dOpen ? Math.ceil(strip.dh) : 0
         }
@@ -126,8 +123,10 @@ Variants {
         // in it (a Wi-Fi password, say); never the assistant's, which has its
         // own window.
         WlrLayershell.keyboardFocus: !strip.active ? WlrKeyboardFocus.None
-            // exclusive while a drawer is open, so Escape works at once
-            : app.drawerNow !== "" && app.drawerNow !== "island" && !app.aiShown ? WlrKeyboardFocus.Exclusive
+            // taken at once when a drawer opens, so Escape works straight
+            // away, then only while you use it (shell.qml)
+            : app.drawerNow !== "" && app.drawerNow !== "island" && !app.aiShown
+              ? (app.drawerKeysHeld || app.drawerNow === "launcher" ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
             : WlrKeyboardFocus.None
 
         // ---- the drawer's growth ----
@@ -183,6 +182,10 @@ Variants {
         // left at r: a Rectangle with no radius at all is drawn by Qt in a
         // way that turns the rest of a see-through layer black.
         readonly property real rc: app.barWrap ? 0 : r
+        // the Wired look (Settings > Theme > Look): square, dark glass with a
+        // double frame; its own drawers open as windows a little under the
+        // bar (app.wiredGap), the others join it square, with no curves
+        readonly property bool wired: app.wiredLook
 
         // ---- the drawing: plain rounded rectangles on one surface ----
         // The bar and the open drawer used to be one curved outline drawn
@@ -214,9 +217,9 @@ Variants {
             // just the bar and the tallest drawer, so the layer stays small
             readonly property real reach: Math.max(app.leftGeom?.h ?? 0, app.centerGeom?.h ?? 0,
                                                    app.rightGeom?.h ?? 0, app.islandGeom?.h ?? 0)
-            height: Math.min(strip.height, strip.y0 + strip.bh + reach + 8)
-            readonly property color solid: Qt.rgba(app.cBg.r, app.cBg.g, app.cBg.b, 1)
-            opacity: app.cBg.a
+            height: Math.min(strip.height, strip.y0 + strip.bh + reach + 8 + app.wiredGap)
+            readonly property color solid: strip.wired ? Qt.rgba(0.035, 0.043, 0.051, 1) : Qt.rgba(app.cBg.r, app.cBg.g, app.cBg.b, 1)
+            opacity: strip.wired ? 0.9 : app.cBg.a
             layer.enabled: true
 
             // the bar: when a drawer runs flush down one of its ends, that end's
@@ -229,10 +232,10 @@ Variants {
                 height: strip.bh
                 color: glass.solid
                 radius: app.rr(strip.r)
-                topLeftRadius: strip.rc
-                topRightRadius: strip.rc
-                bottomLeftRadius: strip.dOpen && strip.flush === "left" ? Math.max(0, strip.rc - strip.dh) : strip.rc
-                bottomRightRadius: strip.dOpen && strip.flush === "right" ? Math.max(0, strip.rc - strip.dh) : strip.rc
+                topLeftRadius: strip.wired ? 0 : strip.rc
+                topRightRadius: strip.wired ? 0 : strip.rc
+                bottomLeftRadius: strip.wired ? 0 : strip.dOpen && strip.flush === "left" ? Math.max(0, strip.rc - strip.dh) : strip.rc
+                bottomRightRadius: strip.wired ? 0 : strip.dOpen && strip.flush === "right" ? Math.max(0, strip.rc - strip.dh) : strip.rc
             }
 
             // the wrap style: the bar curves into the screen's sides, a concave
@@ -244,7 +247,7 @@ Variants {
                 r: app.wrapR
                 x: -pad
                 y: strip.y0 + strip.bh - pad
-                visible: strip.active && app.barWrap && !(strip.dOpen && strip.flush === "left")
+                visible: strip.active && app.barWrap && !strip.wired && !(strip.dOpen && strip.flush === "left")
             }
             Fillet {
                 app: rootV.app
@@ -253,21 +256,22 @@ Variants {
                 r: app.wrapR
                 x: strip.width - Math.ceil(r)
                 y: strip.y0 + strip.bh - pad
-                visible: strip.active && app.barWrap && !(strip.dOpen && strip.flush === "right")
+                visible: strip.active && app.barWrap && !strip.wired && !(strip.dOpen && strip.flush === "right")
             }
 
             // the drawer, reaching 2 px up into the bar so the join is covered
+            // (a Wired window, a little under the bar, doesn't join it)
             Rectangle {
                 visible: strip.dOpen
                 x: Math.round(strip.dl)
-                y: strip.y0 + strip.bh - 2
+                y: strip.y0 + strip.bh + (app.wiredGap > 0 ? app.wiredGap : -2)
                 width: Math.round(strip.dw)
-                height: strip.dh + 2
+                height: strip.dh + (app.wiredGap > 0 ? 0 : 2)
                 color: glass.solid
                 topLeftRadius: 0
                 topRightRadius: 0
-                bottomLeftRadius: strip.rb
-                bottomRightRadius: strip.rb
+                bottomLeftRadius: strip.wired ? 0 : strip.rb
+                bottomRightRadius: strip.wired ? 0 : strip.rb
             }
 
             // the curved joins, on the sides that aren't flush with an end,
@@ -279,7 +283,7 @@ Variants {
                 r: strip.f
                 x: Math.round(strip.dl) - Math.ceil(strip.f)
                 y: strip.y0 + strip.bh - pad
-                visible: strip.dOpen && strip.flush !== "left" && strip.f >= 1
+                visible: strip.dOpen && strip.flush !== "left" && strip.f >= 1 && !strip.wired
             }
             Fillet {
                 app: rootV.app
@@ -288,10 +292,54 @@ Variants {
                 r: strip.f
                 x: Math.round(strip.dl) + Math.round(strip.dw) - pad
                 y: strip.y0 + strip.bh - pad
-                visible: strip.dOpen && strip.flush !== "right" && strip.f >= 1
+                visible: strip.dOpen && strip.flush !== "right" && strip.f >= 1 && !strip.wired
             }
         }
 
+
+        // ---- the Wired look's frames: the bar's (a double line; in the wrap
+        // style, which runs into the screen's edges, just along its foot)
+        // and the open drawer's ----
+        Item {
+            visible: strip.active && strip.wired
+            anchors.fill: parent
+            Rectangle {
+                visible: !app.barWrap
+                x: strip.x0; y: strip.y0
+                width: strip.bw; height: strip.bh
+                color: "transparent"
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.36)
+                Rectangle {
+                    anchors.fill: parent; anchors.margins: 3
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                }
+            }
+            Rectangle {
+                visible: app.barWrap
+                x: 0; y: strip.y0 + strip.bh - 1
+                width: strip.width; height: 1
+                color: Qt.rgba(1, 1, 1, 0.36)
+            }
+            Rectangle {
+                visible: app.barWrap
+                x: 0; y: strip.y0 + strip.bh - 4
+                width: strip.width; height: 1
+                color: Qt.rgba(1, 1, 1, 0.1)
+            }
+            Rectangle {
+                visible: strip.dOpen
+                x: Math.round(strip.dl)
+                y: strip.y0 + strip.bh + (app.wiredGap > 0 ? app.wiredGap : -1)
+                width: Math.round(strip.dw)
+                height: Math.ceil(strip.dh) + (app.wiredGap > 0 ? 0 : 1)
+                color: "transparent"
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.36)
+            }
+        }
 
         // ---- a click outside what's open closes it ----
         MouseArea {
@@ -300,7 +348,7 @@ Variants {
             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
             onPressed: mouse => {
                 // an empty spot inside the open drawer isn't "outside"
-                const top = strip.y0 + strip.bh
+                const top = strip.y0 + strip.bh + app.wiredGap
                 if (strip.dOpen && mouse.x >= strip.dl && mouse.x <= strip.dl + strip.dw
                         && mouse.y >= top && mouse.y <= top + strip.dh) return
                 app.cardShown = false
@@ -334,7 +382,7 @@ Variants {
                 readonly property var g: app.islandGeom
                 visible: strip.active && app.drawerWho === "island" && app.drawerP > 0 && g !== null
                 x: app.drawerCurX
-                y: strip.y0 + strip.bh
+                y: strip.y0 + strip.bh + app.wiredGap
                 width: app.drawerCurW
                 height: app.drawerCurH
                 clip: true
@@ -360,12 +408,20 @@ Variants {
                     opacity: app.drawerP > 0.55 ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: app.animQuick } }
 
+                    // the Wired look (Settings > Theme > Look)
+                    WiredIslandBody {
+                        anchors.fill: parent
+                        visible: app.wiredLook
+                        app: rootV.app
+                        d: islandHost.d
+                    }
+
                     // ---- a notification ----
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 14
                         anchors.rightMargin: 16
-                        visible: islandHost.d.kind === "notif"
+                        visible: !app.wiredLook && islandHost.d.kind === "notif"
                         spacing: 12
                         Rectangle {
                             implicitWidth: 36
@@ -416,7 +472,7 @@ Variants {
                         anchors.fill: parent
                         anchors.leftMargin: 14
                         anchors.rightMargin: 18
-                        visible: islandHost.d.kind === "osd"
+                        visible: !app.wiredLook && islandHost.d.kind === "osd"
                         spacing: 12
                         readonly property string k: islandHost.d.osdKind || "volume"
                         readonly property real v: islandHost.d.value || 0
@@ -486,7 +542,7 @@ Variants {
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 16
-                        visible: islandHost.d.kind === "track"
+                        visible: !app.wiredLook && islandHost.d.kind === "track"
                         spacing: 12
                         Item {
                             implicitWidth: 40
@@ -567,7 +623,7 @@ Variants {
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 16
-                        visible: islandHost.d.kind === "game"
+                        visible: !app.wiredLook && islandHost.d.kind === "game"
                         spacing: 12
                         Rectangle {
                             implicitWidth: 40
@@ -630,7 +686,7 @@ Variants {
                         anchors.fill: parent
                         anchors.leftMargin: 14
                         anchors.rightMargin: 18
-                        visible: islandHost.d.kind === "scene"
+                        visible: !app.wiredLook && islandHost.d.kind === "scene"
                         spacing: 12
                         Rectangle {
                             implicitWidth: 36
@@ -674,7 +730,7 @@ Variants {
                         anchors.fill: parent
                         anchors.leftMargin: 14
                         anchors.rightMargin: 12
-                        visible: islandHost.d.kind === "timer"
+                        visible: !app.wiredLook && islandHost.d.kind === "timer"
                         spacing: 12
                         Rectangle {
                             implicitWidth: 36
@@ -735,6 +791,15 @@ Variants {
             restoreMode: Binding.RestoreNone
             value: drawerLayer
             when: strip.active
+        }
+
+        // the mouse coming onto this window or going off it: an open
+        // drawer lets go of the keyboard once the mouse has been on the
+        // bar or the drawer and gone off again (shell.qml).  On top of
+        // everything, but it only watches.
+        Item {
+            anchors.fill: parent
+            HoverHandler { onHoveredChanged: app.drawerHover("strip", hovered) }
         }
     }
     }

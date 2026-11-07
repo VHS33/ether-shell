@@ -59,11 +59,21 @@ Variants {
             restoreMode: Binding.RestoreNone
             when: isl.visible && isl.att
             value: ({ x: isl.finalX, w: isl.openW, h: isl.openH, cx: isl.secCX, secW: shape.width,
-                      flush: "" })
+                      flush: "", wired: isl.wiredLook })
         }
 
         readonly property bool open: app.cardShown
         readonly property bool playing: app.player?.playbackState === MprisPlaybackState.Playing
+        // the Wired look (Settings > Theme > Look): the media drawer as a
+        // square window with a title bar (WiredMediaBody).  Islands: it
+        // opens as its own window under the pill, which stays as it is;
+        // otherwise the pill grows into the drawer
+        readonly property bool wiredLook: app.wiredLook
+        readonly property bool wiredOpen: wiredLook && open && !att
+        readonly property bool morph: open && !(wiredLook && !att)
+        // the pill drawn the Wired way: square, dark glass, a double frame
+        readonly property bool wiredPill: wiredLook && !att
+        readonly property color wiredGlass: Qt.rgba(0.035, 0.043, 0.051, 0.9)
 
         // As wide as the title needs, within the room between the side pills
         // (so it never runs over them): 10 px before the cover, 16 after the
@@ -81,10 +91,20 @@ Variants {
             return Math.max(loX, Math.min(hiX - w, c)) - c
         }
         readonly property real pillShift: slide(pillW)
+        // its own width as the song asks (up to a sensible size), for the
+        // room the left pill's title gets (shell.qml); not from the room it
+        // has, which depends on the left pill
+        Binding {
+            target: app
+            property: "centerNatW"
+            restoreMode: Binding.RestoreNone
+            when: isl.modelData.name === app.mainScreen
+            value: isl.visible ? Math.min(480, line.implicitWidth + 72) : 0
+        }
         readonly property real panelShift: att ? pillShift : slide(openW)
-        readonly property real shift: open && !att ? panelShift : pillShift
+        readonly property real shift: morph && !att ? panelShift : pillShift
         // audio only: the media card and its margins
-        readonly property real openW: 616
+        readonly property real openW: wiredLook ? 560 : 616
         readonly property real openH: panel.implicitHeight
 
         // extra room on both sides and below, for the open panel's shadow
@@ -102,19 +122,26 @@ Variants {
         // drawn in the glass window (BarStrip), so a drawer-tall window here
         // only held bigger buffers and redraw area for nothing.
         implicitHeight: att ? app.barBottom + 6
-                            : Math.max(openH, app.pillH) + shadowRoom
+                            : (wiredLook ? app.pillH + 8 : 0) + Math.max(openH, app.pillH) + shadowRoom
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
         // on the long bar the drawer lives in BarStrip's window, which takes
         // the keyboard; this window only needs it for the islands style
-        // While open it takes the keyboard straight away (exclusive), so
-        // Escape closes it without clicking into it first; the drawer is
-        // modal anyway (a click outside closes it).
-        WlrLayershell.keyboardFocus: open && !att ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        // While open it takes the keyboard straight away, so Escape closes
+        // it without clicking into it first, then only while you use it:
+        // click into a window and you type there (shell.qml).
+        WlrLayershell.keyboardFocus: !open || att ? WlrKeyboardFocus.None
+                                    : app.drawerKeysHeld ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
 
         // only the shape takes clicks, whatever size it is right now
         mask: Region {
             item: shape
+            // the Wired window, while it's open
+            Region {
+                x: wiredWin.x; y: wiredWin.y
+                width: isl.wiredOpen ? wiredWin.width : 0
+                height: isl.wiredOpen ? wiredWin.height : 0
+            }
             Region {
                 x: drawerHost.x
                 y: drawerHost.y
@@ -161,26 +188,52 @@ Variants {
             Keys.onEscapePressed: app.cardShown = false
         }
 
+        // ---- the Wired window (Settings > Theme > Look), islands: square,
+        // just under the pill and centred on it, sliding down a little as
+        // it appears; the contents (WiredMediaBody) are the panel below ----
+        Rectangle {
+            id: wiredWin
+            visible: isl.wiredLook && !isl.att && opacity > 0
+            x: Math.round(parent.width / 2 + isl.pillShift - isl.openW / 2)
+            y: app.pillH + 8 + (isl.wiredOpen ? 0 : -10)
+            width: isl.openW
+            height: isl.openH
+            color: Qt.rgba(0.035, 0.043, 0.051, 0.92)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.36)
+            opacity: isl.wiredOpen ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
+            layer.enabled: visible
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, 0.45)
+                shadowBlur: 1.0
+                shadowVerticalOffset: 10
+            }
+        }
+
         Rectangle {
             id: shape
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.horizontalCenterOffset: isl.shift
             Behavior on anchors.horizontalCenterOffset { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
             y: isl.att ? app.barTop : 0
-            width: isl.open && !isl.att ? isl.openW : isl.pillW
-            height: isl.att ? app.barH : (isl.open ? isl.openH : app.pillH)
+            width: isl.morph && !isl.att ? isl.openW : isl.pillW
+            height: isl.att ? app.barH : (isl.morph ? isl.openH : app.pillH)
             // attached: square along the top (it's part of the bar),
             // rounded at the bottom once it's a drawer
-            radius: app.rr(isl.att ? app.barH / 2 : (isl.open ? 30 : app.pillH / 2))
+            radius: isl.wiredPill ? 0 : app.rr(isl.att ? app.barH / 2 : (isl.morph ? 30 : app.pillH / 2))
             // edgeless glass while it's a pill; hovering brightens it a
             // touch.  The hairline edge returns once it opens into a panel.
             color: isl.att
                    ? "transparent"
-                   : (isl.open ? app.cCard
+                   : (isl.wiredPill ? isl.wiredGlass
+                      : isl.morph ? app.cCard
                       : shapeHov.hovered ? Qt.tint(app.cBg, Qt.rgba(1, 1, 1, 0.07)) : app.cBg)
-            border.width: !isl.att && isl.open ? 1 : 0
-            border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
-            scale: !isl.att && !isl.open && shapeHov.hovered ? 1.02 : 1
+            border.width: !isl.att && (isl.morph || isl.wiredPill) ? 1 : 0
+            border.color: isl.wiredPill ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.5)
+            scale: !isl.att && !isl.morph && !isl.wiredLook && shapeHov.hovered ? 1.02 : 1
             Behavior on scale { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
             HoverHandler { id: shapeHov }
             clip: true
@@ -188,7 +241,7 @@ Variants {
             // a soft shadow so the open panel floats; only while it's
             // bigger than the pill, so the closed pill is unchanged
             // depth only for the open panel: the pill stays flat glass
-            layer.enabled: !isl.att && (isl.open || height > app.pillH + 2)
+            layer.enabled: !isl.att && (isl.morph || height > app.pillH + 2)
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 shadowColor: Qt.rgba(0, 0, 0, 0.45)
@@ -209,7 +262,7 @@ Variants {
                 // only for the three-pill style, where the panel opens around
                 // it; on the long bar it drew a tinted pill, rounded corners
                 // and all, inside the section whenever a drawer was open
-                opacity: isl.open && !isl.att ? 1 : 0
+                opacity: isl.morph && !isl.att ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animSlow; easing.type: Easing.OutCubic } }
                 gradient: Gradient {
@@ -233,7 +286,7 @@ Variants {
                 // they're round), so it doesn't stop halfway down a straight side
                 height: Math.min(app.cornerSq + 1, app.pillH / 2)
                 clip: true
-                opacity: isl.open || isl.att ? 0 : 1
+                opacity: isl.morph || isl.att || isl.wiredLook ? 0 : 1
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animQuick } }
                 Rectangle {
@@ -253,15 +306,26 @@ Variants {
                 anchors.top: parent.top
                 width: isl.pillW
                 height: isl.att ? app.barH : app.pillH
-                opacity: isl.att || !isl.open ? 1 : 0
+                opacity: isl.att || !isl.morph ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animQuick; easing.type: Easing.OutCubic } }
+
+                // the inner line of the Wired frame
+                Rectangle {
+                    visible: isl.wiredPill
+                    anchors.fill: parent
+                    anchors.margins: 3
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                }
 
                 // the media group: a tonal container behind the cover and title,
                 // inset from the pill by the same gap on every side (it used to
                 // run the pill's full width, out over its ends)
                 Rectangle {
                     id: mediaGroup
+                    visible: !isl.wiredLook
                     anchors.centerIn: parent
                     width: parent.width - (parent.height - height)
                     height: 28
@@ -283,7 +347,7 @@ Variants {
                         implicitHeight: 20
                         Rectangle {
                             anchors.fill: parent
-                            radius: app.rrPill(10)
+                            radius: isl.wiredLook ? 0 : app.rrPill(10)
                             color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.1)
                             Text {
                                 anchors.centerIn: parent
@@ -308,7 +372,7 @@ Variants {
                             anchors.fill: parent
                             layer.enabled: true
                             visible: false
-                            Rectangle { anchors.fill: parent; radius: app.rrPill(10); color: "black" }
+                            Rectangle { anchors.fill: parent; radius: isl.wiredLook ? 0 : app.rrPill(10); color: "black" }
                         }
                         MultiEffect {
                             anchors.fill: parent
@@ -336,18 +400,20 @@ Variants {
                             id: line
                             spacing: 8
                             Text {
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: app.player?.trackTitle || "Unknown track"
-                                color: app.cFg
-                                font.family: Theme.uiFont
-                                font.pixelSize: app.fs(12)
-                                font.weight: Font.Medium
+                                color: isl.wiredLook ? "#eceef2" : app.cFg
+                                font.family: isl.wiredLook ? Theme.font : Theme.uiFont
+                                font.pixelSize: isl.wiredLook ? 11 : app.fs(12)
+                                font.weight: isl.wiredLook ? Font.Bold : Font.Medium
                             }
                             Text {
+                                anchors.verticalCenter: parent.verticalCenter
                                 visible: text !== ""
                                 text: app.player?.trackArtist ?? ""
-                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.5)
-                                font.family: Theme.uiFont
-                                font.pixelSize: app.fs(12)
+                                color: isl.wiredLook ? Qt.rgba(0.6, 0.62, 0.65, 1) : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.5)
+                                font.family: isl.wiredLook ? Theme.font : Theme.uiFont
+                                font.pixelSize: isl.wiredLook ? 11 : app.fs(12)
                             }
                         }
 
@@ -404,7 +470,7 @@ Variants {
                             width: 14
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
-                                GradientStop { position: 0; color: app.cBg }
+                                GradientStop { position: 0; color: isl.wiredLook ? isl.wiredGlass : app.cBg }
                                 GradientStop { position: 1; color: "transparent" }
                             }
                             opacity: line.x < 0 ? 1 : 0
@@ -418,7 +484,7 @@ Variants {
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
                                 GradientStop { position: 0; color: "transparent" }
-                                GradientStop { position: 1; color: app.cBg }
+                                GradientStop { position: 1; color: isl.wiredLook ? isl.wiredGlass : app.cBg }
                             }
                             opacity: line.x > -marquee.overflow + 1 ? 1 : 0
                         }
@@ -442,9 +508,9 @@ Variants {
                                 id: bar
                                 required property int index
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: 2
-                                radius: app.rr(1)
-                                color: Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.75)
+                                width: isl.wiredLook ? 3 : 2
+                                radius: isl.wiredLook ? 0 : app.rr(1)
+                                color: isl.wiredLook ? app.cBlue : Qt.rgba(app.cFg.r, app.cFg.g, app.cFg.b, 0.75)
                                 opacity: isl.playing ? 1 : 0.5
                                 // a new height ten times a second; animating them
                                 // smoothly redrew the bar (and Hyprland its blur)
@@ -474,8 +540,8 @@ Variants {
                     anchors.bottomMargin: 2
                     width: (mediaGroup.width - 24) * frac
                     height: 2
-                    radius: app.rr(1)
-                    color: app.mBlue
+                    radius: isl.wiredLook ? 0 : app.rr(1)
+                    color: isl.wiredLook ? app.cBlue : app.mBlue
                     opacity: 0.8
                 }
 
@@ -506,17 +572,27 @@ Variants {
                 id: panel
                 // long bar: inside the drawer that grows out of the bar;
                 // islands: inside the pill's own shape
-                parent: isl.att ? drawerHost : shape
+                parent: isl.att ? drawerHost : isl.wiredLook ? wiredWin : shape
                 x: isl.att ? isl.finalX - app.drawerCurX : 0
                 y: 0
                 width: isl.openW
-                implicitHeight: panelCol.implicitHeight + 36
+                implicitHeight: isl.wiredLook ? wiredMedia.implicitHeight : panelCol.implicitHeight + 36
                 opacity: isl.open ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
 
+                // the Wired look (Settings > Theme > Look)
+                WiredMediaBody {
+                    id: wiredMedia
+                    visible: isl.wiredLook
+                    width: parent.width
+                    app: rootV.app
+                    onClose: app.cardShown = false
+                }
+
                 ColumnLayout {
                     id: panelCol
+                    visible: !isl.wiredLook
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -626,10 +702,19 @@ Variants {
             readonly property bool active: app.drawerWho === "center" && app.drawerP > 0
             visible: isl.visible && isl.att
             x: moved ? app.drawerCurX : app.drawerCurX - isl.scrX
-            y: app.barBottom
+            y: app.barBottom + app.wiredGap
             width: active ? app.drawerCurW : 0
             height: active ? app.drawerCurH : 0
             clip: true
+        }
+
+        // the mouse coming onto this window or going off it: an open
+        // drawer lets go of the keyboard once the mouse has been on the
+        // bar or the drawer and gone off again (shell.qml).  On top of
+        // everything, but it only watches.
+        Item {
+            anchors.fill: parent
+            HoverHandler { onHoveredChanged: app.drawerHover("center", hovered) }
         }
     }
     }

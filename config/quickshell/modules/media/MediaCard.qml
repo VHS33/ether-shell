@@ -61,19 +61,30 @@ Variants {
             visible: opacity > 0
             Behavior on y { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: app.animNormal; easing.type: Easing.OutCubic } }
-            implicitHeight: cardBody.implicitHeight
-            radius: app.rr(28)
-            color: app.cCard
+            implicitHeight: app.wiredLook ? wiredBody.implicitHeight : cardBody.implicitHeight
+            // the Wired look (Settings > Theme > Look): a square window
+            radius: app.wiredLook ? 0 : app.rr(28)
+            color: app.wiredLook ? Qt.rgba(0.035, 0.043, 0.051, 0.92) : app.cCard
             border.width: 1
-            border.color: Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
+            border.color: app.wiredLook ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(app.cBorder.r, app.cBorder.g, app.cBorder.b, 0.55)
 
             MediaBody {
                 id: cardBody
+                visible: !app.wiredLook
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
                 app: rootV.app
                 radius: card.radius
+            }
+            WiredMediaBody {
+                id: wiredBody
+                visible: app.wiredLook
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                app: rootV.app
+                onClose: app.cardShown = false
             }
         }
     }
